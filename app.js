@@ -264,11 +264,136 @@ addPaymentRow();
    if(found.expiresAt && Date.now()>=new Date(found.expiresAt).getTime())return {expired:true,username:found.username};
    return {username:found.username,role:'usuario'};
  }
- function renderUsers(){const list=document.getElementById('ckrUsersList');list.innerHTML='';if(!users.length){list.innerHTML='<div class="users-empty">Nenhum usuário adicional cadastrado.</div>';return;}
-   users.forEach((u,i)=>{const row=document.createElement('div');row.className='users-row';const info=document.createElement('div');const name=document.createElement('strong');name.textContent=u.username;const meta=document.createElement('small');meta.textContent=u.expiresAt?'Expira em '+new Date(u.expiresAt).toLocaleString('pt-BR'):'Prazo não definido';info.append(name,meta);const del=document.createElement('button');del.type='button';del.className='button button-danger-light';del.textContent='Excluir';del.addEventListener('click',()=>{if(currentUser?.role!=='admin')return;if(!confirm('Excluir o usuário '+u.username+'?'))return;users.splice(i,1);saveUsers();renderUsers();toast('Usuário excluído.');});row.append(info,del);list.append(row);});
+ const changePasswordForm=document.getElementById('ckrChangePasswordForm');
+ function hidePasswordChange(){
+   changePasswordForm.hidden=true;
+   changePasswordForm.style.display='none';
+   changePasswordForm.reset();
+   document.getElementById('ckrPasswordError').textContent='';
+   delete changePasswordForm.dataset.username;
  }
- function openUsers(){if(!currentUser||currentUser.role!=='admin'){toast('Somente o ADMIN pode gerenciar usuários.',true);return;}document.getElementById('ckrUsersError').textContent='';document.getElementById('ckrCreateUserForm').reset();renderUsers();usersModal.hidden=false;document.getElementById('ckrNewUsername').focus();}
- function closeUsers(){usersModal.hidden=true;}
+ function openPasswordChange(username){
+   if(!currentUser||currentUser.role!=='admin'){
+     toast('Somente o ADMIN pode alterar senhas.',true);
+     return;
+   }
+   changePasswordForm.reset();
+   document.getElementById('ckrPasswordTarget').textContent=username;
+   document.getElementById('ckrPasswordError').textContent='';
+   changePasswordForm.dataset.username=username;
+   changePasswordForm.hidden=false;
+   changePasswordForm.style.display='grid';
+   document.getElementById('ckrAdminNewPassword').focus();
+ }
+ function renderUsers(){
+   const list=document.getElementById('ckrUsersList');
+   list.innerHTML='';
+
+   // A conta ADMIN também pode ter a senha redefinida por aqui.
+   if(admin&&admin.username){
+     const row=document.createElement('div');
+     row.className='users-row';
+     const info=document.createElement('div');
+     const name=document.createElement('strong');
+     name.textContent=admin.username+' (ADMIN)';
+     const meta=document.createElement('small');
+     meta.textContent='Administrador • acesso permanente';
+     info.append(name,meta);
+     const change=document.createElement('button');
+     change.type='button';
+     change.className='button';
+     change.textContent='Alterar senha';
+     change.addEventListener('click',()=>openPasswordChange(admin.username));
+     row.append(info,change);
+     list.append(row);
+   }
+
+   if(!users.length){
+     if(!admin) list.innerHTML='<div class="users-empty">Nenhum usuário cadastrado.</div>';
+     return;
+   }
+
+   users.forEach((u,i)=>{
+     const row=document.createElement('div');
+     row.className='users-row';
+     const info=document.createElement('div');
+     const name=document.createElement('strong');
+     name.textContent=u.username;
+     const meta=document.createElement('small');
+     meta.textContent=u.expiresAt?'Expira em '+new Date(u.expiresAt).toLocaleString('pt-BR'):'Prazo não definido';
+     info.append(name,meta);
+
+     const actions=document.createElement('div');
+     const change=document.createElement('button');
+     change.type='button';
+     change.className='button';
+     change.textContent='Alterar senha';
+     change.addEventListener('click',()=>openPasswordChange(u.username));
+
+     const del=document.createElement('button');
+     del.type='button';
+     del.className='button button-danger-light';
+     del.textContent='Excluir';
+     del.addEventListener('click',()=>{
+       if(currentUser?.role!=='admin')return;
+       if(!confirm('Excluir o usuário '+u.username+'?'))return;
+       users.splice(i,1);
+       saveUsers();
+       renderUsers();
+       toast('Usuário excluído.');
+     });
+     actions.append(change,del);
+     row.append(info,actions);
+     list.append(row);
+   });
+ }
+ document.getElementById('ckrCancelPasswordChange').addEventListener('click',hidePasswordChange);
+ changePasswordForm.addEventListener('submit',e=>{
+   e.preventDefault();
+   const err=document.getElementById('ckrPasswordError');
+   err.textContent='';
+   if(!currentUser||currentUser.role!=='admin'){
+     err.textContent='Somente o ADMIN pode alterar senhas.';
+     return;
+   }
+   const username=changePasswordForm.dataset.username;
+   const newPassword=document.getElementById('ckrAdminNewPassword').value;
+   const confirmPassword=document.getElementById('ckrAdminConfirmPassword').value;
+   if(!username){err.textContent='Selecione um usuário.';return;}
+   if(newPassword.length<6){err.textContent='A senha precisa ter pelo menos 6 caracteres.';return;}
+   if(newPassword!==confirmPassword){err.textContent='As senhas não coincidem.';return;}
+   try{
+     if(admin&&normalized(username)===normalized(admin.username)){
+       const updatedAdmin={...admin,password:newPassword};
+       localStorage.setItem(AUTH_KEY,JSON.stringify(updatedAdmin));
+       admin=updatedAdmin;
+     }else{
+       const user=users.find(u=>normalized(u.username)===normalized(username));
+       if(!user){err.textContent='Usuário não encontrado.';return;}
+       const oldPassword=user.password;
+       user.password=newPassword;
+       try{saveUsers();}catch(saveError){user.password=oldPassword;throw saveError;}
+     }
+     hidePasswordChange();
+     renderUsers();
+     toast('Senha alterada com sucesso.');
+   }catch(ex){
+     err.textContent='Não foi possível salvar a nova senha neste navegador.';
+   }
+ });
+ function openUsers(){
+   if(!currentUser||currentUser.role!=='admin'){
+     toast('Somente o ADMIN pode gerenciar usuários.',true);
+     return;
+   }
+   hidePasswordChange();
+   document.getElementById('ckrUsersError').textContent='';
+   document.getElementById('ckrCreateUserForm').reset();
+   renderUsers();
+   usersModal.hidden=false;
+   document.getElementById('ckrNewUsername').focus();
+ }
+ function closeUsers(){hidePasswordChange();usersModal.hidden=true;}
  manageButton.addEventListener('click',openUsers);if(manageSidebar)manageSidebar.addEventListener('click',openUsers);document.getElementById('ckrCloseUsers').addEventListener('click',closeUsers);usersModal.addEventListener('click',e=>{if(e.target===usersModal)closeUsers();});
  document.getElementById('ckrCreateUserForm').addEventListener('submit',e=>{e.preventDefault();const err=document.getElementById('ckrUsersError');err.textContent='';if(!currentUser||currentUser.role!=='admin'){err.textContent='Somente o ADMIN pode criar usuários.';return;}
    const username=document.getElementById('ckrNewUsername').value.trim(),password=document.getElementById('ckrNewPassword').value,confirmPassword=document.getElementById('ckrNewPasswordConfirm').value;
