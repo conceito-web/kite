@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a2c">
+  <title>CKR • Gestão de Estoque</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
+    <div class="auth-card">
+      <div class="auth-brand"><div class="auth-brand-mark">C</div><div><strong>CKR<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div></div>
+      <p class="auth-eyebrow">ACESSO AO SISTEMA</p>
+      <h1 id="authTitle">Entrar no CKR</h1>
+      <p id="authDescription" class="auth-description">Informe seu usuário e senha para continuar.</p>
+      <form id="ckrLoginForm" autocomplete="on">
+        <label for="ckrLoginUser">Usuário</label>
+        <input id="ckrLoginUser" name="username" autocomplete="username" required maxlength="60" placeholder="Digite seu usuário">
+        <label for="ckrLoginPassword">Senha</label>
+        <input id="ckrLoginPassword" name="password" type="password" autocomplete="current-password" required maxlength="120" placeholder="Digite sua senha">
+        <p id="ckrAuthError" class="auth-error" role="alert"></p>
+        <button id="ckrLoginSubmit" class="button button-primary auth-submit" type="submit">Entrar</button>
+      </form>
+      <button type="button" id="ckrShowSetup" class="auth-create-link">Primeiro acesso? Criar usuário e senha ADMIN</button>
+      <form id="ckrSetupForm" autocomplete="off" hidden>
+        <label for="ckrSetupUser">Crie o usuário ADMIN</label>
+        <input id="ckrSetupUser" name="username" autocomplete="username" required minlength="3" maxlength="60" placeholder="Ex.: admin">
+        <label for="ckrSetupPassword">Crie uma senha (mínimo 6 caracteres)</label>
+        <input id="ckrSetupPassword" name="new-password" type="password" autocomplete="new-password" required minlength="6" maxlength="120" placeholder="Crie uma senha">
+        <label for="ckrSetupConfirm">Confirme a senha</label>
+        <input id="ckrSetupConfirm" name="confirm-password" type="password" autocomplete="new-password" required minlength="6" maxlength="120" placeholder="Digite a senha novamente">
+        <p id="ckrSetupError" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Criar ADMIN e continuar</button>
+      </form>
+      <p class="auth-local-note">Acesso local deste navegador. Os dados do CKR continuam salvos neste dispositivo.</p>
+    </div>
+  </section>
+
+  <div id="ckrUsersModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="ckrUsersTitle">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">ADMINISTRAÇÃO</p><h2 id="ckrUsersTitle">Gerenciar usuários</h2><p>Somente o ADMIN pode criar e remover usuários.</p></div><button type="button" id="ckrCloseUsers" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="ckrCreateUserForm" autocomplete="off">
+        <label for="ckrNewUsername">Nome de usuário</label><input id="ckrNewUsername" required minlength="3" maxlength="60" placeholder="Ex.: vendedor01">
+        <label for="ckrNewPassword">Senha (mínimo 6 caracteres)</label><input id="ckrNewPassword" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Crie uma senha">
+        <label for="ckrNewPasswordConfirm">Confirmar senha</label><input id="ckrNewPasswordConfirm" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Repita a senha">
+        <div class="users-expiry-note"><b>Tempo de uso:</b> 182,5 dias (182 dias e 12 horas), contados a partir da criação.</div>
+        <p id="ckrUsersError" class="auth-error" role="alert"></p><button class="button button-primary auth-submit" type="submit">Criar usuário</button>
+      </form>
+      <div class="users-list-title">Usuários cadastrados</div><div id="ckrUsersList" class="users-list"></div>
+      <p class="users-security-note">Aviso: este login é local e serve para organizar o acesso neste navegador. Não é proteção segura contra alguém que tenha acesso técnico ao computador.</p>
+    </div>
+  </div>
+  <div class="app-shell" id="ckrAppShell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">C</div>
+        <div><strong>CKR<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div>
+      </div>
+      <div class="side-caption">MENU PRINCIPAL</div>
+      <nav class="navigation">
+        <button class="nav-link active" data-panel="dashboard"><span class="nav-icon">▦</span> Visão geral</button>
+        <button class="nav-link" data-panel="produtos"><span class="nav-icon">▤</span> Produtos <span class="nav-count" id="menuProdutos">0</span></button>
+        <button class="nav-link" data-panel="clientes"><span class="nav-icon">♙</span> Clientes <span class="nav-count" id="menuClientes">0</span></button>
+        <button class="nav-link" data-panel="entrada"><span class="nav-icon">↙</span> Entrada de estoque</button>
+        <button class="nav-link" data-panel="venda"><span class="nav-icon">↗</span> Registrar venda</button>
+        <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
+        <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
+        <div id="ckrExpiryStatus" class="expiry-status" hidden aria-live="polite"></div>
+        <button class="nav-link" data-panel="backup"><span class="nav-icon">⇄</span> Backup e transferência</button>
+        <button type="button" id="ckrManageUsersSidebar" class="nav-link admin-users-link" hidden><span class="nav-icon">♙</span> Gerenciar usuários</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="local-status"><span class="status-dot"></span><div><b>Modo local</b><small>Dados deste dispositivo</small></div></div>
+        <div class="sidebar-version">CKR WEB · V2.0</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Abrir menu">☰</button>
+        <div class="breadcrumb"><span>CKR</span><i>/</i><b id="pageBreadcrumb">Visão geral</b></div>
+        <div class="topbar-right"><span class="today" id="todayLabel"></span><button type="button" id="ckrManageUsers" class="button button-light button-small" hidden>Gerenciar usuários</button><div class="avatar" id="ckrUserAvatar">AD</div><button type="button" id="ckrLogout" class="button button-secondary auth-logout">Sair</button></div>
+      </header>
+
+      <div class="content">
+        <section class="panel active" id="panel-dashboard">
+          <div class="welcome-row">
+            <div><p class="eyebrow">PAINEL DE CONTROLE</p><h1>Visão geral <span class="wave">✦</span></h1><p class="subtitle">Acompanhe o estoque e as movimentações da sua loja.</p></div>
+            <button class="button button-primary" data-go="venda"><span>＋</span> Nova venda</button>
+          </div>
+          <div class="notice"><span class="notice-icon">i</span><p><b>Seus dados ficam neste dispositivo.</b> Para transferir dados entre computador e celular, use <button class="text-button" data-go="backup">Backup e transferência</button>.</p><button class="notice-close" id="closeNotice" aria-label="Fechar aviso">×</button></div>
+
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">▤</span><span class="stat-label">Produtos cadastrados</span></div><strong id="totalProdutos">0</strong><div class="stat-foot"><span class="tiny-dot blue"></span> Itens diferentes no catálogo</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">▥</span><span class="stat-label">Unidades em estoque</span></div><strong id="totalUnidades">0</strong><div class="stat-foot"><span class="tiny-dot violet"></span> Quantidade disponível</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Vendas registradas</span></div><strong id="totalVendas">0</strong><div class="stat-foot"><span class="tiny-dot green"></span> Vendas neste dispositivo</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">R$</span><span class="stat-label">Valor em estoque</span></div><strong id="valorEstoque">R$ 0,00</strong><div class="stat-foot"><span class="tiny-dot orange"></span> Calculado pelo custo</div></article>
+          </div>
+
+          <div class="dashboard-insights">
+            <section class="surface insight-card">
+              <div class="surface-heading"><div><h2>Vendas dos últimos 7 dias</h2><p>Valores registrados por dia</p></div><span id="dashboardVendasTotal" class="report-total">R$ 0,00</span></div>
+              <div id="dashboardSalesChart" class="sales-chart" role="img" aria-label="Gráfico de linhas das vendas dos últimos sete dias"></div>
+            </section>
+            <section class="surface insight-card stock-insight">
+              <div class="surface-heading"><div><h2>Status do estoque</h2><p>Produtos por disponibilidade</p></div></div>
+              <div class="stock-chart-layout"><div id="stockDonut" class="stock-donut" role="img" aria-label="Gráfico de rosca do status do estoque"><div class="stock-donut-center"><strong id="stockDonutTotal">0</strong><span>produtos</span></div></div><div class="stock-legend"><div><i class="legend-dot dot-ok"></i><span>Em dia</span><b id="estoqueEmDia">0</b></div><div><i class="legend-dot dot-low"></i><span>Estoque baixo</span><b id="estoqueBaixo">0</b></div><div><i class="legend-dot dot-zero"></i><span>Sem estoque</span><b id="estoqueZerado">0</b></div></div></div>
+            </section>
+          </div>
+
+          <div class="dashboard-grid">
+            <section class="surface recent-surface">
+              <div class="surface-heading"><div><h2>Movimentações recentes</h2><p>Últimas entradas e vendas registradas</p></div><button class="button button-light button-small" data-go="historico">Ver histórico <span>→</span></button></div>
+              <div class="table-wrap"><table><thead><tr><th>TIPO</th><th>PRODUTO</th><th>QUANTIDADE</th><th>VALOR</th><th>DATA</th></tr></thead><tbody id="recentRows"></tbody></table></div>
+              <div id="recentEmpty" class="empty-state"><div class="empty-symbol">◷</div><b>Nenhuma movimentação ainda</b><p>As entradas e vendas aparecerão aqui.</p></div>
+            </section>
+            <section class="surface quick-surface">
+              <div class="surface-heading"><div><h2>Acesso rápido</h2><p>O que deseja fazer agora?</p></div></div>
+              <button class="quick-action" data-go="produtos"><span class="quick-icon blue-bg">＋</span><span><b>Cadastrar produto</b><small>Adicione um item ao catálogo</small></span><i>→</i></button>
+              <button class="quick-action" data-go="entrada"><span class="quick-icon green-bg">↓</span><span><b>Registrar entrada</b><small>Atualize a quantidade em estoque</small></span><i>→</i></button>
+              <button class="quick-action" data-go="venda"><span class="quick-icon orange-bg">↗</span><span><b>Registrar venda</b><small>Dê baixa automática no estoque</small></span><i>→</i></button>
+              <button class="quick-action" data-go="backup"><span class="quick-icon violet-bg">⇄</span><span><b>Transferir dados</b><small>Exportar ou importar um backup</small></span><i>→</i></button>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-produtos">
+          <div class="page-heading"><div><p class="eyebrow">CATÁLOGO</p><h1>Produtos</h1><p class="subtitle">Cadastre e gerencie os produtos da sua loja.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2 id="formProdutoTitulo">Adicionar produto</h2><p>Preencha as informações abaixo.</p></div><span class="form-badge">NOVO ITEM</span></div>
+            <form id="formProduto" class="form-grid">
+              <label class="field field-wide">Nome do produto<input id="produtoNome" required maxlength="120" placeholder="Ex.: Colchão Queen Premium"></label>
+              <label class="field">Código / referência<input id="produtoCodigo" maxlength="60" placeholder="Ex.: CKR-001"></label>
+              <label class="field">Preço de custo (R$)<input id="produtoCusto" type="number" min="0" step="0.01" value="0" required></label>
+              <label class="field">Preço de venda (R$)<input id="produtoPreco" type="number" min="0" step="0.01" value="0" required></label>
+              <label class="field">Estoque inicial<input id="produtoEstoque" type="number" min="0" step="1" value="0" required></label>
+              <div class="form-actions field-wide"><button class="button button-primary" id="salvarProdutoBtn" type="submit">Salvar produto</button><button class="button button-light" id="cancelarEdicao" type="button" hidden>Cancelar edição</button></div>
+            </form>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Lista de produtos</h2><p id="produtoSubtitulo">Todos os itens cadastrados</p></div><div class="search-box"><span>⌕</span><input id="buscaProduto" type="search" placeholder="Buscar produto..."></div></div>
+            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody></table></div>
+            <div id="semProdutos" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhum produto cadastrado</b><p>Use o formulário acima para adicionar seu primeiro item.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-clientes">
+          <div class="page-heading"><div><p class="eyebrow">RELACIONAMENTO</p><h1>Clientes</h1><p class="subtitle">Cadastre, consulte e mantenha os dados dos seus clientes.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2 id="formClienteTitulo">Cadastrar cliente</h2><p>Informe os dados e use a busca por CEP para preencher o endereço.</p></div><span class="form-badge">CLIENTE</span></div>
+            <form id="formCliente" class="form-grid">
+              <label class="field field-wide">Nome completo<input id="clienteNome" required maxlength="150" autocomplete="name" placeholder="Nome completo do cliente"></label>
+              <label class="field">CEP<div class="cep-row"><input id="clienteCep" inputmode="numeric" maxlength="9" autocomplete="postal-code" placeholder="00000-000"><button class="button button-light" id="buscarCep" type="button">Buscar CEP</button></div></label>
+              <label class="field field-wide">Logradouro<input id="clienteLogradouro" maxlength="180" autocomplete="street-address" placeholder="Rua, avenida..."></label>
+              <label class="field">Número<input id="clienteNumero" maxlength="20" placeholder="Número"></label>
+              <label class="field">Complemento<input id="clienteComplemento" maxlength="100" placeholder="Apartamento, bloco..."></label>
+              <label class="field">Bairro<input id="clienteBairro" maxlength="100" autocomplete="address-level3" placeholder="Bairro"></label>
+              <label class="field">Cidade<input id="clienteCidade" maxlength="100" autocomplete="address-level2" placeholder="Cidade"></label>
+              <label class="field">Estado (UF)<input id="clienteEstado" maxlength="2" autocomplete="address-level1" placeholder="CE"></label>
+              <label class="field">CPF<input id="clienteCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></label>
+              <label class="field">Telefone<input id="clienteTelefone" inputmode="tel" maxlength="15" autocomplete="tel" placeholder="(00) 00000-0000"></label>
+              <div class="form-actions field-wide"><button class="button button-primary" id="salvarClienteBtn" type="submit">Salvar cliente</button><button class="button button-light" id="cancelarClienteEdicao" type="button" hidden>Cancelar edição</button></div>
+            </form>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Clientes cadastrados</h2><p id="clienteSubtitulo">Todos os clientes</p></div><div class="search-box"><span>⌕</span><input id="buscaCliente" type="search" placeholder="Buscar nome, CPF ou telefone..."></div></div>
+            <div class="table-wrap"><table><thead><tr><th>NOME</th><th>CPF</th><th>TELEFONE</th><th>CIDADE / UF</th><th>AÇÕES</th></tr></thead><tbody id="listaClientes"></tbody></table></div>
+            <div id="semClientes" class="empty-state"><div class="empty-symbol">♙</div><b>Nenhum cliente cadastrado</b><p>Use o formulário acima para cadastrar seu primeiro cliente.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-entrada">
+          <div class="page-heading"><div><p class="eyebrow">ESTOQUE</p><h1>Entrada de estoque</h1><p class="subtitle">Registre mercadorias recebidas ou reposições.</p></div></div>
+          <section class="surface operation-card"><div class="operation-art green-art">↓</div><h2>Registrar nova entrada</h2><p class="operation-intro">A quantidade informada será adicionada ao estoque atual.</p>
+            <form id="formEntrada" class="form-stack">
+              <label class="field">Produto<select id="entradaProduto" required></select></label>
+              <label class="field">Quantidade recebida<input id="entradaQuantidade" type="number" min="1" step="1" required placeholder="Ex.: 10"></label>
+              <label class="field">Observação (opcional)<input id="entradaObs" maxlength="180" placeholder="Ex.: compra do fornecedor"></label>
+              <button class="button button-success full-button" type="submit">Confirmar entrada <span>→</span></button>
+            </form>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-venda">
+          <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Registrar venda</h1><p class="subtitle">Registre uma venda e atualize o estoque automaticamente.</p></div></div>
+          <section class="surface operation-card"><div class="operation-art orange-art">↗</div><h2>Nova venda</h2><p class="operation-intro">Confira o produto, a quantidade e o valor antes de confirmar.</p>
+            <form id="formVenda" class="form-stack">
+              <label class="field">Produto<select id="vendaProduto" required></select></label>
+              <div class="form-two"><label class="field">Quantidade vendida<input id="vendaQuantidade" type="number" min="1" step="1" required placeholder="Ex.: 1"></label><label class="field">Valor unitário (R$)<input id="vendaPreco" type="number" min="0" step="0.01" required></label></div>
+              <label class="field">Cliente (opcional)<input id="vendaCliente" maxlength="150" list="clientesSugestoes" placeholder="Digite as primeiras letras e selecione"><datalist id="clientesSugestoes"></datalist></label>
+              <div class="sale-discounts">
+                <label class="field">Desconto em reais (R$)<input id="vendaDescontoReais" type="number" min="0" step="0.01" value="0"></label>
+                <label class="field">Desconto (%)<input id="vendaDescontoPercentual" type="number" min="0" max="100" step="0.01" value="0"></label>
+              </div>
+              <div class="sale-total"><span>Subtotal</span><strong id="subtotalVendaPreview">R$ 0,00</strong></div>
+              <div class="sale-total sale-total-discount"><span>Total com desconto</span><strong id="totalVendaPreview">R$ 0,00</strong></div>
+              <section class="payment-box">
+                <div class="payment-heading"><div><h3>Formas de pagamento</h3><p>Adicione uma linha para cada pagamento.</p></div><button class="button button-light button-small" id="adicionarPagamento" type="button">＋ Adicionar</button></div>
+                <div id="linhasPagamento" class="payment-lines"></div>
+                <div class="payment-summary"><div><span>Total recebido</span><strong id="totalRecebido">R$ 0,00</strong></div><div><span>Saldo restante</span><strong id="saldoRestante">R$ 0,00</strong></div></div>
+                <p id="avisoPagamento" class="payment-notice">Informe as formas de pagamento até completar o total da venda.</p>
+              </section>
+              <label class="field">Observação (opcional)<input id="vendaObs" maxlength="180" placeholder="Observação da venda"></label>
+              <button class="button button-primary full-button" type="submit">Confirmar venda <span>→</span></button>
+            </form>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-historico">
+          <div class="page-heading"><div><p class="eyebrow">AUDITORIA</p><h1>Movimentações</h1><p class="subtitle">Consulte o histórico de entradas e vendas deste dispositivo.</p></div></div>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Histórico completo</h2><p>Registros organizados do mais recente para o mais antigo.</p></div><div class="history-controls"><select id="filtroTipo" aria-label="Filtrar por tipo"><option value="todos">Todos os tipos</option><option value="entrada">Entradas</option><option value="venda">Vendas</option></select><button id="limparHistorico" class="button button-danger-light button-small" type="button">Limpar histórico</button></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA E HORA</th><th>TIPO</th><th>PRODUTO</th><th>QTD.</th><th>VALOR TOTAL</th><th>DETALHES</th></tr></thead><tbody id="listaHistorico"></tbody></table></div>
+            <div id="semHistorico" class="empty-state"><div class="empty-symbol">◷</div><b>Sem movimentações</b><p>Quando você registrar entradas ou vendas, elas aparecerão aqui.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-relatorios">
+          <div class="page-heading"><div><p class="eyebrow">CONSULTAS E RESULTADOS</p><h1>Relatórios</h1><p class="subtitle">Consulte entradas e vendas dentro de um período e exporte os resultados.</p></div></div>
+          <section class="surface report-filter-surface">
+            <div class="surface-heading"><div><h2>Relatório por período</h2><p>Escolha a data inicial e final para filtrar as movimentações.</p></div></div>
+            <div class="report-filters">
+              <label class="field">Data inicial<input type="date" id="relatorioDataInicio"></label>
+              <label class="field">Data final<input type="date" id="relatorioDataFim"></label>
+              <label class="field">Tipo<select id="relatorioTipo"><option value="todos">Entradas e vendas</option><option value="venda">Somente vendas</option><option value="entrada">Somente entradas</option></select></label>
+              <button id="gerarRelatorio" class="button button-primary" type="button">Gerar relatório</button>
+            </div>
+          </section>
+          <div class="report-summary-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Total de vendas no período</span></div><strong id="relatorioTotalVendas">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">↓</span><span class="stat-label">Total de entradas no período</span></div><strong id="relatorioTotalEntradas">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">▤</span><span class="stat-label">Movimentações encontradas</span></div><strong id="relatorioQtd">0</strong></article>
+          </div>
+          <section class="surface list-surface report-results">
+            <div class="surface-heading responsive-heading"><div><h2>Resultado do período</h2><p id="relatorioDescricao">Selecione as datas e gere o relatório.</p></div><div class="report-actions"><button id="exportarRelatorioCsv" class="button button-light button-small" type="button">Exportar CSV</button><button id="imprimirRelatorio" class="button button-light button-small" type="button">Imprimir / PDF</button></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA E HORA</th><th>TIPO</th><th>PRODUTO</th><th>QTD.</th><th>VALOR</th><th>CLIENTE / DETALHES</th></tr></thead><tbody id="relatorioRows"></tbody></table></div>
+            <div id="relatorioVazio" class="empty-state"><div class="empty-symbol">▥</div><b>Nenhuma movimentação encontrada</b><p>Altere o período ou o tipo de movimentação.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-backup">
+          <div class="page-heading"><div><p class="eyebrow">SEGURANÇA DOS DADOS</p><h1>Backup e transferência</h1><p class="subtitle">Faça uma cópia e transfira seus dados manualmente entre dispositivos.</p></div></div>
+          <div class="backup-grid">
+            <section class="surface backup-card"><div class="backup-icon blue-bg">↓</div><p class="eyebrow">ETAPA 01</p><h2>Exportar backup</h2><p>Gere um arquivo com seus produtos, estoques e movimentações deste dispositivo.</p><button id="fazerBackup" class="button button-primary full-button" type="button">Baixar arquivo de backup</button></section>
+            <section class="surface backup-card"><div class="backup-icon violet-bg">↑</div><p class="eyebrow">ETAPA 02</p><h2>Restaurar backup</h2><p>Importe um arquivo de backup. <b>Os dados atuais deste navegador serão substituídos.</b></p><label class="field file-field">Escolher arquivo JSON<input id="arquivoBackup" type="file" accept=".json,application/json"></label><button id="restaurarBackup" class="button button-light full-button" type="button">Restaurar dados</button></section>
+          </div>
+          <section class="surface danger-zone"><div><h2>Apagar dados locais</h2><p>Remove todos os produtos, entradas e vendas deste navegador. Esta ação não pode ser desfeita sem backup.</p></div><button id="apagarTudo" class="button button-danger-light" type="button">Apagar todos os dados</button></section>
+          <div class="notice warning-notice"><span class="notice-icon">!</span><p><b>Importante:</b> o computador e o celular têm dados separados. Restaurar um backup substitui os dados do destino; não combina automaticamente duas bases. Faça backup antes de importar.</p></div>
+        </section>
+        <footer class="footer"><span>© CKR Gestão • V2.0</span><span><span class="status-dot"></span> Armazenamento local ativo</span></footer>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
