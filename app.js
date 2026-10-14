@@ -29,6 +29,20 @@ function renderStats(){
  document.getElementById('totalUnidades').textContent=data.products.reduce((s,p)=>s+Number(p.stock||0),0);
  document.getElementById('totalVendas').textContent=data.movements.filter(m=>m.type==='venda').length;
  document.getElementById('valorEstoque').textContent=money(data.products.reduce((s,p)=>s+Number(p.stock||0)*Number(p.cost||0),0));
+ // O lucro só usa vendas que guardam o custo real da época da venda.
+ // Vendas antigas sem esse registro não podem ser recalculadas com segurança.
+ const vendas=data.movements.filter(m=>m.type==='venda');
+ const vendasComCusto=vendas.filter(m=>m.costTotal!==undefined && Number.isFinite(Number(m.costTotal)));
+ const receitaHistorica=vendasComCusto.reduce((s,m)=>s+Number(m.total||0),0);
+ const custoHistorico=vendasComCusto.reduce((s,m)=>s+Number(m.costTotal||0),0);
+ const lucro=Math.round((receitaHistorica-custoHistorico)*100)/100;
+ const margem=receitaHistorica>0?(lucro/receitaHistorica)*100:0;
+ const lucroEl=document.getElementById('lucroTotal');
+ const margemEl=document.getElementById('margemLucro');
+ const notaEl=document.getElementById('lucroHistoricoNota');
+ if(lucroEl)lucroEl.textContent=money(lucro);
+ if(margemEl)margemEl.textContent=`${margem.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`;
+ if(notaEl){const antigas=vendas.length-vendasComCusto.length;notaEl.textContent=antigas>0?`${antigas} venda(s) antiga(s) sem custo histórico não incluída(s)`:'Calculado pelo custo registrado em cada venda';}
 }
 function renderProducts(){
  const q=document.getElementById('buscaProduto').value.trim().toLowerCase();
@@ -204,7 +218,10 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
  if(Math.abs(received-totals.total)>0.009){toast(`Os pagamentos devem somar exatamente ${money(totals.total)}. Saldo: ${money(totals.total-received)}.`,true);return;}
  const paymentDetails=payments.map(x=>x.method==='Cartão de crédito'?`${x.method}: ${money(x.amount)} em ${x.installments}x (${x.responsible==='fabrica'?'fábrica':'loja'})`:`${x.method}: ${money(x.amount)}`).join(' | ');
  const details=[client?`Cliente: ${client}`:'',`Subtotal: ${money(totals.subtotal)}`,totals.discountCash?`Desconto: ${money(totals.discountCash)} + ${totals.discountPercent}%`:'',`Pagamentos: ${paymentDetails}`,note].filter(Boolean).join(' · ');
- p.stock-=qty;recordMovement('venda',p,qty,totals.total,details,{client,payments,subtotal:totals.subtotal,discountCash:totals.discountCash,discountPercent:totals.discountPercent});
+ const custoUnitarioVenda=Math.round(Number(p.cost||0)*100)/100;
+ const custoTotalVenda=Math.round(custoUnitarioVenda*qty*100)/100;
+ const lucroVenda=Math.round((Number(totals.total||0)-custoTotalVenda)*100)/100;
+ p.stock-=qty;recordMovement('venda',p,qty,totals.total,details,{client,payments,subtotal:totals.subtotal,discountCash:totals.discountCash,discountPercent:totals.discountPercent,unitPrice:price,unitCost:custoUnitarioVenda,costTotal:custoTotalVenda,profit:lucroVenda});
  if(saveData()){e.target.reset();document.getElementById('linhasPagamento').innerHTML='';addPaymentRow();updateSalePreview();toast('Venda registrada e estoque atualizado.');}
 });
 document.getElementById('filtroTipo').addEventListener('change',renderHistory);
