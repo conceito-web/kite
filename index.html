@@ -47,6 +47,17 @@
         <div class="users-expiry-note"><b>Tempo de uso:</b> 182,5 dias (182 dias e 12 horas), contados a partir da criação.</div>
         <p id="ckrUsersError" class="auth-error" role="alert"></p><button class="button button-primary auth-submit" type="submit">Criar usuário</button>
       </form>
+      <form id="ckrChangePasswordForm" autocomplete="off" hidden style="display:none">
+        <h3>Alterar senha</h3>
+        <p>Usuário selecionado: <strong id="ckrPasswordTarget"></strong></p>
+        <label for="ckrAdminNewPassword">Nova senha (mínimo 6 caracteres)</label>
+        <input id="ckrAdminNewPassword" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Digite a nova senha">
+        <label for="ckrAdminConfirmPassword">Confirmar nova senha</label>
+        <input id="ckrAdminConfirmPassword" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Digite a senha novamente">
+        <p id="ckrPasswordError" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Salvar nova senha</button>
+        <button type="button" id="ckrCancelPasswordChange" class="button">Cancelar</button>
+      </form>
       <div class="users-list-title">Usuários cadastrados</div><div id="ckrUsersList" class="users-list"></div>
       <p class="users-security-note">Aviso: este login é local e serve para organizar o acesso neste navegador. Não é proteção segura contra alguém que tenha acesso técnico ao computador.</p>
     </div>
