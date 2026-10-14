@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101a2c">
-  <title>CKR • Gestão de Estoque</title>
+  <title>Conceito • Gestão de Estoque</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
     <div class="auth-card">
-      <div class="auth-brand"><div class="auth-brand-mark">C</div><div><strong>CKR<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div></div>
+      <div class="auth-brand"><div class="auth-brand-mark">C</div><div><strong>Conceito<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div></div>
       <p class="auth-eyebrow">ACESSO AO SISTEMA</p>
-      <h1 id="authTitle">Entrar no CKR</h1>
+      <h1 id="authTitle">Entrar no Conceito</h1>
       <p id="authDescription" class="auth-description">Informe seu usuário e senha para continuar.</p>
       <form id="ckrLoginForm" autocomplete="on">
         <label for="ckrLoginUser">Usuário</label>
@@ -33,7 +33,7 @@
         <p id="ckrSetupError" class="auth-error" role="alert"></p>
         <button class="button button-primary auth-submit" type="submit">Criar ADMIN e continuar</button>
       </form>
-      <p class="auth-local-note">Acesso local deste navegador. Os dados do CKR continuam salvos neste dispositivo.</p>
+      <p class="auth-local-note">Acesso local deste navegador. Os dados do Conceito continuam salvos neste dispositivo.</p>
     </div>
   </section>
 
@@ -55,7 +55,7 @@
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-mark">C</div>
-        <div><strong>CKR<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div>
+        <div><strong>Conceito<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div>
       </div>
       <div class="side-caption">MENU PRINCIPAL</div>
       <nav class="navigation">
@@ -72,14 +72,14 @@
       </nav>
       <div class="sidebar-bottom">
         <div class="local-status"><span class="status-dot"></span><div><b>Modo local</b><small>Dados deste dispositivo</small></div></div>
-        <div class="sidebar-version">CKR WEB · V2.0</div>
+        <div class="sidebar-version">CONCEITO WEB · V2.0</div>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
         <button class="mobile-menu" id="mobileMenu" aria-label="Abrir menu">☰</button>
-        <div class="breadcrumb"><span>CKR</span><i>/</i><b id="pageBreadcrumb">Visão geral</b></div>
+        <div class="breadcrumb"><span>Conceito</span><i>/</i><b id="pageBreadcrumb">Visão geral</b></div>
         <div class="topbar-right"><span class="today" id="todayLabel"></span><button type="button" id="ckrManageUsers" class="button button-light button-small" hidden>Gerenciar usuários</button><div class="avatar" id="ckrUserAvatar">AD</div><button type="button" id="ckrLogout" class="button button-secondary auth-logout">Sair</button></div>
       </header>
 
@@ -131,7 +131,7 @@
             <div class="surface-heading"><div><h2 id="formProdutoTitulo">Adicionar produto</h2><p>Preencha as informações abaixo.</p></div><span class="form-badge">NOVO ITEM</span></div>
             <form id="formProduto" class="form-grid">
               <label class="field field-wide">Nome do produto<input id="produtoNome" required maxlength="120" placeholder="Ex.: Colchão Queen Premium"></label>
-              <label class="field">Código / referência<input id="produtoCodigo" maxlength="60" placeholder="Ex.: CKR-001"></label>
+              <label class="field">Código / referência<input id="produtoCodigo" maxlength="60" placeholder="Ex.: CON-001"></label>
               <label class="field">Preço de custo (R$)<input id="produtoCusto" type="number" min="0" step="0.01" value="0" required></label>
               <label class="field">Preço de venda (R$)<input id="produtoPreco" type="number" min="0" step="0.01" value="0" required></label>
               <label class="field">Estoque inicial<input id="produtoEstoque" type="number" min="0" step="1" value="0" required></label>
@@ -248,7 +248,7 @@
           <section class="surface danger-zone"><div><h2>Apagar dados locais</h2><p>Remove todos os produtos, entradas e vendas deste navegador. Esta ação não pode ser desfeita sem backup.</p></div><button id="apagarTudo" class="button button-danger-light" type="button">Apagar todos os dados</button></section>
           <div class="notice warning-notice"><span class="notice-icon">!</span><p><b>Importante:</b> o computador e o celular têm dados separados. Restaurar um backup substitui os dados do destino; não combina automaticamente duas bases. Faça backup antes de importar.</p></div>
         </section>
-        <footer class="footer"><span>© CKR Gestão • V2.0</span><span><span class="status-dot"></span> Armazenamento local ativo</span></footer>
+        <footer class="footer"><span>© Conceito Gestão • V2.0</span><span><span class="status-dot"></span> Armazenamento local ativo</span></footer>
       </div>
     </main>
   </div>
