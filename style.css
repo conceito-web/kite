@@ -158,3 +158,11 @@
 @media (max-width:900px) and (min-width:761px){.auth-card{padding-left:calc(46.5% + 24px);padding-right:24px}.auth-card:after{left:22px;font-size:clamp(21px,2.7vw,28px)}.auth-card h1{font-size:clamp(25px,3vw,32px)}}
 @media (max-width:760px){.auth-gate{padding:14px;align-items:center;justify-content:center}.auth-card{flex:0 1 470px;width:min(100%,470px);max-width:470px;min-height:0;padding:29px 25px 25px}.auth-card:before{left:0;right:0;top:0;bottom:auto;width:100%;height:8px}.auth-card:after{display:none}.auth-card form,.auth-card #ckrSetupForm{max-width:none}.auth-card h1{font-size:28px}}
 @media (max-width:380px){.auth-card{padding:24px 19px 21px}.auth-card h1{font-size:25px}}
+
+/* Indicador de lucro e margem no dashboard */
+.profit-stat>strong{color:#159568!important}
+.profit-bottom{display:grid;gap:7px;margin-top:2px}
+.profit-margin{font-size:11px;color:#6b7890}
+.profit-margin b{font-size:13px;color:#159568}
+.profit-note{font-size:9px;line-height:1.45;color:#9aa4b2}
+@media(min-width:1500px){.profit-note{font-size:10px}}
