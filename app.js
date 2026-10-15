@@ -11,6 +11,61 @@ function id(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():`${Date.now
 function money(n){return Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function toast(message,error=false){const el=document.getElementById('toast');el.textContent=message;el.classList.toggle('error',error);el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),3200);}
+
+// BACKUP MENSAL AUTOMÁTICO POR E-MAIL (serviço remoto configurado pelo administrador)
+// Cole abaixo a URL pública do Cloudflare Worker depois de publicá-lo.
+const MONTHLY_BACKUP_ENDPOINT = 'COLE_AQUI_A_URL_DO_CLOUDFLARE_WORKER';
+const MONTHLY_BACKUP_STATUS_KEY = 'conceito_backup_mensal_status_v1';
+const MONTHLY_BACKUP_EMAIL = 'infane10@gmail.com';
+function detectarDispositivoBackup(){
+  const ua = navigator.userAgent || '';
+  const mobile = /Android|iPhone|iPad|iPod|Mobile|IEMobile|Opera Mini/i.test(ua) || (navigator.maxTouchPoints > 1 && Math.min(screen.width || 9999, screen.height || 9999) < 800);
+  return mobile ? 'Celular' : 'PC';
+}
+function chaveMesBackup(){
+  const agora = new Date();
+  return `${agora.getFullYear()}-${String(agora.getMonth()+1).padStart(2,'0')}`;
+}
+function bytesParaBase64Utf8(texto){
+  const bytes = new TextEncoder().encode(texto);
+  let binario = '';
+  const bloco = 0x8000;
+  for(let i=0;i<bytes.length;i+=bloco) binario += String.fromCharCode(...bytes.subarray(i,i+bloco));
+  return btoa(binario);
+}
+async function tentarBackupMensalAutomatico(){
+  if(!navigator.onLine) return;
+  if(!MONTHLY_BACKUP_ENDPOINT || MONTHLY_BACKUP_ENDPOINT.startsWith('COLE_AQUI_')) return;
+  const mes = chaveMesBackup();
+  let enviado = {};
+  try { enviado = JSON.parse(localStorage.getItem(MONTHLY_BACKUP_STATUS_KEY) || '{}') || {}; } catch(_) { enviado = {}; }
+  if(enviado[mes] === true) return;
+  const dispositivo = detectarDispositivoBackup();
+  const nomeArquivo = `Conceito_${dispositivo}_${mes}.json`;
+  const conteudo = JSON.stringify({...data, exportedAt:new Date().toISOString(), backupMonth:mes, device:dispositivo}, null, 2);
+  try {
+    const resposta = await fetch(MONTHLY_BACKUP_ENDPOINT, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({fileName:nomeArquivo, contentBase64:bytesParaBase64Utf8(conteudo), month:mes, device:dispositivo})
+    });
+    let retorno = {};
+    try { retorno = await resposta.json(); } catch(_) {}
+    if(!resposta.ok || retorno.success !== true) throw new Error(retorno.error || `HTTP ${resposta.status}`);
+    enviado[mes] = true;
+    localStorage.setItem(MONTHLY_BACKUP_STATUS_KEY, JSON.stringify(enviado));
+    toast(`Backup mensal enviado para ${MONTHLY_BACKUP_EMAIL} (${dispositivo}).`);
+  } catch(err) {
+    // Não marcar o mês como enviado: haverá nova tentativa na próxima abertura.
+    console.warn('Backup mensal do Conceito não foi enviado; tentará novamente na próxima abertura.', err);
+    toast('Backup mensal não enviado. O sistema tentará novamente na próxima abertura.', true);
+  }
+}
+function agendarBackupMensalAutomatico(){
+  // Espera o login e a renderização inicial; só envia quando o site está aberto e online.
+  setTimeout(()=>{tentarBackupMensalAutomatico();}, 1800);
+  window.addEventListener('online', ()=>{tentarBackupMensalAutomatico();}, {once:true});
+}
+
 function productById(pid){return data.products.find(p=>p.id===pid);}
 function recordMovement(type,p,qty,total,details='',extra={}){data.movements.unshift({id:id(),type,productId:p.id,productName:p.name,quantity:Number(qty),total:Number(total||0),details,...extra,date:new Date().toISOString()});}
 function dateText(d){return new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}
@@ -256,7 +311,7 @@ addPaymentRow();
  function showSetup(){gate.hidden=false;shell.hidden=true;loginForm.hidden=true;setupForm.hidden=false;showSetupButton.hidden=true;desc.textContent='Crie o usuário ADMIN e uma senha para este navegador.';setupError.textContent='';document.getElementById('ckrSetupUser').focus();}
  showSetupButton.addEventListener('click',()=>{showSetup();});
  function updateExpiryStatus(){const el=document.getElementById('ckrExpiryStatus');if(!el)return;if(!currentUser||currentUser.role==='admin'){el.hidden=true;el.textContent='';return;}const found=users.find(u=>normalized(u.username)===normalized(currentUser.username));if(!found||!found.expiresAt){el.hidden=true;el.textContent='';return;}const remaining=new Date(found.expiresAt).getTime()-Date.now();if(remaining<=0){el.textContent='◷ Acesso expirado';el.hidden=false;el.classList.add('expired');return;}const days=Math.ceil(remaining/(24*60*60*1000));el.textContent='◷ '+days+' '+(days===1?'dia':'dias');el.hidden=false;el.classList.remove('expired');}
- function enter(user){currentUser=user;document.body.dataset.ckrRole=user.role;sessionStorage.setItem(SESSION_KEY,JSON.stringify({username:user.username,role:user.role}));gate.hidden=true;shell.hidden=false;document.getElementById('ckrUserAvatar').textContent=(user.username||'AD').trim().slice(0,2).toUpperCase();manageButton.hidden=user.role!=='admin';if(manageSidebar)manageSidebar.hidden=user.role!=='admin';document.querySelectorAll('[data-panel="backup"],[data-go="backup"]').forEach(el=>{el.hidden=user.role!=='admin';});updateExpiryStatus();const backupPanel=document.getElementById('panel-backup');if(backupPanel&&user.role!=='admin'&&backupPanel.classList.contains('active'))goTo('dashboard');}
+ function enter(user){currentUser=user;document.body.dataset.ckrRole=user.role;sessionStorage.setItem(SESSION_KEY,JSON.stringify({username:user.username,role:user.role}));gate.hidden=true;shell.hidden=false;document.getElementById('ckrUserAvatar').textContent=(user.username||'AD').trim().slice(0,2).toUpperCase();manageButton.hidden=user.role!=='admin';if(manageSidebar)manageSidebar.hidden=user.role!=='admin';document.querySelectorAll('[data-panel="backup"],[data-go="backup"]').forEach(el=>{el.hidden=user.role!=='admin';});updateExpiryStatus();const backupPanel=document.getElementById('panel-backup');if(backupPanel&&user.role!=='admin'&&backupPanel.classList.contains('active'))goTo('dashboard');agendarBackupMensalAutomatico();}
  function getValidUser(username,password){
    if(admin&&normalized(username)===normalized(admin.username)&&password===admin.password)return {username:admin.username,role:'admin'};
    const found=users.find(u=>normalized(u.username)===normalized(username));
