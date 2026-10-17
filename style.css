@@ -166,3 +166,137 @@
 .profit-margin b{font-size:13px;color:#159568}
 .profit-note{font-size:9px;line-height:1.45;color:#9aa4b2}
 @media(min-width:1500px){.profit-note{font-size:10px}}
+
+
+/* Carrinho de venda e ações do recibo */
+.cart-box{border:1px solid #e7ebf3;border-radius:12px;padding:14px;background:#fbfcff;margin:2px 0 16px;min-width:0}.cart-count{font-size:10px;font-weight:800;color:#345ee8;background:#eaf0ff;padding:6px 9px;border-radius:20px;white-space:nowrap}.cart-table{min-width:520px}.cart-table th,.cart-table td{padding:9px 8px}.cart-empty{text-align:center!important;color:#9aa4b2!important;padding:18px!important}.cart-remove{border:0;border-radius:7px;width:27px;height:27px;background:#fff0f0;color:#ce5158;font-size:19px;cursor:pointer}.receipt-actions{border:1px solid #cfe9dc;background:#f4fbf7;border-radius:12px;padding:15px;margin-top:14px;display:grid;gap:9px}.receipt-actions[hidden]{display:none}.receipt-actions p{margin:0;color:#245c42;font-weight:700;font-size:12px}.receipt-actions small{font-size:10px;line-height:1.5;color:#65738a}.cart-box .payment-heading{margin-bottom:12px}
+
+/* ===== Responsividade universal (celular, tablet, notebook, monitores grandes e ultrawide) ===== */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden}
+body{overflow-x:hidden;min-height:100dvh}
+img,svg,canvas,video{max-width:100%}
+.main,.content,.panel,.surface,.field,.form-grid>*,.form-two>*,.stat-card{min-width:0}
+input,select,textarea,button{max-width:100%;font-size:16px} /* 16px evita zoom automático no iPhone */
+.field input,.field select,.field textarea{width:100%;min-height:44px}
+input[inputmode="numeric"]{font-variant-numeric:tabular-nums}
+/* tabelas largas rolam dentro do próprio bloco, nunca a página inteira */
+.table-wrap,.table-scroll,.list-surface,.recent-surface{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{max-width:100%}
+/* área segura de celulares com notch */
+.topbar{padding-left:max(15px,env(safe-area-inset-left));padding-right:max(15px,env(safe-area-inset-right))}
+.sidebar{padding-bottom:max(17px,env(safe-area-inset-bottom));overflow-y:auto}
+/* conteúdo fluido: acompanha a largura da tela */
+.content{width:100%;max-width:min(1500px,100%)}
+.stats-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}
+.form-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+.form-grid .field-wide{grid-column:1/-1}
+/* notebooks e tablets */
+@media(min-width:761px) and (max-width:1150px){.content{padding:24px 20px}}
+/* monitores Full HD / 2K: usa mais espaço e escala o tamanho */
+@media(min-width:1700px){html{font-size:17px}.content{max-width:min(1800px,100%);padding-left:48px;padding-right:48px}.sidebar{width:272px}.main{margin-left:272px}}
+/* monitores 2K/4K e ultrawide */
+@media(min-width:2200px){html{font-size:19px}.content{max-width:min(2200px,100%)}.sidebar{width:300px}.main{margin-left:300px}}
+@media(min-width:3000px){html{font-size:24px}.content{max-width:min(2800px,100%)}.sidebar{width:340px}.main{margin-left:340px}}
+/* celulares pequenos */
+@media(max-width:760px){.main{margin-left:0!important}.content{padding:18px 12px}.button{min-height:42px}}
+@media(max-width:380px){.content{padding:14px 10px}.stats-grid{grid-template-columns:1fr 1fr}}
+/* celular deitado (altura curta) */
+@media(max-height:480px) and (orientation:landscape){.topbar{height:52px}.auth-gate,.users-modal{align-items:flex-start}}
+
+/* Gerenciar usuários: select, edição e renovação */
+.users-card select{width:100%;box-sizing:border-box;min-height:44px;border:1px solid #d0d5dd;border-radius:10px;padding:10px 12px;font:inherit;background:#fff}
+.users-card form[id="ckrEditUserForm"],.users-card form[id="ckrChangePasswordForm"]{margin-top:18px;padding-top:6px;border-top:1px solid #eaecf0}
+.users-renew{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#667085}
+.users-row{flex-wrap:wrap}.users-row>div:last-child{display:flex;flex-wrap:wrap;gap:6px}
+
+/* garante que itens escondidos por perfil realmente sumam */
+[hidden]{display:none!important}
+
+
+/* Movimentações: busca de vendas, edição e cancelamento */
+.sales-search-surface{margin-bottom:17px}
+.sales-search-filters{display:grid;grid-template-columns:minmax(0,2.2fr) repeat(3,minmax(0,1fr)) auto;gap:13px;align-items:end;margin-bottom:14px}
+.sales-search-filters .button{height:42px}
+.sales-search-summary{display:flex;flex-wrap:wrap;gap:6px 20px;padding:11px 14px;background:#f6f8fc;border:1px solid #edf0f5;border-radius:9px;color:#6b7a90;font-size:11px;margin-bottom:12px}
+.sales-search-summary b{color:#23334d}
+.sale-items{list-style:none;margin:0;padding:0;display:grid;gap:3px;min-width:150px}
+.sale-items li{color:#2a3850;font-weight:600}
+td small{color:#9aa4b2;font-size:10px}
+.pill.ativa{background:#e8f8f0;color:#1b9869}
+.pill.cancelada{background:#f1f3f7;color:#667085}
+tr.row-canceled td:not(.sale-status){opacity:.6}
+.sale-money-canceled{text-decoration:line-through}
+#listaVendasBusca .row-action{white-space:nowrap}
+.sale-edit-banner{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 15px;border-radius:11px;background:#fff8e9;border:1px solid #f6e7c3;color:#8e7649}
+.sale-edit-banner b{display:block;color:#7a5a12;font-size:13px}
+.sale-edit-banner p{margin:4px 0 0;font-size:11px;line-height:1.5}
+@media(max-width:1050px){.sales-search-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.sales-search-filters .button{width:100%}}
+@media(max-width:600px){.sales-search-filters{grid-template-columns:1fr}.sale-edit-banner{flex-direction:column;align-items:stretch}}
+@media print{#panel-historico{display:none!important}}
+
+
+/* ===== Login responsivo definitivo =====
+   Corrige o formulário esmagado em telas grandes: o recuo em % do cartão era calculado sobre a
+   largura da TELA (não do cartão). Agora o cartão é uma grade de colunas e a % vale para o próprio cartão. */
+.auth-gate{align-items:flex-start;justify-content:flex-start;overflow:auto}
+.auth-card{margin:auto;flex:0 1 auto}
+@media (min-width:761px){
+ .auth-card{
+  --auth-pad-l:clamp(24px,4.5vw,54px);--auth-pad-r:clamp(24px,5vw,60px);
+  display:grid;grid-template-columns:46.5% var(--auth-pad-l) minmax(0,1fr) var(--auth-pad-r);
+  align-content:center;
+  width:min(100%,1120px);max-width:1120px;
+  min-height:clamp(560px,76vh,700px);
+  padding:clamp(28px,4.5vw,52px) 0 clamp(26px,4vw,42px);
+ }
+ .auth-card>*{grid-column:3;min-width:0}
+ .auth-card form,.auth-card #ckrSetupForm{max-width:none}
+}
+@media (min-width:1600px){
+ .auth-card{width:min(100%,1240px);max-width:1240px;min-height:clamp(600px,72vh,760px)}
+ .auth-card:after{font-size:clamp(34px,2.4vw,46px)}
+}
+@media (min-width:2200px){
+ .auth-card{width:min(100%,1480px);max-width:1480px;min-height:clamp(680px,70vh,860px)}
+ .auth-card:after{font-size:clamp(42px,2.4vw,56px)}
+}
+@media (max-width:760px){
+ .auth-card{display:block;width:min(100%,470px);max-width:470px}
+}
+@media (min-width:761px) and (max-height:620px){
+ .auth-card{min-height:0;padding-top:22px;padding-bottom:20px}
+ .auth-brand{margin-bottom:14px}
+ .auth-description{margin-bottom:10px}
+ .auth-card label{margin-top:8px}
+ .auth-card input{min-height:42px}
+ .auth-submit{margin-top:12px;min-height:42px}
+ .auth-local-note{margin-top:12px;padding-top:10px}
+}
+/* Sugestões de produto na venda */
+.product-search-box{position:relative}
+.product-suggest{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #e0e6ef;border-radius:8px;box-shadow:0 12px 30px #182b4822;max-height:260px;overflow-y:auto;z-index:30}
+.product-suggest[hidden]{display:none}
+.product-suggest button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:9px 12px;border:0;border-bottom:1px solid #f0f3f8;background:#fff;text-align:left;font:600 13px 'DM Sans',sans-serif;color:#26364e;cursor:pointer}
+.product-suggest button:last-child{border-bottom:0}
+.product-suggest button:hover,.product-suggest button.active{background:#eef3ff}
+.product-suggest button span{min-width:0;overflow-wrap:anywhere}
+.product-suggest small{flex:none;font-weight:500;font-size:11px;color:#8290a4;white-space:nowrap}
+.product-suggest .empty{padding:12px;font-size:12px;color:#8290a4}
+@media(max-width:600px){.product-suggest button{flex-direction:column;align-items:flex-start;gap:2px}}
+
+/* Captcha do login (aparece após 3 erros de senha) */
+.captcha-box{margin-top:14px}
+.captcha-box[hidden]{display:none}
+.captcha-row{display:flex;align-items:center;gap:8px;margin:6px 0 8px}
+.captcha-row canvas{flex:1 1 auto;min-width:0;max-width:190px;height:auto;border:1px solid #e0e6ef;border-radius:8px;background:#f1f5fb}
+.captcha-refresh{flex:none;width:44px;height:44px;border:1px solid #e0e6ef;border-radius:8px;background:#fff;color:#3468f5;font-size:20px;line-height:1;cursor:pointer}
+.captcha-refresh:hover{background:#eef3ff}
+.captcha-hint{display:block;margin-top:6px;font-size:10px;color:#8b95a7}
+
+/* Botão mostrar/ocultar senha */
+.pw-wrap{position:relative;display:block;width:100%}
+.pw-wrap input{padding-right:84px!important}
+.pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);height:36px;min-width:68px;padding:0 10px;border:0;border-radius:8px;background:#eef3ff;color:#3468f5;font:700 11px 'DM Sans',sans-serif;cursor:pointer}
+.pw-toggle:hover{background:#e0e9ff}
+
+.search-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.check-filter{display:flex;align-items:center;gap:7px;font:700 11px 'DM Sans';color:#536178;cursor:pointer;white-space:nowrap;user-select:none}.check-filter input{width:16px;height:16px;margin:0;accent-color:#3468f5;cursor:pointer}@media(max-width:760px){.search-tools{display:grid;gap:10px;width:100%}}
