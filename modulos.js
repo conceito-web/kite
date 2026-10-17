@@ -150,7 +150,7 @@ $('pdvLinhas').addEventListener('click',e=>{
 $('pdvChips').addEventListener('click',e=>{const b=e.target.closest('[data-px]');if(b){pays.splice(+b.dataset.px,1);render();}});
 function pdvSync(){const t=totals();syncPayExtra($('pdvPagExtra'),$('pdvPagMetodo').value,r2(parseMoneyInput($('pdvPagValor').value)||Math.max(0,t.rest)));}
 $('pdvPagExtra').innerHTML=payExtraHtml();
-['pagamentoBandeira','pagamentoResponsavel','pagamentoVencimento'].forEach(c=>$('pdvPagExtra').querySelector('.'+c).addEventListener('change',pdvSync));
+['pagamentoBandeira','pagamentoResponsavel','pagamentoVencimento','pagamentoExtendido'].forEach(c=>$('pdvPagExtra').querySelector('.'+c).addEventListener('change',pdvSync));
 $('pdvPagExtra').querySelector('.pagamentoParcelas').addEventListener('input',pdvSync);
 $('pdvPagValor').addEventListener('input',pdvSync);$('pdvPagValor').addEventListener('money-mask-updated',pdvSync);
 $('pdvPagMetodo').addEventListener('change',()=>{const t=totals();$('pdvPagValor').value=t.rest>0?t.rest.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';pdvSync();});
@@ -160,7 +160,7 @@ $('pdvPagAdd').addEventListener('click',()=>{
  if(amount<=0){toast('Informe o valor pago.',true);return;}
  const px=readPayExtra($('pdvPagExtra'),method,r2(amount)),perr=validatePayments([px],$('pdvCliente').value.trim());
  if(perr){toast(perr,true);return;}
- pays.push(px);$('pdvPagValor').value='';$('pdvPagMetodo').value='';$('pdvPagExtra').querySelector('.pagamentoParcelas').value='1';$('pdvPagExtra').querySelector('.pagamentoVencimento').value='';$('pdvPagExtra').querySelector('.pagamentoResponsavel').value='loja';$('pdvPagExtra').querySelector('.pagamentoBandeira').value='vm';pdvSync();render();
+ pays.push(px);$('pdvPagValor').value='';$('pdvPagMetodo').value='';$('pdvPagExtra').querySelector('.pagamentoParcelas').value='1';$('pdvPagExtra').querySelector('.pagamentoVencimento').value='';$('pdvPagExtra').querySelector('.pagamentoResponsavel').value='loja';$('pdvPagExtra').querySelector('.pagamentoBandeira').value='vm';$('pdvPagExtra').querySelector('.pagamentoExtendido').checked=true;pdvSync();render();
 });
 document.addEventListener('keydown',e=>{if(e.key==='F2'&&$('panel-pdv').classList.contains('active')&&!$('pdvAberto').hidden){e.preventDefault();finish();}});
 
