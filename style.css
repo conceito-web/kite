@@ -339,6 +339,7 @@ tr.row-canceled td:not(.sale-status){opacity:.6}
 .prom-alert[hidden]{display:none}
 .prom-alert p{margin:0;flex:1 1 220px}
 .prom-alert-icon{width:24px;height:24px;border-radius:50%;background:#e89b3b;color:#fff;display:grid;place-items:center;font-weight:800}
+.pf-ext{grid-column:1/-1;white-space:normal;line-height:1.35}
 .xml-linked{color:#1b9869;font-weight:700}
 .xml-share{color:#2454dd;font-weight:700}
 .rate-table td:first-child{font-weight:600}
