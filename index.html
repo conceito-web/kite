@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -101,8 +101,10 @@
         <button class="nav-link" data-panel="xml"><span class="nav-icon">⇩</span> Importar XML</button>
         <button class="nav-link" data-panel="venda"><span class="nav-icon">↗</span> Registrar venda</button>
         <button class="nav-link" data-panel="pdv"><span class="nav-icon">▣</span> PDV (Caixa)</button>
+        <button class="nav-link" data-panel="promissorias"><span class="nav-icon">◔</span> Promissórias <span class="nav-count" id="menuPromissorias">0</span></button>
         <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
         <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
+        <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
         <button class="nav-link" data-panel="contador"><span class="nav-icon">✉</span> Exportar p/ contador</button>
         <div id="ckrExpiryStatus" class="expiry-status" hidden aria-live="polite"></div>
         <button class="nav-link" data-panel="backup"><span class="nav-icon">⇄</span> Backup e transferência</button>
@@ -128,6 +130,8 @@
             <button class="button button-primary" data-go="venda"><span>＋</span> Nova venda</button>
           </div>
           <div class="notice"><span class="notice-icon">i</span><p><b>Seus dados ficam neste dispositivo.</b> Para transferir dados entre computador e celular, use <button class="text-button" data-go="backup">Backup e transferência</button>.</p><button class="notice-close" id="closeNotice" aria-label="Fechar aviso">×</button></div>
+
+          <div id="promAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="promAlertaTexto"></p><button class="text-button" data-go="promissorias">Ver promissórias</button></div>
 
           <div class="stats-grid">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">▤</span><span class="stat-label">Produtos cadastrados</span></div><strong id="totalProdutos">0</strong><div class="stat-foot"><span class="tiny-dot blue"></span> Itens diferentes no catálogo</div></article>
@@ -247,6 +251,7 @@
                 <div id="linhasPagamento" class="payment-lines"></div>
                 <div class="payment-summary"><div><span>Total recebido</span><strong id="totalRecebido">R$ 0,00</strong></div><div><span>Saldo restante</span><strong id="saldoRestante">R$ 0,00</strong></div></div>
                 <p id="avisoPagamento" class="payment-notice">Informe as formas de pagamento até completar o total da venda.</p>
+                <p id="resumoFinanceiro" class="pay-hint" hidden></p>
               </section>
               <label class="field">Observação (opcional)<input id="vendaObs" maxlength="180" placeholder="Observação da venda"></label>
               <button class="button button-primary full-button" type="submit"><b id="confirmarVendaTexto" style="font:inherit">Confirmar venda e baixar estoque</b> <span>→</span></button>
@@ -334,7 +339,8 @@
                 <div class="sale-discounts"><label class="field">Desconto (R$)<input id="pdvDescReais" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><label class="field">Desconto (%)<input id="pdvDescPct" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"></label></div>
                 <div class="pdv-total"><span>Subtotal</span><strong id="pdvSub">R$ 0,00</strong></div>
                 <div class="pdv-total big"><span>Total</span><strong id="pdvTotal">R$ 0,00</strong></div>
-                <div class="pdv-pay"><label class="field">Pagamento<select id="pdvPagMetodo"><option value="">Selecione...</option><option>Dinheiro</option><option>Pix</option><option>Cartão de débito</option><option>Cartão de crédito</option></select></label><label class="field">Valor (R$)<input id="pdvPagValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><button class="button button-light" id="pdvPagAdd" type="button">Adicionar</button></div>
+                <div class="pdv-pay"><label class="field">Pagamento<select id="pdvPagMetodo"><option value="">Selecione...</option><option>Dinheiro</option><option>Pix</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Link de pagamento (Blu)</option><option>Promissória</option></select></label><label class="field">Valor (R$)<input id="pdvPagValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><button class="button button-light" id="pdvPagAdd" type="button">Adicionar</button></div>
+                <div id="pdvPagExtra" class="payment-card-options pdv-pag-extra" hidden></div>
                 <div id="pdvChips" class="pdv-chips"></div>
                 <div class="pdv-total"><span id="pdvRestoLabel">Falta receber</span><strong id="pdvResto">R$ 0,00</strong></div>
                 <button class="button button-primary full-button" id="pdvFinalizar" type="button">Finalizar venda (F2)</button>
@@ -344,14 +350,66 @@
           </div>
         </section>
 
+        <section class="panel" id="panel-promissorias">
+          <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Promissórias</h1><p class="subtitle">Parcelas a receber das vendas na promissória, com lembrete de vencimento.</p></div></div>
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">R$</span><span class="stat-label">Em aberto</span></div><strong id="promAberto">R$ 0,00</strong><div class="stat-foot" id="promAbertoNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="stat-label">Vencidas</span></div><strong id="promVencidas">R$ 0,00</strong><div class="stat-foot" id="promVencidasNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">◔</span><span class="stat-label">A vencer em breve</span></div><strong id="promAvencer">R$ 0,00</strong><div class="stat-foot" id="promAvencerNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">✓</span><span class="stat-label">Recebido no mês</span></div><strong id="promRecebido">R$ 0,00</strong><div class="stat-foot" id="promRecebidoNota"></div></article>
+          </div>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Parcelas</h2><p id="promSubtitulo">Todas as parcelas</p></div><div class="search-tools"><select id="promStatus" aria-label="Filtrar situação"><option value="abertas">Em aberto</option><option value="vencidas">Vencidas</option><option value="avencer">A vencer em breve</option><option value="recebidas">Recebidas</option><option value="todas">Todas</option></select><div class="search-box"><span>⌕</span><input id="promBusca" type="search" placeholder="Buscar cliente ou venda..."></div></div></div>
+            <div class="table-wrap"><table><thead><tr><th>VENCIMENTO</th><th>CLIENTE</th><th>VENDA</th><th>PARCELA</th><th>VALOR</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="promRows"></tbody></table></div>
+            <div id="promVazio" class="empty-state"><div class="empty-symbol">◔</div><b>Nenhuma parcela encontrada</b><p>Vendas feitas na forma "Promissória" aparecem aqui com os vencimentos.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-taxas">
+          <div class="page-heading"><div><p class="eyebrow">CONFIGURAÇÕES</p><h1>Taxas e crédito</h1><p class="subtitle">Taxas descontadas do lucro e percentual do cartão da fábrica. Mudanças valem para as próximas vendas; as já feitas não mudam.</p></div></div>
+          <form id="taxasForm" autocomplete="off">
+            <section class="surface form-surface">
+              <div class="surface-heading"><div><h2>Maquininha (cartão da loja)</h2><p>Taxa em % descontada do lucro, por bandeira e número de parcelas.</p></div></div>
+              <div class="table-wrap"><table class="rate-table"><thead><tr><th>MODALIDADE</th><th>VISA E MASTER (%)</th><th>AMEX E ELO (%)</th></tr></thead><tbody id="taxasTabela"></tbody></table></div>
+            </section>
+            <section class="surface form-surface">
+              <div class="surface-heading"><div><h2>Link de pagamento (Blu)</h2><p>Taxa total = custo da venda online + taxa administrativa (a tabela acima, pela bandeira e parcelas) + prazo estendido. Recebimento em 30 dias por parcela.</p></div></div>
+              <div class="form-grid">
+                <label class="field">Custo da venda online (%)<input id="bluOnline" inputmode="decimal"></label>
+                <label class="field">Prazo estendido a partir de (parcelas)<input id="bluExtraDe" type="number" min="1" step="1"></label>
+                <label class="field">Prazo estendido: taxa por parcela (%)<input id="bluExtraParcela" inputmode="decimal"></label>
+              </div>
+            </section>
+            <section class="surface form-surface">
+              <div class="surface-heading"><div><h2>Cartão da fábrica e promissória</h2><p id="fabLucroInfo"></p></div></div>
+              <div class="form-grid">
+                <label class="field">Parte que vira crédito com a fábrica (%)<input id="fabCreditoPct" inputmode="decimal"></label>
+                <label class="field">Lembrar promissórias com antecedência de (dias)<input id="promLembreteDias" type="number" min="0" step="1"></label>
+              </div>
+              <div class="form-actions" style="margin-top:16px"><button class="button button-primary" type="submit">Salvar configurações</button><button class="button button-light" id="taxasPadrao" type="button">Restaurar valores padrão</button></div>
+            </section>
+          </form>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Crédito com a fábrica</h2><p>Acumulado pelas vendas no cartão da fábrica, menos o que você já usou.</p></div><button class="button button-light button-small" id="fabUsar" type="button">Registrar uso de crédito</button></div>
+            <div class="stats-grid"><article class="stat-card"><div class="stat-top"><span class="stat-label">Acumulado</span></div><strong id="fabAcumulado">R$ 0,00</strong></article><article class="stat-card"><div class="stat-top"><span class="stat-label">Já utilizado</span></div><strong id="fabUtilizado">R$ 0,00</strong></article><article class="stat-card"><div class="stat-top"><span class="stat-label">Saldo disponível</span></div><strong id="fabSaldo">R$ 0,00</strong></article></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>DESCRIÇÃO</th><th>VALOR USADO</th><th></th></tr></thead><tbody id="fabLinhas"></tbody></table></div>
+            <div id="fabVazio" class="empty-state"><div class="empty-symbol">%</div><b>Nenhum uso registrado</b><p>Quando usar o crédito em compras na fábrica, registre aqui para acompanhar o saldo.</p></div>
+          </section>
+        </section>
+
         <section class="panel" id="panel-xml">
           <div class="page-heading"><div><p class="eyebrow">ESTOQUE</p><h1>Importar XML</h1><p class="subtitle">Dê entrada no estoque a partir dos XML de NF-e recebidos dos fornecedores.</p></div></div>
           <section class="surface form-surface">
             <div class="surface-heading"><div><h2>Selecionar notas</h2><p>Você confere cada item antes de confirmar. Notas já importadas são ignoradas.</p></div></div>
-            <div class="form-grid"><label class="field field-wide">Arquivos XML<input id="xmlArquivos" type="file" accept=".xml,text/xml,application/xml" multiple></label><label class="field">Margem para produtos novos (%)<input id="xmlMargem" type="text" inputmode="decimal" placeholder="Ex.: 100"></label><label class="check-filter"><input type="checkbox" id="xmlAtualizaCusto" checked><span>Atualizar o custo dos produtos já cadastrados</span></label></div>
+            <div class="form-grid"><label class="field field-wide">Arquivos XML<input id="xmlArquivos" type="file" accept=".xml,text/xml,application/xml" multiple></label><label class="field">Margem para produtos novos (%)<input id="xmlMargem" type="text" inputmode="decimal" placeholder="Ex.: 100"></label><label class="check-filter"><input type="checkbox" id="xmlAtualizaCusto" checked><span>Atualizar o custo dos produtos já cadastrados</span></label><label class="check-filter"><input type="checkbox" id="xmlRateio" checked><span>Ratear frete, seguro e outras despesas do total da nota entre os itens</span></label></div>
           </section>
           <div id="xmlRevisao"></div>
           <div id="xmlAcoes" class="form-actions" hidden style="margin-bottom:17px"><button class="button button-primary" id="xmlConfirmar" type="button">Confirmar entrada no estoque</button><button class="button button-light" id="xmlCancelar" type="button">Cancelar</button></div>
+          <section class="surface list-surface" style="margin-bottom:17px">
+            <div class="surface-heading"><div><h2>Vínculos salvos</h2><p>Itens de fornecedores que o sistema já reconhece e vincula sozinho nas próximas notas.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>FORNECEDOR</th><th>ITEM DA NOTA</th><th>PRODUTO NO CONCEITO</th><th></th></tr></thead><tbody id="xmlLinks"></tbody></table></div>
+            <div id="xmlLinksVazio" class="empty-state"><div class="empty-symbol">⇄</div><b>Nenhum vínculo salvo</b><p>Ao confirmar uma importação, a escolha de cada item fica guardada aqui.</p></div>
+          </section>
           <section class="surface list-surface">
             <div class="surface-heading"><div><h2>Notas importadas</h2><p>Os arquivos XML ficam guardados neste navegador para o pacote do contador.</p></div></div>
             <div class="table-wrap"><table><thead><tr><th>IMPORTADA EM</th><th>FORNECEDOR</th><th>NOTA</th><th>VALOR</th><th>ITENS</th></tr></thead><tbody id="xmlHist"></tbody></table></div>
@@ -377,7 +435,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=10"></script>
-  <script src="modulos.js?v=1"></script>
+  <script src="app.js?v=11"></script>
+  <script src="modulos.js?v=2"></script>
 </body>
 </html>
