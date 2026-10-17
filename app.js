@@ -513,8 +513,31 @@ function receiptWhatsappText(receipt){
  if(receipt.discount>0){lines.push(`Subtotal: ${money(receipt.subtotal)}`,`Desconto: ${money(receipt.discount)}`);}
  lines.push(`TOTAL GERAL: ${money(receipt.total)}`);(receipt.payments||[]).forEach(p=>{lines.push('Pagamento: '+payLabel(p));if(p.method===PM.PROM)promissorySchedule(p).forEach(x=>lines.push(`  Parcela ${x.n}/${x.of}: vence em ${brDate(x.dueDate)} - ${money(x.amount)}`));});lines.push('Garantia: 3 meses (90 dias).');if(receipt.note)lines.push(`Observação: ${receipt.note}`);lines.push('O recibo em PDF será anexado nesta conversa.');return lines.join('\n');
 }
+// Abre o WhatsApp com o resumo do recibo. Usado logo após a venda e também pelas vendas antigas (Movimentações).
+// Sugere o telefone do cliente cadastrado; números com 10 ou 11 dígitos recebem o código do Brasil (55) automaticamente.
+function sendReceiptWhatsapp(receipt){
+ if(!receipt)return;
+ const cust=findCustomerForSale(receipt.client,''),suggested=cust?digits(cust.phone):'';
+ const phone=prompt('Digite o WhatsApp do cliente com DDD (somente números), ou deixe vazio para escolher uma conversa:',suggested);
+ if(phone===null)return;
+ let number=phone.replace(/\D/g,'');
+ if(number&&number.length<10){toast('Informe um número com DDD válido.',true);return;}
+ if(number&&number.length<=11)number='55'+number;
+ const url=`https://wa.me/${number}?text=${encodeURIComponent(receiptWhatsappText(receipt))}`;
+ window.open(url,'_blank','noopener');
+ toast('WhatsApp aberto. Anexe o PDF baixado para enviar o recibo completo.');
+}
+// Monta o recibo a partir de uma venda já registrada (qualquer data).
+// Os preços vêm gravados na própria venda, então não mudam se o produto for reajustado depois.
+function receiptFromSale(s){
+ const ref=s.movements[0],sub=numOrNaN(ref.subtotal),subtotal=Number.isFinite(sub)?sub:s.total;
+ // Vendas novas guardam a observação separada; as antigas têm que ser extraídas do texto de detalhes.
+ let note=ref.note;
+ if(note===undefined){note=String(ref.details||'').split(' · ').filter(part=>!/^(Cliente:|Venda |Subtotal:|Desconto total:|Pagamentos:|Item \d+\/\d+|Venda editada|PDV|Troco:)/.test(part)).join(' · ');}
+ return {id:s.id,date:s.date,client:s.client,note:note||'',items:s.items,subtotal,discount:Math.max(0,round2(subtotal-s.total)),total:s.total,payments:s.payments||[]};
+}
 document.getElementById('baixarReciboPdf').addEventListener('click',()=>{if(lastReceipt)createReceiptPdf(lastReceipt);});
-document.getElementById('enviarReciboWhatsapp').addEventListener('click',()=>{if(!lastReceipt)return;const phone=prompt('Digite o WhatsApp do cliente com DDD (somente números), ou deixe vazio para escolher uma conversa:','');if(phone===null)return;const number=phone.replace(/\D/g,'');if(number&&number.length<10){toast('Informe um número com DDD válido.',true);return;}const url=`https://wa.me/${number}?text=${encodeURIComponent(receiptWhatsappText(lastReceipt))}`;window.open(url,'_blank','noopener');toast('WhatsApp aberto. Anexe o PDF baixado para enviar o recibo completo.');});
+document.getElementById('enviarReciboWhatsapp').addEventListener('click',()=>sendReceiptWhatsapp(lastReceipt));
 document.getElementById('formVenda').addEventListener('submit',e=>{
  e.preventDefault();
  if(!saleCart.length){toast('Adicione pelo menos um produto ao carrinho antes de confirmar.',true);return;}
@@ -634,7 +657,7 @@ function renderSaleSearch(){
   +`<td class="${s.canceled?'sale-money-canceled':''}">${esc(money(s.total))}</td>`
   +`<td>${s.canceled||!s.profitKnown?'—':esc(money(s.profit))}</td>`
   +`<td class="sale-status">${s.canceled?`<span class="pill cancelada">Cancelada</span>${s.canceledAt?`<br><small>${esc(dateText(s.canceledAt))}</small>`:''}`:'<span class="pill ativa">Ativa</span>'}${s.edited?'<br><small>editada</small>':''}</td>`
-  +`<td>${s.canceled?'—':`<button type="button" class="row-action" data-sale-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-sale-cancel="${esc(s.id)}">Cancelar venda</button>`}</td></tr>`).join('');
+  +`<td>${s.canceled?'—':`<button type="button" class="row-action" data-sale-receipt="${esc(s.id)}">Recibo PDF</button><button type="button" class="row-action" data-sale-whatsapp="${esc(s.id)}">WhatsApp</button><button type="button" class="row-action" data-sale-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-sale-cancel="${esc(s.id)}">Cancelar venda</button>`}</td></tr>`).join('');
  document.getElementById('semVendasBusca').style.display=sales.length?'none':'block';
 }
 function exitSaleEdit(){
@@ -700,7 +723,14 @@ function cancelSale(saleId){
  if(saveData())toast(missing.length?`Venda cancelada. Não foi possível devolver ao estoque (produto excluído): ${missing.join(', ')}.`:'Venda cancelada. Estoque e valores atualizados.',missing.length>0);
 }
 document.getElementById('listaVendasBusca').addEventListener('click',e=>{
- const edit=e.target.closest('[data-sale-edit]'),cancel=e.target.closest('[data-sale-cancel]');
+ const edit=e.target.closest('[data-sale-edit]'),cancel=e.target.closest('[data-sale-cancel]'),pdf=e.target.closest('[data-sale-receipt]'),wa=e.target.closest('[data-sale-whatsapp]');
+ if(pdf||wa){
+  const s=getSales().find(x=>x.id===(pdf||wa).dataset[pdf?'saleReceipt':'saleWhatsapp']);
+  if(!s)return;
+  const receipt=receiptFromSale(s);
+  if(pdf)createReceiptPdf(receipt);else sendReceiptWhatsapp(receipt);
+  return;
+ }
  if(edit)startSaleEdit(edit.dataset.saleEdit);else if(cancel)cancelSale(cancel.dataset.saleCancel);
 });
 ['buscaVenda'].forEach(k=>document.getElementById(k).addEventListener('input',renderSaleSearch));
