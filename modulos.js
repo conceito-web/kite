@@ -38,7 +38,7 @@ function render(){
  $('pdvLinhas').innerHTML=cart.length?cart.map((it,i)=>`<tr><td>${esc(it.name)}</td><td><span class="pdv-qty"><button type="button" data-q="${i}" data-d="-1" aria-label="Diminuir">−</button>${it.quantity}<button type="button" data-q="${i}" data-d="1" aria-label="Aumentar">+</button></span></td><td>${money(it.price)}</td><td>${money(it.quantity*it.price)}</td><td><button type="button" class="cart-remove" data-x="${i}" aria-label="Remover ${esc(it.name)}">×</button></td></tr>`).join(''):'<tr><td colspan="5" class="cart-empty">Bipe ou busque um produto para começar.</td></tr>';
  const t=totals();
  $('pdvSub').textContent=money(t.sub);$('pdvTotal').textContent=money(t.total);
- $('pdvChips').innerHTML=pays.map((p,i)=>`<span class="pdv-chip">${esc(p.method)} ${money(p.amount)}<button type="button" data-px="${i}" aria-label="Remover pagamento">×</button></span>`).join('');
+ $('pdvChips').innerHTML=pays.map((p,i)=>`<span class="pdv-chip">${esc(p.method)}${p.installments>1?' '+p.installments+'x':''}${p.responsible==='fabrica'?' (fábrica)':''} ${money(p.amount)}<button type="button" data-px="${i}" aria-label="Remover pagamento">×</button></span>`).join('');
  $('pdvRestoLabel').textContent=t.change>0.009?'Troco':'Falta receber';
  $('pdvResto').textContent=money(t.change>0.009?t.change:Math.max(0,t.rest));
 }
@@ -65,21 +65,23 @@ function finish(){
  for(const it of cart){const p=productById(it.productId);if(!p||it.quantity>Number(p.stock)){toast(`Estoque insuficiente ou produto removido: ${it.name}.`,true);return;}}
  if(t.rest>0.009){toast(`Falta receber ${money(t.rest)}.`,true);return;}
  const change=t.change>0.009?t.change:0;
- const pay=pays.map(p=>({method:p.method,amount:p.amount,installments:p.method==='Cartão de crédito'?1:null,responsible:p.method==='Cartão de crédito'?'loja':null}));
+ const pay=pays.map(p=>({...p}));
  if(change){const cp=[...pay].reverse().find(p=>p.method==='Dinheiro'&&p.amount>=change-0.009);if(!cp){toast('O troco só pode sair de um pagamento em dinheiro.',true);return;}cp.amount=r2(cp.amount-change);}
  const payments=pay.filter(p=>p.amount>0.009);
  const client=$('pdvCliente').value.trim(),saleId=Date.now().toString(36).toUpperCase(),date=new Date().toISOString(),customer=findCustomerForSale(client,''),discount=r2(t.sub-t.total);
+ if(payments.length){const perr=validatePayments(payments,client);if(perr){toast(perr,true);return;}}
  let alloc=0;
  const items=cart.map((it,i)=>{let lt;if(i===cart.length-1)lt=r2(t.total-alloc);else{lt=t.sub?r2(r2(it.quantity*it.price)*(t.total/t.sub)):0;alloc+=lt;}return {...it,lineTotal:lt};});
- const payDet=payments.map(x=>`${x.method}: ${money(x.amount)}`).join(' | ');
+ const fin=calcSaleFinance(items.map(it=>({lineTotal:it.lineTotal,quantity:it.quantity,unitCost:it.cost})),t.total,payments),payDet=payments.map(payLabel).join(' | ');
  const prefix=[client?`Cliente: ${client}`:'',`Venda ${saleId}`,'PDV',`Subtotal: ${money(t.sub)}`,discount?`Desconto total: ${money(discount)}`:'',`Pagamentos: ${payDet}`,change?`Troco: ${money(change)}`:''].filter(Boolean).join(' · ');
  cart.forEach((it,i)=>{
   const p=productById(it.productId),costTotal=r2(it.cost*it.quantity);
   p.stock-=it.quantity;
-  recordMovement('venda',p,it.quantity,items[i].lineTotal,`${prefix} · Item ${i+1}/${cart.length}`,{client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note:'',payments,subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,unitPrice:it.price,unitCost:it.cost,costTotal,profit:r2(items[i].lineTotal-costTotal),saleId,date,cashSessionId:s.id,source:'pdv',cashReceived:t.paid,change});
+  recordMovement('venda',p,it.quantity,items[i].lineTotal,`${prefix} · Item ${i+1}/${cart.length}`,{client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note:'',payments:fin.payments,subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,unitPrice:it.price,unitCost:it.cost,costTotal,profit:fin.items[i].profit,fee:fin.items[i].fee,factoryCredit:fin.items[i].factoryCredit,saleId,date,cashSessionId:s.id,source:'pdv',cashReceived:t.paid,change});
  });
- const rec={id:saleId,date,client,note:'',items,subtotal:t.sub,discount,total:t.total,payments,paid:t.paid,change};
- cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');
+ const rec={id:saleId,date,client,note:'',items,subtotal:t.sub,discount,total:t.total,payments:fin.payments,paid:t.paid,change};
+ receivables().push(...buildReceivables(saleId,client,customer,fin.payments,date));
+ cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');$('pdvPagMetodo').value='';pdvSync();
  if(saveData()){
   lastReceipt=rec;
   $('pdvPos').hidden=false;
@@ -90,7 +92,7 @@ function finish(){
 }
 function printCoupon(r){
  const rows=r.items.map(i=>`<tr><td colspan="2">${esc(i.name)}</td></tr><tr><td>${i.quantity} x ${money(i.price)}</td><td class="r">${money(i.lineTotal)}</td></tr>`).join('');
- const pay=(r.payments||[]).map(p=>`<tr><td>${esc(p.method)}</td><td class="r">${money(p.amount)}</td></tr>`).join('');
+ const pay=(r.payments||[]).map(p=>`<tr><td>${esc(p.method)}${p.installments>1?' '+p.installments+'x':''}</td><td class="r">${money(p.amount)}</td></tr>`+(p.method===PM.PROM?promissorySchedule(p).map(x=>`<tr><td>&nbsp;${x.n}/${x.of} venc. ${brDate(x.dueDate)}</td><td class="r">${money(x.amount)}</td></tr>`).join(''):'')).join('');
  const html=`<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{font:12px/1.4 monospace;width:74mm;margin:0}h1{font-size:15px;text-align:center;margin:0}.c{text-align:center}.r{text-align:right}table{width:100%;border-collapse:collapse}hr{border:0;border-top:1px dashed #000}</style><h1>CONCEITO</h1><p class="c">CUPOM NÃO FISCAL<br>${esc(new Date(r.date).toLocaleString('pt-BR'))}<br>Venda ${esc(r.id)}${r.client?'<br>Cliente: '+esc(r.client):''}</p><hr><table>${rows}</table><hr><table>${r.discount>0?`<tr><td>Subtotal</td><td class="r">${money(r.subtotal)}</td></tr><tr><td>Desconto</td><td class="r">- ${money(r.discount)}</td></tr>`:''}<tr><td><b>TOTAL</b></td><td class="r"><b>${money(r.total)}</b></td></tr>${pay}${r.change>0?`<tr><td>Troco</td><td class="r">${money(r.change)}</td></tr>`:''}</table><hr><p class="c">Garantia de 3 meses (90 dias).<br>Obrigado pela preferência!</p>`;
  const f=document.createElement('iframe');
  f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
@@ -146,12 +148,19 @@ $('pdvLinhas').addEventListener('click',e=>{
  else if(x){cart.splice(+x.dataset.x,1);render();}
 });
 $('pdvChips').addEventListener('click',e=>{const b=e.target.closest('[data-px]');if(b){pays.splice(+b.dataset.px,1);render();}});
-$('pdvPagMetodo').addEventListener('change',()=>{const t=totals();$('pdvPagValor').value=t.rest>0?t.rest.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';});
+function pdvSync(){const t=totals();syncPayExtra($('pdvPagExtra'),$('pdvPagMetodo').value,r2(parseMoneyInput($('pdvPagValor').value)||Math.max(0,t.rest)));}
+$('pdvPagExtra').innerHTML=payExtraHtml();
+['pagamentoBandeira','pagamentoResponsavel','pagamentoVencimento'].forEach(c=>$('pdvPagExtra').querySelector('.'+c).addEventListener('change',pdvSync));
+$('pdvPagExtra').querySelector('.pagamentoParcelas').addEventListener('input',pdvSync);
+$('pdvPagValor').addEventListener('input',pdvSync);$('pdvPagValor').addEventListener('money-mask-updated',pdvSync);
+$('pdvPagMetodo').addEventListener('change',()=>{const t=totals();$('pdvPagValor').value=t.rest>0?t.rest.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';pdvSync();});
 $('pdvPagAdd').addEventListener('click',()=>{
  const method=$('pdvPagMetodo').value,t=totals(),amount=parseMoneyInput($('pdvPagValor').value)||Math.max(0,t.rest);
  if(!method){toast('Escolha a forma de pagamento.',true);return;}
  if(amount<=0){toast('Informe o valor pago.',true);return;}
- pays.push({method,amount:r2(amount)});$('pdvPagValor').value='';$('pdvPagMetodo').value='';render();
+ const px=readPayExtra($('pdvPagExtra'),method,r2(amount)),perr=validatePayments([px],$('pdvCliente').value.trim());
+ if(perr){toast(perr,true);return;}
+ pays.push(px);$('pdvPagValor').value='';$('pdvPagMetodo').value='';$('pdvPagExtra').querySelector('.pagamentoParcelas').value='1';$('pdvPagExtra').querySelector('.pagamentoVencimento').value='';$('pdvPagExtra').querySelector('.pagamentoResponsavel').value='loja';$('pdvPagExtra').querySelector('.pagamentoBandeira').value='vm';pdvSync();render();
 });
 document.addEventListener('keydown',e=>{if(e.key==='F2'&&$('panel-pdv').classList.contains('active')&&!$('pdvAberto').hidden){e.preventDefault();finish();}});
 
@@ -159,6 +168,13 @@ document.addEventListener('keydown',e=>{if(e.key==='F2'&&$('panel-pdv').classLis
 const idb=()=>new Promise((ok,err)=>{const q=indexedDB.open('conceito_xml',1);q.onupgradeneeded=()=>q.result.createObjectStore('xml');q.onsuccess=()=>ok(q.result);q.onerror=()=>err(q.error);});
 const xmlPut=async(k,v)=>{const d=await idb();return new Promise((ok,err)=>{const t=d.transaction('xml','readwrite');t.objectStore('xml').put(v,k);t.oncomplete=ok;t.onerror=()=>err(t.error);});};
 const xmlGet=async k=>{const d=await idb();return new Promise((ok,err)=>{const q=d.transaction('xml').objectStore('xml').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>err(q.error);});};
+function allocateCents(total,weights){
+ const sum=weights.reduce((x,y)=>x+y,0),cents=Math.round(total*100);
+ if(!(cents>0)||!(sum>0))return weights.map(()=>0);
+ const out=weights.map(w=>Math.round(cents*w/sum)),diff=cents-out.reduce((x,y)=>x+y,0);
+ out[out.indexOf(Math.max(...out))]+=diff;
+ return out.map(c=>c/100);
+}
 function parseNfe(text){
  const doc=new DOMParser().parseFromString(text,'application/xml');
  if(doc.getElementsByTagName('parsererror').length)throw Error('XML inválido');
@@ -167,28 +183,56 @@ function parseNfe(text){
  if(!inf)throw Error('Não é NF-e/NFC-e');
  const key=(inf.getAttribute('Id')||'').replace(/^NFe/,'')||g(doc.documentElement,'chNFe');
  if(!key)throw Error('Sem chave de acesso');
- const ide=inf.getElementsByTagNameNS('*','ide')[0],emit=inf.getElementsByTagNameNS('*','emit')[0];
+ const ide=inf.getElementsByTagNameNS('*','ide')[0],emit=inf.getElementsByTagNameNS('*','emit')[0],tot=inf.getElementsByTagNameNS('*','ICMSTot')[0];
  const items=[...inf.getElementsByTagNameNS('*','det')].map(d=>{
-  const pr=d.getElementsByTagNameNS('*','prod')[0],n=x=>Number(g(pr,x))||0,qty=n('qCom'),tot=n('vProd')-n('vDesc')+n('vFrete')+n('vSeg')+n('vOutro'),ean=g(pr,'cEAN');
-  return {code:g(pr,'cProd'),ean:/^\d{8,14}$/.test(ean)?ean:'',name:g(pr,'xProd'),un:g(pr,'uCom'),qty,cost:qty?r2(tot/qty):0};
+  const pr=d.getElementsByTagNameNS('*','prod')[0],n=x=>Number(g(pr,x))||0,qty=n('qCom'),ean=g(pr,'cEAN');
+  const base=r2(n('vProd')-n('vDesc')),frete=n('vFrete'),seg=n('vSeg'),outro=n('vOutro'),own=r2(frete+seg+outro);
+  return {code:g(pr,'cProd'),ean:/^\d{8,14}$/.test(ean)?ean:'',name:g(pr,'xProd'),un:g(pr,'uCom'),qty,base,frete,seg,outro,cost:qty?r2((base+own)/qty):0};
  });
- return {key,number:g(ide,'nNF'),serie:g(ide,'serie'),date:g(ide,'dhEmi')||g(ide,'dEmi'),supplier:g(emit,'xNome')||g(emit,'xFant'),cnpj:g(emit,'CNPJ')||g(emit,'CPF'),total:Number(g(inf,'vNF'))||0,items};
+ // Rateio: frete, seguro e outras despesas informados só no TOTAL da nota (o que sobra depois do que já veio item a item).
+ const nt=x=>Number(g(tot,x))||0,left=(k,sum)=>Math.max(0,r2(nt(k)-sum));
+ const rateio={frete:left('vFrete',items.reduce((a,i)=>a+i.frete,0)),seg:left('vSeg',items.reduce((a,i)=>a+i.seg,0)),outro:left('vOutro',items.reduce((a,i)=>a+i.outro,0))};
+ rateio.total=r2(rateio.frete+rateio.seg+rateio.outro);
+ const weights=items.some(i=>i.base>0)?items.map(i=>i.base):items.map(i=>i.qty),shares=allocateCents(rateio.total,weights);
+ items.forEach((i,k)=>{i.share=shares[k];i.costRateio=i.qty?r2((i.base+i.frete+i.seg+i.outro+i.share)/i.qty):0;});
+ return {key,number:g(ide,'nNF'),serie:g(ide,'serie'),date:g(ide,'dhEmi')||g(ide,'dEmi'),supplier:g(emit,'xNome')||g(emit,'xFant'),cnpj:g(emit,'CNPJ')||g(emit,'CPF'),total:Number(g(inf,'vNF'))||0,items,rateio};
 }
+// ---- vínculos lembrados (fornecedor + código/EAN/nome do item da nota -> produto do Conceito) ----
+const links=()=>data.productLinks||(data.productLinks={});
+const supKey=n=>fold(n.cnpj||n.supplier||'');
+const linkKeys=(n,it)=>[it.code&&`${supKey(n)}|c|${fold(it.code)}`,it.ean&&`${supKey(n)}|e|${it.ean}`,it.name&&`${supKey(n)}|n|${fold(it.name)}`].filter(Boolean);
+function linkedProduct(n,it){for(const k of linkKeys(n,it)){const l=links()[k],p=l&&productById(l.productId);if(p)return p;}return null;}
+function saveLink(n,it,p){const ks=linkKeys(n,it);if(!ks.length)return;const group=id();ks.forEach((k,i)=>{links()[k]={productId:p.id,group,primary:i===0,supplier:n.supplier||'',itemName:it.name||'',itemCode:it.code||it.ean||''};});}
 function matchProduct(it){const c=fold(it.code),nm=fold(it.name);return data.products.find(p=>p.code&&(fold(p.code)===c||(it.ean&&fold(p.code)===it.ean)))||data.products.find(p=>fold(p.name)===nm)||null;}
 const margin=()=>parsePercentInput($('xmlMargem').value);
+const rateioOn=()=>$('xmlRateio').checked;
 function xmlRow(ni,it,ii){
- const p=matchProduct(it);
+ const n=xmlNotes[ni],lp=linkedProduct(n,it),p=lp||matchProduct(it),cost=rateioOn()?it.costRateio:it.cost;
  const opts='<option value="">Cadastrar como novo</option><option value="skip">Ignorar este item</option>'+data.products.slice().sort(byName).map(q=>`<option value="${esc(q.id)}"${p&&p.id===q.id?' selected':''}>${esc(q.name)}</option>`).join('');
- return `<tr data-xn="${ni}" data-xi="${ii}"><td>${esc(it.name)}<br><small>${esc(it.code||it.ean)}</small></td><td>${it.qty} ${esc(it.un)}</td><td><select class="xml-act">${opts}</select></td><td><input class="xml-cost" inputmode="numeric" value="${brl(it.cost)}"></td><td><input class="xml-price" inputmode="numeric" value="${brl(p?p.price:r2(it.cost*(1+margin()/100)))}"${p?' disabled':''}></td></tr>`;
+ return `<tr data-xn="${ni}" data-xi="${ii}"><td>${esc(it.name)}<br><small>${esc(it.code||it.ean)}</small><br><small class="xml-share"></small></td><td>${it.qty} ${esc(it.un)}</td><td><select class="xml-act">${opts}</select>${lp?'<br><small class="xml-linked">✓ vínculo lembrado</small>':''}</td><td><input class="xml-cost" inputmode="numeric" value="${brl(cost)}"></td><td><input class="xml-price" inputmode="numeric" value="${brl(p?p.price:r2(cost*(1+margin()/100)))}"${p?' disabled':''}></td></tr>`;
+}
+function applyRateio(){
+ const on=rateioOn();
+ document.querySelectorAll('#xmlRevisao tr[data-xn]').forEach(tr=>{
+  const it=xmlNotes[+tr.dataset.xn].items[+tr.dataset.xi];
+  tr.querySelector('.xml-cost').value=brl(on?it.costRateio:it.cost);
+  tr.querySelector('.xml-share').textContent=on&&it.share>0?`+ ${money(it.share)} de frete/despesas rateados`:'';
+  setPrice(tr);
+ });
+ document.querySelectorAll('.xml-rateio-note').forEach(p=>{const t=xmlNotes[+p.dataset.ni].rateio.total;p.hidden=!(t>0);p.textContent=t>0?(on?`Frete/despesas de ${money(t)} cobrados no total da nota foram rateados entre os itens, proporcional ao valor de cada um.`:`Atenção: ${money(t)} de frete/despesas cobrados no total da nota NÃO entraram no custo dos itens.`):'';});
 }
 function xmlRender(){
- $('xmlRevisao').innerHTML=xmlNotes.map((n,ni)=>`<section class="surface list-surface xml-note"><h3>${esc(n.supplier||'Fornecedor')} · NF ${esc(n.number)}/${esc(n.serie)}</h3><p class="subtitle">${esc(n.file)} · emitida em ${n.date?esc(new Date(n.date).toLocaleDateString('pt-BR')):'—'} · total ${money(n.total)}${n.dup?' · <b>já importada, será ignorada</b>':''}</p>${n.dup?'':`<div class="table-wrap"><table class="xml-table"><thead><tr><th>ITEM DA NOTA</th><th>QTD.</th><th>ENTRA COMO</th><th>CUSTO UNIT.</th><th>PREÇO DE VENDA</th></tr></thead><tbody>${n.items.map((it,ii)=>xmlRow(ni,it,ii)).join('')}</tbody></table></div>`}</section>`).join('');
+ $('xmlRevisao').innerHTML=xmlNotes.map((n,ni)=>`<section class="surface list-surface xml-note"><h3>${esc(n.supplier||'Fornecedor')} · NF ${esc(n.number)}/${esc(n.serie)}</h3><p class="subtitle">${esc(n.file)} · emitida em ${n.date?esc(new Date(n.date).toLocaleDateString('pt-BR')):'—'} · total ${money(n.total)}${n.dup?' · <b>já importada, será ignorada</b>':''}</p>${n.dup?'':`<p class="subtitle xml-rateio-note" data-ni="${ni}" hidden></p>`}${n.dup?'':`<div class="table-wrap"><table class="xml-table"><thead><tr><th>ITEM DA NOTA</th><th>QTD.</th><th>ENTRA COMO</th><th>CUSTO UNIT.</th><th>PREÇO DE VENDA</th></tr></thead><tbody>${n.items.map((it,ii)=>xmlRow(ni,it,ii)).join('')}</tbody></table></div>`}</section>`).join('');
  document.querySelectorAll('.xml-cost,.xml-price').forEach(i=>bindMoneyMask(i));
+ applyRateio();
  $('xmlAcoes').hidden=!xmlNotes.some(n=>!n.dup);
 }
 function xmlHist(){
  $('xmlHist').innerHTML=imports().slice().reverse().map(n=>`<tr><td>${esc(dateText(n.importedAt))}</td><td>${esc(n.supplier||'—')}</td><td>${esc(n.number)}/${esc(n.serie)}</td><td>${money(n.total)}</td><td>${n.items}</td></tr>`).join('');
  $('xmlHistVazio').style.display=imports().length?'none':'block';
+ const ls=Object.values(links()).filter(l=>l.primary).sort((x,y)=>(x.supplier+x.itemName).localeCompare(y.supplier+y.itemName,'pt-BR'));
+ $('xmlLinks').innerHTML=ls.map(l=>{const p=productById(l.productId);return `<tr><td>${esc(l.supplier||'—')}</td><td>${esc(l.itemName)}<br><small>${esc(l.itemCode)}</small></td><td>${p?esc(p.name):'<i>produto excluído</i>'}</td><td><button type="button" class="row-action delete" data-link-group="${esc(l.group)}">Remover</button></td></tr>`;}).join('');
+ $('xmlLinksVazio').style.display=ls.length?'none':'block';
 }
 function setPrice(tr){
  const act=tr.querySelector('.xml-act').value,pi=tr.querySelector('.xml-price'),p=productById(act);
@@ -197,6 +241,7 @@ function setPrice(tr){
  else if(act==='')pi.value=brl(r2(parseMoneyInput(tr.querySelector('.xml-cost').value)*(1+margin()/100)));
 }
 $('xmlRevisao').addEventListener('change',e=>{if(e.target.classList.contains('xml-act'))setPrice(e.target.closest('tr'));});
+$('xmlRateio').addEventListener('change',applyRateio);
 $('xmlMargem').addEventListener('input',()=>document.querySelectorAll('#xmlRevisao tr[data-xn]').forEach(tr=>{if(tr.querySelector('.xml-act').value==='')setPrice(tr);}));
 $('xmlArquivos').addEventListener('change',async e=>{
  xmlNotes=[];const keys=new Set(imports().map(n=>n.key)),bad=[];
@@ -206,6 +251,7 @@ $('xmlArquivos').addEventListener('change',async e=>{
  if(bad.length)toast(`Não foi possível ler: ${bad.join(', ')}`,true);
  xmlRender();
 });
+$('xmlLinks').addEventListener('click',e=>{const b=e.target.closest('[data-link-group]');if(!b)return;if(!confirm('Remover este vínculo? Na próxima nota o sistema volta a sugerir pelo código/nome.'))return;Object.keys(links()).forEach(k=>{if(links()[k].group===b.dataset.linkGroup)delete links()[k];});if(saveData())toast('Vínculo removido.');});
 $('xmlCancelar').addEventListener('click',()=>{xmlNotes=[];$('xmlArquivos').value='';xmlRender();});
 $('xmlConfirmar').addEventListener('click',async()=>{
  const rows=[...document.querySelectorAll('#xmlRevisao tr[data-xn]')].map(tr=>({tr,n:xmlNotes[+tr.dataset.xn],it:xmlNotes[+tr.dataset.xn].items[+tr.dataset.xi],act:tr.querySelector('.xml-act').value,cost:parseMoneyInput(tr.querySelector('.xml-cost').value),price:parseMoneyInput(tr.querySelector('.xml-price').value)})).filter(x=>x.act!=='skip');
@@ -220,6 +266,7 @@ $('xmlConfirmar').addEventListener('click',async()=>{
   let p;
   if(act===''){p={id:id(),name:it.name,code:it.code||it.ean||'',cost,price,stock:0};data.products.push(p);novos++;}
   else{p=productById(act);if(upd&&cost>0)p.cost=cost;}
+  saveLink(n,it,p);
   p.stock=Number(p.stock||0)+it.qty;
   recordMovement('entrada',p,it.qty,r2(cost*it.qty),`NF-e ${n.number}/${n.serie} · ${n.supplier}`,{xmlKey:n.key,supplier:n.supplier,supplierCnpj:n.cnpj,nfNumber:n.number,unitCost:cost});
   done.add(n);
@@ -275,8 +322,97 @@ $('ctMes').addEventListener('change',ctPreview);
 try{$('ctEmail').value=localStorage.getItem(EMAIL_KEY)||'';}catch(e){}
 {const d=new Date();$('ctMes').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
 
+// ================= PROMISSÓRIAS (a receber) =================
+const todayKey=()=>localDateKey(new Date());
+const daysBetween=(a,b)=>Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);
+function recStatus(r){
+ if(r.canceled)return {k:'cancelada',t:'Cancelada'};
+ if(r.paid)return {k:'recebida',t:'Recebida'};
+ const d=daysBetween(todayKey(),r.dueDate),lim=getSettings().promissory.remindDays;
+ if(d<0)return {k:'vencida',t:`Vencida há ${-d} ${-d===1?'dia':'dias'}`,urgent:true,late:true};
+ if(d===0)return {k:'avencer',t:'Vence hoje',urgent:true};
+ if(d<=lim)return {k:'avencer',t:`Vence em ${d} ${d===1?'dia':'dias'}`,urgent:true};
+ return {k:'aberta',t:`Vence em ${d} dias`};
+}
+const sumAmt=a=>r2(a.reduce((x,r)=>x+Number(r.amount||0),0));
+function renderProm(){
+ const lim=getSettings().promissory.remindDays,all=receivables().filter(r=>!r.canceled),open=all.filter(r=>!r.paid),late=open.filter(r=>recStatus(r).late),soon=open.filter(r=>recStatus(r).urgent&&!recStatus(r).late);
+ const mk=todayKey().slice(0,7),recMonth=all.filter(r=>r.paid&&localDateKey(r.paidAt).slice(0,7)===mk);
+ $('promAberto').textContent=money(sumAmt(open));$('promAbertoNota').textContent=`${open.length} parcela(s) em aberto`;
+ $('promVencidas').textContent=money(sumAmt(late));$('promVencidasNota').textContent=`${late.length} parcela(s) vencida(s)`;
+ $('promAvencer').textContent=money(sumAmt(soon));$('promAvencerNota').textContent=`${soon.length} parcela(s) em até ${lim} dia(s)`;
+ $('promRecebido').textContent=money(sumAmt(recMonth));$('promRecebidoNota').textContent=`${recMonth.length} parcela(s) neste mês`;
+ const urgent=late.length+soon.length,badge=$('menuPromissorias');badge.textContent=urgent;badge.classList.toggle('alert',urgent>0);
+ const al=$('promAlerta');al.hidden=!urgent;
+ if(urgent)$('promAlertaTexto').textContent=[late.length?`${late.length} parcela(s) de promissória vencida(s) (${money(sumAmt(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sumAmt(soon))})`:''].filter(Boolean).join(' · ');
+ const q=fold($('promBusca').value).trim(),f=$('promStatus').value;
+ const rows=receivables().filter(r=>{const st=recStatus(r);if(st.k==='cancelada')return false;if(q&&!fold(r.client+' '+r.saleId).includes(q))return false;return f==='todas'||(f==='abertas'&&!r.paid)||(f==='vencidas'&&st.late)||(f==='avencer'&&st.urgent&&!st.late)||(f==='recebidas'&&r.paid);}).sort((x,y)=>x.dueDate.localeCompare(y.dueDate)||String(x.client).localeCompare(String(y.client),'pt-BR'));
+ $('promRows').innerHTML=rows.map(r=>{const st=recStatus(r);return `<tr><td>${esc(brDate(r.dueDate))}</td><td><span class="product-name">${esc(r.client||'—')}</span></td><td>Venda ${esc(r.saleId)}<br><small>${esc(dateText(r.saleDate))}</small></td><td>${r.n}/${r.of}</td><td>${money(r.amount)}</td><td><span class="pill ${st.k}">${esc(st.t)}</span>${r.paid?`<br><small>${esc(dateText(r.paidAt))}</small>`:''}</td><td>${r.paid?`<button type="button" class="row-action" data-rec-undo="${esc(r.id)}">Desfazer</button>`:`<button type="button" class="row-action" data-rec-pay="${esc(r.id)}">Receber</button><button type="button" class="row-action" data-rec-wa="${esc(r.id)}">Lembrar</button>`}</td></tr>`;}).join('');
+ $('promVazio').style.display=rows.length?'none':'block';
+ $('promSubtitulo').textContent=`${rows.length} ${rows.length===1?'parcela':'parcelas'}`;
+}
+$('promRows').addEventListener('click',e=>{
+ const pay=e.target.closest('[data-rec-pay]'),undo=e.target.closest('[data-rec-undo]'),wa=e.target.closest('[data-rec-wa]'),get=k=>receivables().find(r=>r.id===k);
+ if(pay){const r=get(pay.dataset.recPay);if(!r||!confirm(`Confirmar o recebimento de ${money(r.amount)} de ${r.client||'cliente'} (parcela ${r.n}/${r.of})?`))return;r.paid=true;r.paidAt=new Date().toISOString();r.paidBy=currentUserName();if(saveData())toast('Parcela recebida.');}
+ else if(undo){const r=get(undo.dataset.recUndo);if(!r||!confirm('Desfazer o recebimento desta parcela?'))return;r.paid=false;delete r.paidAt;delete r.paidBy;if(saveData())toast('Recebimento desfeito.');}
+ else if(wa){
+  const r=get(wa.dataset.recWa);if(!r)return;
+  const c=customerById(r.customerId)||findCustomerForSale(r.client,''),ph=c?digits(c.phone):'',num=ph&&ph.length<=11?'55'+ph:ph,late=recStatus(r).late;
+  const msg=`Olá${r.client?' '+r.client:''}! Passando para lembrar da parcela ${r.n}/${r.of} da sua compra na Conceito, no valor de ${money(r.amount)}, que ${late?'venceu':'vence'} em ${brDate(r.dueDate)}. Qualquer dúvida, é só chamar.`;
+  window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,'_blank','noopener');
+  if(!num)toast('Cliente sem telefone cadastrado: escolha a conversa no WhatsApp.');
+ }
+});
+['promBusca'].forEach(k=>$(k).addEventListener('input',renderProm));$('promStatus').addEventListener('change',renderProm);
+setInterval(renderProm,600000);
+
+// ================= TAXAS E CRÉDITO DA FÁBRICA =================
+const RATE_ROWS=[['debit','Débito'],['cash','Crédito à vista'],['r2','Crédito 2x a 6x'],['r7','Crédito 7x a 12x'],['r13','Crédito 13x a 17x'],['r18','Crédito 18x a 21x']];
+$('taxasTabela').innerHTML=RATE_ROWS.map(([k,l])=>`<tr><td>${l}</td><td><input class="rate-input" data-rate="vm.${k}" inputmode="decimal" autocomplete="off" aria-label="${l} Visa e Master"></td><td><input class="rate-input" data-rate="ae.${k}" inputmode="decimal" autocomplete="off" aria-label="${l} Amex e Elo"></td></tr>`).join('');
+document.querySelectorAll('#panel-taxas .rate-input,#bluOnline,#bluExtraParcela,#fabCreditoPct').forEach(bindPercentInput);
+let taxasDirty=false;
+const fmtPct=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function fabInfo(){const p=Math.min(100,parsePercentInput($('fabCreditoPct').value));$('fabLucroInfo').textContent=`${fmtPct(p)}% vira crédito com a fábrica e ${fmtPct(100-p)}% entra como lucro da loja. Ex.: venda de R$ 1.000,00 → ${money(p*10)} de crédito e ${money((100-p)*10)} de lucro.`;}
+function loadTaxasForm(){
+ const st=getSettings();
+ document.querySelectorAll('#panel-taxas [data-rate]').forEach(i=>{const [b,k]=i.dataset.rate.split('.');i.value=fmtPct(st.rates[b][k]);});
+ $('bluOnline').value=fmtPct(st.blu.online);$('bluExtraDe').value=st.blu.extraFrom;$('bluExtraParcela').value=fmtPct(st.blu.extraPerInstallment);
+ $('fabCreditoPct').value=fmtPct(st.factoryCreditPct);$('promLembreteDias').value=st.promissory.remindDays;
+ fabInfo();taxasDirty=false;
+}
+$('taxasForm').addEventListener('input',()=>{taxasDirty=true;fabInfo();});
+$('taxasForm').addEventListener('submit',e=>{
+ e.preventDefault();
+ const st={rates:{vm:{},ae:{}}};
+ document.querySelectorAll('#panel-taxas [data-rate]').forEach(i=>{const [b,k]=i.dataset.rate.split('.');st.rates[b][k]=parsePercentInput(i.value);});
+ st.blu={online:parsePercentInput($('bluOnline').value),extraFrom:Math.max(1,Math.round(Number($('bluExtraDe').value)||10)),extraPerInstallment:parsePercentInput($('bluExtraParcela').value)};
+ st.factoryCreditPct=Math.min(100,parsePercentInput($('fabCreditoPct').value));
+ st.promissory={remindDays:Math.max(0,Math.round(Number($('promLembreteDias').value)||0))};
+ data.settings=st;
+ if(saveData()){loadTaxasForm();toast('Configurações salvas. Valem para as próximas vendas.');}
+});
+$('taxasPadrao').addEventListener('click',()=>{if(!confirm('Voltar todas as taxas e percentuais para os valores padrão?'))return;data.settings={};if(saveData()){loadTaxasForm();toast('Valores padrão restaurados.');}});
+const ledger=()=>data.factoryLedger||(data.factoryLedger=[]);
+function factoryStats(){const acc=r2(data.movements.filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0)),used=r2(ledger().reduce((x,e)=>x+Number(e.amount||0),0));return {acc,used,bal:r2(acc-used)};}
+function renderFactory(){
+ const f=factoryStats();
+ $('fabAcumulado').textContent=money(f.acc);$('fabUtilizado').textContent=money(f.used);$('fabSaldo').textContent=money(f.bal);
+ $('fabLinhas').innerHTML=ledger().slice().reverse().map(e=>`<tr><td>${esc(dateText(e.date))}</td><td>${esc(e.note||'—')}</td><td>${money(e.amount)}</td><td><button type="button" class="row-action delete" data-fab-del="${esc(e.id)}">Desfazer</button></td></tr>`).join('');
+ $('fabVazio').style.display=ledger().length?'none':'block';
+}
+$('fabUsar').addEventListener('click',()=>{
+ const f=factoryStats(),raw=prompt(`Uso de crédito com a fábrica (saldo ${money(f.bal)}). Valor em R$ — digite 1050 para R$ 10,50:`,'');
+ if(raw===null)return;const v=parseMoneyInput(raw);
+ if(v<=0){toast('Informe um valor maior que zero.',true);return;}
+ if(v>f.bal+0.009){toast(`O valor é maior que o saldo disponível (${money(f.bal)}).`,true);return;}
+ const note=prompt('Descrição (ex.: compra de colchões, pedido 123):','')||'';
+ ledger().push({id:id(),date:new Date().toISOString(),amount:v,note,by:currentUserName()});
+ if(saveData())toast(`Uso de ${money(v)} registrado.`);
+});
+$('fabLinhas').addEventListener('click',e=>{const b=e.target.closest('[data-fab-del]');if(!b||!confirm('Desfazer este lançamento e devolver o valor ao saldo?'))return;data.factoryLedger=ledger().filter(x=>x.id!==b.dataset.fabDel);if(saveData())toast('Lançamento desfeito.');});
+
 // ================= integração =================
 const baseRender=window.renderAll;
-window.renderAll=function(){baseRender();render();xmlHist();ctPreview();};
-render();xmlHist();ctPreview();
+window.renderAll=function(){baseRender();render();xmlHist();ctPreview();renderProm();renderFactory();if(!taxasDirty)loadTaxasForm();};
+render();xmlHist();ctPreview();renderProm();renderFactory();loadTaxasForm();
 })();
