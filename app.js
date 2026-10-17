@@ -7,8 +7,9 @@ let saleCart = [];
 let lastReceipt = null;
 let editingSale = null; // venda sendo editada em "Registrar venda"
 
-function emptyData(){return {version:3,products:[],movements:[],customers:[],cashSessions:[],xmlImports:[]};}
-function loadData(){try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return emptyData();const parsed=JSON.parse(raw);if(!Array.isArray(parsed.products)||!Array.isArray(parsed.movements))return emptyData();if(!Array.isArray(parsed.customers))parsed.customers=[];return parsed;}catch(e){return emptyData();}}
+function emptyData(){return {version:4,products:[],movements:[],customers:[],cashSessions:[],xmlImports:[],receivables:[],productLinks:{},factoryLedger:[],settings:{}};}
+const receivables=()=>data.receivables||(data.receivables=[]);
+function loadData(){try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return emptyData();const parsed=JSON.parse(raw);if(!Array.isArray(parsed.products)||!Array.isArray(parsed.movements))return emptyData();if(!Array.isArray(parsed.customers))parsed.customers=[];if(!Array.isArray(parsed.receivables))parsed.receivables=[];if(!parsed.productLinks||typeof parsed.productLinks!=='object'||Array.isArray(parsed.productLinks))parsed.productLinks={};if(!Array.isArray(parsed.factoryLedger))parsed.factoryLedger=[];if(!parsed.settings||typeof parsed.settings!=='object')parsed.settings={};return parsed;}catch(e){return emptyData();}}
 function saveData(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data));renderAll();return true;}catch(e){toast('Não foi possível salvar. Verifique o espaço disponível no navegador.',true);return false;}}
 function id(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`;}
 function money(n){return Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
@@ -103,12 +104,12 @@ function recordMovement(type,p,qty,total,details='',extra={}){data.movements.uns
 function typePill(m){if(m.type==='venda'&&m.canceled)return '<span class="pill cancelada">Venda cancelada</span>';return `<span class="pill ${m.type}">${m.type==='venda'?'Venda':'Entrada'}</span>`;}
 function dateText(d){return new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}
 // Usuários que não são ADMIN só acessam estes painéis:
-const USER_PANELS=['dashboard','clientes','venda','pdv'];
+const USER_PANELS=['dashboard','clientes','venda','pdv','promissorias'];
 // Perfis: admin (tudo + usuários, sem prazo) | master (tudo, menos usuários, com prazo) | usuario (só USER_PANELS, com prazo)
 function hasFullAccess(){const r=document.body.dataset.ckrRole;return r==='admin'||r==='master';}
 function canAccessPanel(name){return hasFullAccess()||USER_PANELS.includes(name);}
 function currentUserName(){return document.body.dataset.ckrUser||'';}
-function goTo(name){if(!canAccessPanel(name)){toast('Seu acesso permite apenas Visão geral, Clientes e Registrar venda.',true);return;}document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===`panel-${name}`));document.querySelectorAll('.nav-link').forEach(b=>b.classList.toggle('active',b.dataset.panel===name));const selected=document.querySelector(`.nav-link[data-panel="${name}"]`);document.getElementById('pageBreadcrumb').textContent=selected?selected.textContent.trim().replace(/\d+$/,'').trim():'Visão geral';document.getElementById('sidebar').classList.remove('open');window.scrollTo({top:0,behavior:'smooth'});}
+function goTo(name){if(!canAccessPanel(name)){toast('Seu acesso permite apenas Visão geral, Clientes, Registrar venda, PDV e Promissórias.',true);return;}document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===`panel-${name}`));document.querySelectorAll('.nav-link').forEach(b=>b.classList.toggle('active',b.dataset.panel===name));const selected=document.querySelector(`.nav-link[data-panel="${name}"]`);document.getElementById('pageBreadcrumb').textContent=selected?selected.textContent.trim().replace(/\d+$/,'').trim():'Visão geral';document.getElementById('sidebar').classList.remove('open');window.scrollTo({top:0,behavior:'smooth'});}
 document.querySelectorAll('[data-panel]').forEach(b=>b.addEventListener('click',()=>goTo(b.dataset.panel)));
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>goTo(b.dataset.go)));
 document.getElementById('mobileMenu').addEventListener('click',()=>document.getElementById('sidebar').classList.toggle('open'));
@@ -126,17 +127,17 @@ function renderStats(){
  // O lucro só usa vendas que guardam o custo real da época da venda.
  // Vendas antigas sem esse registro não podem ser recalculadas com segurança.
  const vendas=data.movements.filter(m=>m.type==='venda'&&!m.canceled);
- const vendasComCusto=vendas.filter(m=>m.costTotal!==undefined && Number.isFinite(Number(m.costTotal)));
+ const profitOf=m=>{const p=numOrNaN(m.profit);if(Number.isFinite(p))return p;const c=numOrNaN(m.costTotal);return Number.isFinite(c)?Number(m.total||0)-c:NaN;};
+ const vendasComCusto=vendas.filter(m=>Number.isFinite(profitOf(m)));
  const receitaHistorica=vendasComCusto.reduce((s,m)=>s+Number(m.total||0),0);
- const custoHistorico=vendasComCusto.reduce((s,m)=>s+Number(m.costTotal||0),0);
- const lucro=Math.round((receitaHistorica-custoHistorico)*100)/100;
+ const lucro=Math.round(vendasComCusto.reduce((s,m)=>s+profitOf(m),0)*100)/100;
  const margem=receitaHistorica>0?(lucro/receitaHistorica)*100:0;
  const lucroEl=document.getElementById('lucroTotal');
  const margemEl=document.getElementById('margemLucro');
  const notaEl=document.getElementById('lucroHistoricoNota');
  if(lucroEl)lucroEl.textContent=money(lucro);
  if(margemEl)margemEl.textContent=`${margem.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`;
- if(notaEl){const antigas=vendas.length-vendasComCusto.length;notaEl.textContent=antigas>0?`${antigas} venda(s) antiga(s) sem custo histórico não incluída(s)`:'Calculado pelo custo registrado em cada venda';}
+ if(notaEl){const antigas=vendas.length-vendasComCusto.length;notaEl.textContent=antigas>0?`${antigas} venda(s) antiga(s) sem custo histórico não incluída(s)`:'Já desconta custo, taxas de cartão e crédito da fábrica';}
 }
 function renderProducts(){
  const q=document.getElementById('buscaProduto').value.trim().toLowerCase();
@@ -345,17 +346,132 @@ document.getElementById('adicionarAoCarrinho').addEventListener('click',()=>{
  if(existing)existing.quantity+=qty;else saleCart.push({productId:p.id,name:p.name,quantity:qty,price:Math.round(price*100)/100,cost:Number(p.cost||0)});
  document.getElementById('vendaQuantidade').value='1';document.getElementById('vendaBuscaProduto').value='';renderVendaProdutoSelect(false);renderCart();toast(`${p.name} adicionado ao carrinho.`);
 });
-function updatePaymentRow(row){
- const isCard=row.querySelector('.pagamentoMetodo').value==='Cartão de crédito';
- row.querySelector('.payment-card-options').hidden=!isCard;
+// ===== Pagamentos: formas, taxas, crédito da fábrica e promissória =====
+const PM={DEBIT:'Cartão de débito',CREDIT:'Cartão de crédito',BLU:'Link de pagamento (Blu)',PROM:'Promissória'};
+const PAY_METHODS=['Pix','Dinheiro',PM.DEBIT,PM.CREDIT,PM.BLU,PM.PROM,'Transferência','Boleto','Outro'];
+const BRAND_NAMES={vm:'Visa/Master',ae:'Amex/Elo'};
+const round2=n=>Math.round(Number(n||0)*100)/100;
+// Taxas padrão (editáveis no painel "Taxas e crédito"). Valem para as vendas feitas DEPOIS de alteradas.
+const DEFAULT_SETTINGS={rates:{vm:{debit:1.76,cash:2.56,r2:2.96,r7:3.16,r13:3.49,r18:3.69},ae:{debit:3.26,cash:4.06,r2:4.46,r7:4.66,r13:4.99,r18:5.19}},blu:{online:1.49,extraFrom:10,extraPerInstallment:0.3},factoryCreditPct:60,promissory:{remindDays:3}};
+function getSettings(){
+ const s=data.settings||{},D=DEFAULT_SETTINGS,num=(v,d)=>(v!==''&&v!==null&&v!==undefined&&Number.isFinite(Number(v)))?Number(v):d,out={rates:{vm:{},ae:{}},blu:{},promissory:{}};
+ for(const b of ['vm','ae'])for(const k of Object.keys(D.rates[b]))out.rates[b][k]=num(s.rates&&s.rates[b]&&s.rates[b][k],D.rates[b][k]);
+ for(const k of Object.keys(D.blu))out.blu[k]=num(s.blu&&s.blu[k],D.blu[k]);
+ out.factoryCreditPct=Math.min(100,Math.max(0,num(s.factoryCreditPct,D.factoryCreditPct)));
+ out.promissory.remindDays=Math.max(0,Math.round(num(s.promissory&&s.promissory.remindDays,D.promissory.remindDays)));
+ return out;
 }
+function cardRate(brand,kind,n){
+ const t=getSettings().rates[brand==='ae'?'ae':'vm'];
+ if(kind==='debit')return t.debit;
+ n=Math.max(1,Math.floor(n)||1);
+ return n===1?t.cash:n<=6?t.r2:n<=12?t.r7:n<=17?t.r13:t.r18;
+}
+// Link Blu = custo da venda online + taxa administrativa (a mesma tabela da maquininha, por bandeira e parcelas) + prazo estendido (a partir de 10x, por parcela).
+function bluRate(brand,n){const b=getSettings().blu;n=Math.max(1,Math.floor(n)||1);return Math.round((b.online+cardRate(brand,'credit',n)+(n>=b.extraFrom?b.extraPerInstallment*n:0))*10000)/10000;}
+const maxInstallments=method=>method===PM.PROM?12:21;
+function payRules(method,responsible){
+ const credit=method===PM.CREDIT,fab=credit&&responsible==='fabrica';
+ return {brand:method===PM.DEBIT||method===PM.BLU||(credit&&!fab),inst:credit||method===PM.BLU||method===PM.PROM,resp:credit,due:method===PM.PROM};
+}
+function addMonthsKey(key,k){const [y,m,d]=String(key).split('-').map(Number),t=new Date(y,m-1+k,1),last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(Math.min(d,last)).padStart(2,'0')}`;}
+function brDate(key){const [y,m,d]=String(key||'').split('-');return d?`${d}/${m}/${y}`:'—';}
+function splitInstallments(amount,n){const cents=Math.round(amount*100),base=Math.floor(cents/n),out=Array(n).fill(base);out[n-1]+=cents-base*n;return out.map(c=>c/100);}
+function promissorySchedule(p){const n=Math.max(1,Math.min(12,Number(p.installments)||1));return splitInstallments(p.amount,n).map((amount,i)=>({n:i+1,of:n,amount,dueDate:addMonthsKey(p.dueDate,i)}));}
+function buildReceivables(saleId,client,customer,payments,date){
+ const out=[];
+ payments.filter(p=>p.method===PM.PROM).forEach(p=>promissorySchedule(p).forEach(x=>out.push({id:id(),saleId,client,customerId:customer?customer.id:'',n:x.n,of:x.of,amount:x.amount,dueDate:x.dueDate,saleDate:date,paid:false})));
+ return out;
+}
+// Calcula taxa, crédito da fábrica e lucro de cada pagamento/item.
+// - Cartão loja, débito e link Blu: a taxa é descontada do lucro.
+// - Cartão fábrica: X% do valor vira crédito com a fábrica (padrão 60%) e o restante entra como lucro (40%); nessa parte o custo do produto não é descontado de novo.
+function enrichPayment(p){
+ const x={...p,fee:0,feeRate:0,factoryCredit:0},n=Number(x.installments)||1;
+ if(x.method===PM.DEBIT)x.feeRate=cardRate(x.brand,'debit',1);
+ else if(x.method===PM.CREDIT){if(x.responsible==='fabrica')x.factoryCredit=round2(x.amount*getSettings().factoryCreditPct/100);else x.feeRate=cardRate(x.brand,'credit',n);}
+ else if(x.method===PM.BLU)x.feeRate=bluRate(x.brand,n);
+ x.fee=round2(x.amount*x.feeRate/100);
+ return x;
+}
+function calcSaleFinance(lines,total,payments){
+ const pays=payments.map(enrichPayment),pct=getSettings().factoryCreditPct;
+ const fabAmount=pays.filter(p=>p.method===PM.CREDIT&&p.responsible==='fabrica').reduce((s,p)=>s+p.amount,0);
+ const f=total>0?Math.min(1,fabAmount/total):0,totalFee=pays.reduce((s,p)=>s+p.fee,0);
+ const items=lines.map(l=>{
+  const L=Number(l.lineTotal||0),costTotal=round2(Number(l.unitCost||0)*Number(l.quantity||0));
+  const fabRev=L*f,credit=fabRev*pct/100,fee=total>0?totalFee*L/total:0;
+  const profit=(fabRev-credit)+(L-fabRev-costTotal*(1-f))-fee;
+  return {costTotal,fee:round2(fee),factoryCredit:round2(credit),profit:round2(profit)};
+ });
+ return {payments:pays,items,totalFee:round2(totalFee),totalFactoryCredit:round2(items.reduce((s,i)=>s+i.factoryCredit,0))};
+}
+function payLabel(x){
+ const n=x.installments,brand=x.brand&&BRAND_NAMES[x.brand]?` · ${BRAND_NAMES[x.brand]}`:'';
+ if(x.method===PM.CREDIT)return `${x.method}: ${money(x.amount)} em ${n||1}x (${x.responsible==='fabrica'?'fábrica':'loja'+brand})`;
+ if(x.method===PM.DEBIT)return `${x.method}: ${money(x.amount)}${x.brand&&BRAND_NAMES[x.brand]?' ('+BRAND_NAMES[x.brand]+')':''}`;
+ if(x.method===PM.BLU)return `${x.method}: ${money(x.amount)} em ${n||1}x${x.brand&&BRAND_NAMES[x.brand]?' ('+BRAND_NAMES[x.brand]+')':''}`;
+ if(x.method===PM.PROM)return `${x.method}: ${money(x.amount)} em ${n||1}x (1º venc. ${brDate(x.dueDate)})`;
+ return `${x.method}: ${money(x.amount)}`;
+}
+function describePayInfo(pm){
+ if(!pm.method)return '';
+ const amount=Number(pm.amount)||0,n=Math.max(1,Math.min(maxInstallments(pm.method),Number(pm.installments)||1)),e=enrichPayment({...pm,amount,installments:n}),pct=v=>v.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';
+ if(pm.method===PM.CREDIT&&pm.responsible==='fabrica'){const c=getSettings().factoryCreditPct;return amount>0?`${n}x pela fábrica · crédito com a fábrica: ${money(e.factoryCredit)} (${pct(c)}) · entra como lucro: ${money(amount-e.factoryCredit)}`:`${pct(c)} vira crédito com a fábrica e ${pct(100-c)} entra como lucro`;}
+ if(pm.method===PM.DEBIT||pm.method===PM.CREDIT||pm.method===PM.BLU){
+  let t=(n>1&&amount>0?`${n}x de ${money(amount/n)} · `:'')+`Taxa ${pct(e.feeRate)}`+(amount>0?` · ${money(e.fee)} descontados do lucro`:'');
+  if(pm.method===PM.BLU)t+=' · recebimento em 30 dias por parcela';
+  return t;
+ }
+ if(pm.method===PM.PROM){
+  if(!(amount>0))return 'Até 12x · o painel Promissórias avisa os vencimentos';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(pm.dueDate||''))return '';
+  const sch=promissorySchedule({...pm,amount,installments:n});
+  return `${n}x de ${money(sch[0].amount)} · 1º venc. ${brDate(sch[0].dueDate)}${n>1?' · último '+brDate(sch[n-1].dueDate):''}`;
+ }
+ return '';
+}
+function payExtraHtml(){return `<label class="field"><span>Bandeira</span><select class="pagamentoBandeira"><option value="vm">Visa / Master</option><option value="ae">Amex / Elo</option></select></label><label class="field"><span>Parcelas</span><input class="pagamentoParcelas" type="number" min="1" step="1" value="1"></label><label class="field"><span>Parcelamento</span><select class="pagamentoResponsavel"><option value="loja">Pela loja</option><option value="fabrica">Pela fábrica</option></select></label><label class="field"><span>1º vencimento</span><input class="pagamentoVencimento" type="date"></label><p class="pay-hint pagamentoInfo" hidden></p>`;}
+function readPayExtra(box,method,amount){
+ const q=sel=>box.querySelector(sel),rules=payRules(method,q('.pagamentoResponsavel').value);
+ return {method,amount,installments:rules.inst?Number(q('.pagamentoParcelas').value||0):null,responsible:rules.resp?q('.pagamentoResponsavel').value:null,brand:rules.brand?q('.pagamentoBandeira').value:null,dueDate:rules.due?(q('.pagamentoVencimento').value||''):null};
+}
+function syncPayExtra(box,method,amount){
+ const q=sel=>box.querySelector(sel),rules=payRules(method,q('.pagamentoResponsavel').value);
+ const show=(sel,on)=>{q(sel).closest('label').hidden=!on;};
+ show('.pagamentoBandeira',rules.brand);show('.pagamentoParcelas',rules.inst);show('.pagamentoResponsavel',rules.resp);show('.pagamentoVencimento',rules.due);
+ q('.pagamentoParcelas').max=maxInstallments(method);
+ if(rules.due&&!q('.pagamentoVencimento').value)q('.pagamentoVencimento').value=addMonthsKey(localDateKey(new Date()),1);
+ const info=q('.pagamentoInfo'),txt=describePayInfo(readPayExtra(box,method,amount));
+ info.textContent=txt;info.hidden=!txt;
+ box.hidden=!(rules.brand||rules.inst||rules.resp||rules.due);
+}
+function validatePayments(payments,client){
+ if(!payments.length||payments.some(x=>!x.method||x.amount<=0))return 'Informe a forma e o valor de cada pagamento.';
+ for(const x of payments){
+  if(x.installments!==null&&x.installments!==undefined){const max=maxInstallments(x.method);if(!Number.isInteger(x.installments)||x.installments<1||x.installments>max)return `${x.method}: informe de 1 a ${max} parcelas.`;}
+  if(x.method===PM.PROM){
+   if(!client)return 'Para vender na promissória, informe o cliente.';
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(x.dueDate||''))return 'Informe o 1º vencimento da promissória.';
+   if(x.dueDate<localDateKey(new Date()))return 'O 1º vencimento da promissória não pode ser anterior a hoje.';
+  }
+ }
+ return '';
+}
+function updatePaymentRow(row){syncPayExtra(row.querySelector('.payment-card-options'),row.querySelector('.pagamentoMetodo').value,round2(parseMoneyInput(row.querySelector('.pagamentoValor').value)));}
 function addPaymentRow(){
  const wrap=document.getElementById('linhasPagamento'),row=document.createElement('div');row.className='payment-row';
- row.innerHTML=`<div class="payment-row-main"><label class="field">Forma de pagamento<select class="pagamentoMetodo"><option value="">Selecione...</option><option>Pix</option><option>Dinheiro</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Transferência</option><option>Boleto</option><option>Outro</option></select></label><label class="field">Valor pago (R$)<input class="pagamentoValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><button type="button" class="payment-remove" aria-label="Remover pagamento" title="Remover pagamento">×</button></div><div class="payment-card-options" hidden><label class="field">Parcelas<input class="pagamentoParcelas" type="number" min="1" step="1" value="1"></label><label class="field">Parcelamento<select class="pagamentoResponsavel"><option value="loja">Pela loja</option><option value="fabrica">Pela fábrica</option></select></label></div>`;
- wrap.appendChild(row);bindMoneyMask(row.querySelector('.pagamentoValor'));row.querySelector('.pagamentoMetodo').addEventListener('change',()=>{updatePaymentRow(row);updatePaymentSummary();});row.querySelector('.pagamentoValor').addEventListener('input',updatePaymentSummary);row.querySelector('.pagamentoParcelas').addEventListener('input',updatePaymentSummary);row.querySelector('.pagamentoResponsavel').addEventListener('change',updatePaymentSummary);row.querySelector('.payment-remove').addEventListener('click',()=>{row.remove();updatePaymentSummary();});updatePaymentRow(row);updatePaymentSummary();return row;
+ row.innerHTML=`<div class="payment-row-main"><label class="field">Forma de pagamento<select class="pagamentoMetodo"><option value="">Selecione...</option>${PAY_METHODS.map(m=>`<option>${esc(m)}</option>`).join('')}</select></label><label class="field">Valor pago (R$)<input class="pagamentoValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><button type="button" class="payment-remove" aria-label="Remover pagamento" title="Remover pagamento">×</button></div><div class="payment-card-options" hidden>${payExtraHtml()}</div>`;
+ wrap.appendChild(row);bindMoneyMask(row.querySelector('.pagamentoValor'));
+ const refresh=()=>{updatePaymentRow(row);updatePaymentSummary();};
+ ['pagamentoMetodo','pagamentoResponsavel','pagamentoBandeira','pagamentoVencimento'].forEach(c=>row.querySelector('.'+c).addEventListener('change',refresh));
+ ['pagamentoValor','pagamentoParcelas'].forEach(c=>row.querySelector('.'+c).addEventListener('input',refresh));
+ row.querySelector('.pagamentoValor').addEventListener('money-mask-updated',refresh);
+ row.querySelector('.payment-remove').addEventListener('click',()=>{row.remove();updatePaymentSummary();});
+ updatePaymentRow(row);updatePaymentSummary();return row;
 }
 function readPayments(){
- return [...document.querySelectorAll('.payment-row')].map(row=>({method:row.querySelector('.pagamentoMetodo').value,amount:Math.round(parseMoneyInput(row.querySelector('.pagamentoValor').value)*100)/100,installments:row.querySelector('.pagamentoMetodo').value==='Cartão de crédito'?Number(row.querySelector('.pagamentoParcelas').value||0):null,responsible:row.querySelector('.pagamentoMetodo').value==='Cartão de crédito'?row.querySelector('.pagamentoResponsavel').value:null})).filter(x=>x.method||x.amount>0);
+ return [...document.querySelectorAll('.payment-row')].map(row=>{const method=row.querySelector('.pagamentoMetodo').value,amount=round2(parseMoneyInput(row.querySelector('.pagamentoValor').value));return readPayExtra(row.querySelector('.payment-card-options'),method,amount);}).filter(x=>x.method||x.amount>0);
 }
 function updatePaymentSummary(){
  const total=saleTotals().total,payments=readPayments(),received=Math.round(payments.reduce((s,x)=>s+x.amount,0)*100)/100,remaining=Math.round((total-received)*100)/100;
@@ -364,6 +480,12 @@ function updatePaymentSummary(){
  if(remaining>0.009){notice.textContent=`Falta receber ${money(remaining)} para completar a venda.`;notice.classList.remove('payment-ok','payment-error');}
  else if(remaining< -0.009){notice.textContent=`Os pagamentos ultrapassam o total em ${money(-remaining)}.`;notice.classList.remove('payment-ok');notice.classList.add('payment-error');}
  else{notice.textContent='Pagamento completo: o total da venda foi quitado.';notice.classList.add('payment-ok');notice.classList.remove('payment-error');}
+ const fin=document.getElementById('resumoFinanceiro');
+ if(fin){
+  const done=payments.filter(x=>x.method&&x.amount>0).map(enrichPayment),fee=round2(done.reduce((s,x)=>s+x.fee,0)),fab=round2(done.reduce((s,x)=>s+x.factoryCredit,0)),prom=round2(done.filter(x=>x.method===PM.PROM).reduce((s,x)=>s+x.amount,0));
+  const parts=[fee>0?`Taxas descontadas do lucro: ${money(fee)}`:'',fab>0?`Crédito com a fábrica: ${money(fab)}`:'',prom>0?`A receber em promissória: ${money(prom)}`:''].filter(Boolean);
+  fin.textContent=parts.join(' · ');fin.hidden=!parts.length;
+ }
 }
 function updateSalePreview(){
  const p=productById(document.getElementById('vendaProduto').value);if(p&&document.activeElement!==document.getElementById('vendaPreco'))document.getElementById('vendaPreco').value=Number(p.price).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -382,13 +504,15 @@ function createReceiptPdf(receipt){
  receipt.items.forEach(item=>{const name=doc.splitTextToSize(item.name,88);if(y+Math.max(7,name.length*5)>265){doc.addPage();y=18;}doc.text(name,15,y);doc.text(String(item.quantity),108,y);doc.text(money(item.price),126,y);doc.text(money(item.lineTotal),166,y);y+=Math.max(7,name.length*5);});
  y+=2;doc.line(15,y,195,y);y+=8;if(receipt.discount>0){doc.text('Subtotal:',135,y);doc.text(money(receipt.subtotal),195,y,{align:'right'});y+=6;doc.text('Desconto:',135,y);doc.text('- '+money(receipt.discount),195,y,{align:'right'});y+=7;}
  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('TOTAL GERAL:',125,y);doc.text(money(receipt.total),195,y,{align:'right'});y+=11;
+ doc.setFont('helvetica','normal');doc.setFontSize(10);
+ (receipt.payments||[]).forEach(p=>{const ls=doc.splitTextToSize('Pagamento: '+payLabel(p),180);if(y+ls.length*5>270){doc.addPage();y=18;}doc.text(ls,15,y);y+=ls.length*5;if(p.method===PM.PROM)promissorySchedule(p).forEach(x=>{if(y>270){doc.addPage();y=18;}doc.text(`   Parcela ${x.n}/${x.of}: vence em ${brDate(x.dueDate)} - ${money(x.amount)}`,15,y);y+=5;});});y+=4;
  doc.setFont('helvetica','normal');doc.setFontSize(10);if(y>265){doc.addPage();y=18;}doc.text('Observação: garantia de 3 meses (90 dias).',15,y);y+=7;if(receipt.note){const lines=doc.splitTextToSize(`Obs. do pedido: ${receipt.note}`,175);doc.text(lines,15,y);}
  doc.save(`recibo-conceito-${receipt.id}.pdf`);return true;
 }
 function receiptWhatsappText(receipt){
  const lines=[`Olá${receipt.client?' '+receipt.client:''}! Segue o resumo da sua compra na Conceito.`,`Data: ${new Date(receipt.date).toLocaleString('pt-BR')}`,...receipt.items.map(x=>`${x.name} | Qtd.: ${x.quantity} | Unit.: ${money(x.price)} | Total: ${money(x.lineTotal)}`)];
  if(receipt.discount>0){lines.push(`Subtotal: ${money(receipt.subtotal)}`,`Desconto: ${money(receipt.discount)}`);}
- lines.push(`TOTAL GERAL: ${money(receipt.total)}`,'Garantia: 3 meses (90 dias).');if(receipt.note)lines.push(`Observação: ${receipt.note}`);lines.push('O recibo em PDF será anexado nesta conversa.');return lines.join('\n');
+ lines.push(`TOTAL GERAL: ${money(receipt.total)}`);(receipt.payments||[]).forEach(p=>{lines.push('Pagamento: '+payLabel(p));if(p.method===PM.PROM)promissorySchedule(p).forEach(x=>lines.push(`  Parcela ${x.n}/${x.of}: vence em ${brDate(x.dueDate)} - ${money(x.amount)}`));});lines.push('Garantia: 3 meses (90 dias).');if(receipt.note)lines.push(`Observação: ${receipt.note}`);lines.push('O recibo em PDF será anexado nesta conversa.');return lines.join('\n');
 }
 document.getElementById('baixarReciboPdf').addEventListener('click',()=>{if(lastReceipt)createReceiptPdf(lastReceipt);});
 document.getElementById('enviarReciboWhatsapp').addEventListener('click',()=>{if(!lastReceipt)return;const phone=prompt('Digite o WhatsApp do cliente com DDD (somente números), ou deixe vazio para escolher uma conversa:','');if(phone===null)return;const number=phone.replace(/\D/g,'');if(number&&number.length<10){toast('Informe um número com DDD válido.',true);return;}const url=`https://wa.me/${number}?text=${encodeURIComponent(receiptWhatsappText(lastReceipt))}`;window.open(url,'_blank','noopener');toast('WhatsApp aberto. Anexe o PDF baixado para enviar o recibo completo.');});
@@ -402,21 +526,22 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
   oldMovements=data.movements.filter(m=>m.type==='venda'&&(m.saleId||m.id)===editingSale.saleId&&!m.canceled);
   if(!oldMovements.length){toast('A venda original não está mais disponível para edição.',true);cancelSaleEdit();return;}
  }
+ if(editingSale&&receivables().some(r=>r.saleId===editingSale.saleId&&r.paid&&!r.canceled)){toast('Esta venda tem parcelas de promissória já recebidas e não pode ser editada. Cancele a venda ou desfaça os recebimentos no painel Promissórias.',true);return;}
  const oldQty={};oldMovements.forEach(m=>{oldQty[m.productId]=(oldQty[m.productId]||0)+Number(m.quantity||0);});
  const need={};saleCart.forEach(item=>{need[item.productId]=(need[item.productId]||0)+item.quantity;});
  for(const item of saleCart){const p=productById(item.productId);if(!p||need[item.productId]>Number(p.stock)+(oldQty[item.productId]||0)){toast(`Estoque insuficiente ou produto removido: ${item.name}.`,true);return;}}
- if(!payments.length||payments.some(x=>!x.method||x.amount<=0)){toast('Informe a forma e o valor de cada pagamento.',true);return;}
- if(payments.some(x=>x.method==='Cartão de crédito'&&(!Number.isInteger(x.installments)||x.installments<1))){toast('Informe um número válido de parcelas para cada cartão.',true);return;}
+ {const perr=validatePayments(payments,client);if(perr){toast(perr,true);return;}}
  if(Math.abs(received-totals.total)>0.009){toast(`Os pagamentos devem somar exatamente ${money(totals.total)}. Saldo: ${money(totals.total-received)}.`,true);return;}
- const paymentDetails=payments.map(x=>x.method==='Cartão de crédito'?`${x.method}: ${money(x.amount)} em ${x.installments}x (${x.responsible==='fabrica'?'fábrica':'loja'})`:`${x.method}: ${money(x.amount)}`).join(' | ');
+ const paymentDetails=payments.map(payLabel).join(' | ');
  const discount= Math.round((totals.subtotal-totals.total)*100)/100;let allocated=0;
  const receiptItems=saleCart.map((item,index)=>{const raw=Math.round(item.quantity*item.price*100)/100;let lineTotal;if(index===saleCart.length-1)lineTotal=Math.round((totals.total-allocated)*100)/100;else{lineTotal=totals.subtotal?Math.round(raw*(totals.total/totals.subtotal)*100)/100:0;allocated+=lineTotal;}return {...item,lineTotal};});
+ const fin=calcSaleFinance(receiptItems.map(it=>({lineTotal:it.lineTotal,quantity:it.quantity,unitCost:Number.isFinite(Number(it.cost))?Number(it.cost):Number((productById(it.productId)||{}).cost||0)})),totals.total,payments);
  const wasEditing=!!editingSale;
  const saleId=wasEditing?editingSale.saleId:Date.now().toString(36).toUpperCase();
  const date=wasEditing?editingSale.date:new Date().toISOString();
  const customer=findCustomerForSale(client,'');
  const detailPrefix=[client?`Cliente: ${client}`:'',`Venda ${saleId}`,wasEditing?'Venda editada':'',`Subtotal: ${money(totals.subtotal)}`,discount?`Desconto total: ${money(discount)}`:'',`Pagamentos: ${paymentDetails}`,note].filter(Boolean).join(' · ');
- const snapshot={id:saleId,date,client,note,items:receiptItems,subtotal:totals.subtotal,discount,total:totals.total};
+ const snapshot={id:saleId,date,client,note,items:receiptItems,subtotal:totals.subtotal,discount,total:totals.total,payments:fin.payments};
  // A partir daqui os dados são alterados (todas as validações já passaram).
  let insertAt=0;
  if(wasEditing){
@@ -430,12 +555,14 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
   const costTotal=Math.round(unitCost*item.quantity*100)/100;
   p.stock-=item.quantity;
   const detail=[detailPrefix,`Item ${index+1}/${saleCart.length}`].filter(Boolean).join(' · ');
-  const extra={client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note,payments,subtotal:totals.subtotal,discountCash:totals.discountCash,discountPercent:totals.discountPercent,unitPrice:item.price,unitCost,costTotal,profit:Math.round((receiptItems[index].lineTotal-costTotal)*100)/100,saleId,date};
+  const extra={client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note,payments:fin.payments,subtotal:totals.subtotal,discountCash:totals.discountCash,discountPercent:totals.discountPercent,unitPrice:item.price,unitCost,costTotal,profit:fin.items[index].profit,fee:fin.items[index].fee,factoryCredit:fin.items[index].factoryCredit,saleId,date};
   if(wasEditing){extra.editedAt=new Date().toISOString();extra.editedBy=currentUserName();}
   recordMovement('venda',p,item.quantity,receiptItems[index].lineTotal,detail,extra);
  });
  // Edição: os lançamentos novos voltam para a posição da venda original no histórico.
  if(wasEditing){const created=data.movements.splice(0,saleCart.length);data.movements.splice(insertAt,0,...created);}
+ data.receivables=receivables().filter(r=>r.saleId!==saleId);
+ receivables().push(...buildReceivables(saleId,client,customer,fin.payments,date));
  if(saveData()){
   lastReceipt=snapshot;saleCart=[];exitSaleEdit();e.target.reset();document.getElementById('linhasPagamento').innerHTML='';addPaymentRow();document.getElementById('reciboAcoes').hidden=false;
   document.getElementById('reciboStatus').textContent=wasEditing?`Venda ${saleId} atualizada. Baixe o PDF atualizado e envie ao cliente.`:`Venda ${saleId} registrada. Baixe o PDF e envie ao cliente.`;
@@ -542,7 +669,10 @@ function startSaleEdit(saleId){
   const row=addPaymentRow();if(!pm)return;
   row.querySelector('.pagamentoMetodo').value=pm.method||'';
   row.querySelector('.pagamentoValor').value=fmt(pm.amount||0);
-  if(pm.method==='Cartão de crédito'){row.querySelector('.pagamentoParcelas').value=pm.installments||1;row.querySelector('.pagamentoResponsavel').value=pm.responsible||'loja';}
+  row.querySelector('.pagamentoParcelas').value=pm.installments||1;
+  row.querySelector('.pagamentoResponsavel').value=pm.responsible||'loja';
+  row.querySelector('.pagamentoBandeira').value=pm.brand||'vm';
+  row.querySelector('.pagamentoVencimento').value=pm.dueDate||'';
   updatePaymentRow(row);
  });
  document.getElementById('vendaEdicaoTitulo').textContent=`Editando a venda ${s.id}${s.client?' — '+s.client:''}`;
@@ -555,9 +685,11 @@ function startSaleEdit(saleId){
 function cancelSale(saleId){
  if(!hasFullAccess()){toast('Seu perfil não tem permissão para cancelar vendas.',true);return;}
  const s=getSales().find(x=>x.id===saleId);if(!s||s.canceled)return;
+ const paidProm=receivables().filter(r=>r.saleId===s.id&&r.paid&&!r.canceled),promWarn=paidProm.length?`\n\nAtenção: ${paidProm.length} parcela(s) de promissória já recebida(s) (${money(paidProm.reduce((n,r)=>n+r.amount,0))}). Devolva ao cliente, se for o caso.`:'';
  const lines=s.items.map(i=>`• ${i.quantity}× ${i.name}`).join('\n');
- if(!confirm(`Cancelar a venda ${s.id}${s.client?' de '+s.client:''}?\n\n${lines}\n\nOs produtos voltarão ao estoque e ${money(s.total)} será retirado do total de vendas e do lucro.`))return;
+ if(!confirm(`Cancelar a venda ${s.id}${s.client?' de '+s.client:''}?\n\n${lines}\n\nOs produtos voltarão ao estoque e ${money(s.total)} será retirado do total de vendas e do lucro.${promWarn}`))return;
  const when=new Date().toISOString(),missing=[];
+ receivables().forEach(r=>{if(r.saleId===s.id)r.canceled=true;});
  s.movements.forEach(m=>{
   if(m.canceled)return;
   const p=productById(m.productId);
@@ -578,7 +710,7 @@ document.getElementById('cancelarEdicaoVenda').addEventListener('click',()=>{can
 document.getElementById('filtroTipo').addEventListener('change',renderHistory);
 document.getElementById('limparHistorico').addEventListener('click',()=>{if(!confirm('Apagar o histórico? Os produtos e quantidades em estoque serão mantidos.'))return;data.movements=[];if(saveData())toast('Histórico apagado.');});
 document.getElementById('fazerBackup').addEventListener('click',()=>{if(!hasFullAccess()){toast('Seu perfil não tem permissão para fazer backup.',true);return;}const blob=new Blob([JSON.stringify({...data,exportedAt:new Date().toISOString()},null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`conceito-backup-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('Backup exportado. Guarde o arquivo em local seguro.');});
-document.getElementById('restaurarBackup').addEventListener('click',async()=>{if(!hasFullAccess()){toast('Seu perfil não tem permissão para restaurar backup.',true);return;}const file=document.getElementById('arquivoBackup').files[0];if(!file){toast('Escolha um arquivo JSON primeiro.',true);return;}if(!confirm('A restauração vai substituir os dados deste dispositivo. Deseja continuar?'))return;try{const imported=JSON.parse(await file.text());if(!Array.isArray(imported.products)||!Array.isArray(imported.movements))throw Error('Formato');for(const p of imported.products){if(!p.id||!String(p.name||'').trim()||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw Error('Produto');}data={version:3,products:imported.products,movements:imported.movements,customers:Array.isArray(imported.customers)?imported.customers:[],cashSessions:Array.isArray(imported.cashSessions)?imported.cashSessions:[],xmlImports:Array.isArray(imported.xmlImports)?imported.xmlImports:[]};if(saveData()){document.getElementById('arquivoBackup').value='';resetProductForm();toast('Backup restaurado com sucesso.');}}catch(err){toast('Arquivo inválido ou incompatível com o Conceito Web V2.',true);}});
+document.getElementById('restaurarBackup').addEventListener('click',async()=>{if(!hasFullAccess()){toast('Seu perfil não tem permissão para restaurar backup.',true);return;}const file=document.getElementById('arquivoBackup').files[0];if(!file){toast('Escolha um arquivo JSON primeiro.',true);return;}if(!confirm('A restauração vai substituir os dados deste dispositivo. Deseja continuar?'))return;try{const imported=JSON.parse(await file.text());if(!Array.isArray(imported.products)||!Array.isArray(imported.movements))throw Error('Formato');for(const p of imported.products){if(!p.id||!String(p.name||'').trim()||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw Error('Produto');}data={version:3,products:imported.products,movements:imported.movements,customers:Array.isArray(imported.customers)?imported.customers:[],cashSessions:Array.isArray(imported.cashSessions)?imported.cashSessions:[],xmlImports:Array.isArray(imported.xmlImports)?imported.xmlImports:[],receivables:Array.isArray(imported.receivables)?imported.receivables:[],productLinks:(imported.productLinks&&typeof imported.productLinks==='object'&&!Array.isArray(imported.productLinks))?imported.productLinks:{},factoryLedger:Array.isArray(imported.factoryLedger)?imported.factoryLedger:[],settings:(imported.settings&&typeof imported.settings==='object')?imported.settings:{}};if(saveData()){document.getElementById('arquivoBackup').value='';resetProductForm();toast('Backup restaurado com sucesso.');}}catch(err){toast('Arquivo inválido ou incompatível com o Conceito Web V2.',true);}});
 document.getElementById('apagarTudo').addEventListener('click',()=>{if(!hasFullAccess()){toast('Seu perfil não tem permissão para apagar os dados.',true);return;}if(!confirm('Isso apagará todos os produtos, clientes, entradas e vendas deste navegador. Continuar?'))return;if(!confirm('Confirme mais uma vez. Só será possível recuperar com backup.'))return;data=emptyData();if(saveData()){resetProductForm();toast('Dados locais apagados.');}});
 document.getElementById('gerarRelatorio').addEventListener('click',()=>{const a=document.getElementById('relatorioDataInicio').value,b=document.getElementById('relatorioDataFim').value;if(a&&b&&a>b){toast('A data inicial não pode ser posterior à data final.',true);return;}renderDateReport();});
 ['relatorioDataInicio','relatorioDataFim','relatorioTipo'].forEach(k=>document.getElementById(k).addEventListener('change',renderDateReport));
