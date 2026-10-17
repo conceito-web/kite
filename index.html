@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Conceito">
@@ -110,7 +110,6 @@
         <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
         <div id="ckrExpiryStatus" class="expiry-status" hidden aria-live="polite"></div>
         <button class="nav-link" data-panel="backup"><span class="nav-icon">⇄</span> Backup e transferência</button>
-        <button type="button" id="btnInstalar" class="nav-link" hidden><span class="nav-icon">⬇</span> Instalar app</button>
         <button type="button" id="ckrManageUsersSidebar" class="nav-link admin-users-link" hidden><span class="nav-icon">♙</span> Gerenciar usuários</button>
       </nav>
       <div class="sidebar-bottom">
@@ -325,6 +324,7 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=9"></script>
+  <script>if("serviceWorker"in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}</script>
 </body>
 </html>
