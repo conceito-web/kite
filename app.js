@@ -7,7 +7,7 @@ let saleCart = [];
 let lastReceipt = null;
 let editingSale = null; // venda sendo editada em "Registrar venda"
 
-function emptyData(){return {version:3,products:[],movements:[],customers:[]};}
+function emptyData(){return {version:3,products:[],movements:[],customers:[],cashSessions:[],xmlImports:[]};}
 function loadData(){try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return emptyData();const parsed=JSON.parse(raw);if(!Array.isArray(parsed.products)||!Array.isArray(parsed.movements))return emptyData();if(!Array.isArray(parsed.customers))parsed.customers=[];return parsed;}catch(e){return emptyData();}}
 function saveData(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data));renderAll();return true;}catch(e){toast('Não foi possível salvar. Verifique o espaço disponível no navegador.',true);return false;}}
 function id(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`;}
@@ -103,13 +103,10 @@ function recordMovement(type,p,qty,total,details='',extra={}){data.movements.uns
 function typePill(m){if(m.type==='venda'&&m.canceled)return '<span class="pill cancelada">Venda cancelada</span>';return `<span class="pill ${m.type}">${m.type==='venda'?'Venda':'Entrada'}</span>`;}
 function dateText(d){return new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}
 // Usuários que não são ADMIN só acessam estes painéis:
-const USER_PANELS=['dashboard','clientes','venda'];
+const USER_PANELS=['dashboard','clientes','venda','pdv'];
 // Perfis: admin (tudo + usuários, sem prazo) | master (tudo, menos usuários, com prazo) | usuario (só USER_PANELS, com prazo)
 function hasFullAccess(){const r=document.body.dataset.ckrRole;return r==='admin'||r==='master';}
-// Painéis só do ADMIN (backup, transferência e restauração).
-const ADMIN_PANELS=['backup'];
-function isAdmin(){return document.body.dataset.ckrRole==='admin';}
-function canAccessPanel(name){if(ADMIN_PANELS.includes(name))return isAdmin();return hasFullAccess()||USER_PANELS.includes(name);}
+function canAccessPanel(name){return hasFullAccess()||USER_PANELS.includes(name);}
 function currentUserName(){return document.body.dataset.ckrUser||'';}
 function goTo(name){if(!canAccessPanel(name)){toast('Seu acesso permite apenas Visão geral, Clientes e Registrar venda.',true);return;}document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===`panel-${name}`));document.querySelectorAll('.nav-link').forEach(b=>b.classList.toggle('active',b.dataset.panel===name));const selected=document.querySelector(`.nav-link[data-panel="${name}"]`);document.getElementById('pageBreadcrumb').textContent=selected?selected.textContent.trim().replace(/\d+$/,'').trim():'Visão geral';document.getElementById('sidebar').classList.remove('open');window.scrollTo({top:0,behavior:'smooth'});}
 document.querySelectorAll('[data-panel]').forEach(b=>b.addEventListener('click',()=>goTo(b.dataset.panel)));
@@ -580,19 +577,9 @@ document.getElementById('limparBuscaVenda').addEventListener('click',()=>{['busc
 document.getElementById('cancelarEdicaoVenda').addEventListener('click',()=>{cancelSaleEdit();toast('Edição cancelada. Nada foi alterado.');});
 document.getElementById('filtroTipo').addEventListener('change',renderHistory);
 document.getElementById('limparHistorico').addEventListener('click',()=>{if(!confirm('Apagar o histórico? Os produtos e quantidades em estoque serão mantidos.'))return;data.movements=[];if(saveData())toast('Histórico apagado.');});
-document.getElementById('fazerBackup').addEventListener('click',()=>{if(!isAdmin()){toast('Somente o ADMIN pode fazer backup.',true);return;}const blob=new Blob([JSON.stringify({...data,users:(()=>{try{const u=JSON.parse(localStorage.getItem('ckr_web_local_users_v1')||'[]');return Array.isArray(u)?u:[];}catch(e){return [];}})(),exportedAt:new Date().toISOString()},null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`conceito-backup-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('Backup exportado. Guarde o arquivo em local seguro.');});
-document.getElementById('restaurarBackup').addEventListener('click',async()=>{if(!isAdmin()){toast('Somente o ADMIN pode restaurar backup.',true);return;}const file=document.getElementById('arquivoBackup').files[0];if(!file){toast('Escolha um arquivo JSON primeiro.',true);return;}if(!confirm('A restauração vai substituir os dados deste dispositivo. Deseja continuar?'))return;try{const imported=JSON.parse(await file.text());if(!Array.isArray(imported.products)||!Array.isArray(imported.movements))throw Error('Formato');for(const p of imported.products){if(!p.id||!String(p.name||'').trim()||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw Error('Produto');}data={version:3,products:imported.products,movements:imported.movements,customers:Array.isArray(imported.customers)?imported.customers:[]};if(saveData()){document.getElementById('arquivoBackup').value='';resetProductForm();
-  if(Array.isArray(imported.users)){
-    const okUsers=imported.users.filter(u=>u&&typeof u.username==='string'&&u.username.trim()&&typeof u.password==='string'&&u.password).map(u=>({username:u.username.trim(),password:u.password,role:u.role==='master'?'master':'usuario',createdAt:u.createdAt||new Date().toISOString(),expiresAt:u.expiresAt||null}));
-    if(okUsers.length&&confirm('Este backup também contém '+okUsers.length+' usuário(s). Substituir os usuários deste dispositivo (master e demais, exceto o ADMIN)?')){
-      localStorage.setItem('ckr_web_local_users_v1',JSON.stringify(okUsers));
-      localStorage.setItem('ckr_web_default_user_seeded_v1','1');
-      localStorage.setItem('ckr_web_default_master_seeded_v1','1');
-      toast('Backup e usuários restaurados. Recarregando...');setTimeout(()=>location.reload(),1200);return;
-    }
-  }
-  toast('Backup restaurado com sucesso.');}}catch(err){toast('Arquivo inválido ou incompatível com o Conceito Web V2.',true);}});
-document.getElementById('apagarTudo').addEventListener('click',()=>{if(!isAdmin()){toast('Somente o ADMIN pode apagar os dados.',true);return;}if(!confirm('Isso apagará todos os produtos, clientes, entradas e vendas deste navegador. Continuar?'))return;if(!confirm('Confirme mais uma vez. Só será possível recuperar com backup.'))return;data=emptyData();if(saveData()){resetProductForm();toast('Dados locais apagados.');}});
+document.getElementById('fazerBackup').addEventListener('click',()=>{if(!hasFullAccess()){toast('Seu perfil não tem permissão para fazer backup.',true);return;}const blob=new Blob([JSON.stringify({...data,exportedAt:new Date().toISOString()},null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`conceito-backup-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('Backup exportado. Guarde o arquivo em local seguro.');});
+document.getElementById('restaurarBackup').addEventListener('click',async()=>{if(!hasFullAccess()){toast('Seu perfil não tem permissão para restaurar backup.',true);return;}const file=document.getElementById('arquivoBackup').files[0];if(!file){toast('Escolha um arquivo JSON primeiro.',true);return;}if(!confirm('A restauração vai substituir os dados deste dispositivo. Deseja continuar?'))return;try{const imported=JSON.parse(await file.text());if(!Array.isArray(imported.products)||!Array.isArray(imported.movements))throw Error('Formato');for(const p of imported.products){if(!p.id||!String(p.name||'').trim()||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw Error('Produto');}data={version:3,products:imported.products,movements:imported.movements,customers:Array.isArray(imported.customers)?imported.customers:[],cashSessions:Array.isArray(imported.cashSessions)?imported.cashSessions:[],xmlImports:Array.isArray(imported.xmlImports)?imported.xmlImports:[]};if(saveData()){document.getElementById('arquivoBackup').value='';resetProductForm();toast('Backup restaurado com sucesso.');}}catch(err){toast('Arquivo inválido ou incompatível com o Conceito Web V2.',true);}});
+document.getElementById('apagarTudo').addEventListener('click',()=>{if(!hasFullAccess()){toast('Seu perfil não tem permissão para apagar os dados.',true);return;}if(!confirm('Isso apagará todos os produtos, clientes, entradas e vendas deste navegador. Continuar?'))return;if(!confirm('Confirme mais uma vez. Só será possível recuperar com backup.'))return;data=emptyData();if(saveData()){resetProductForm();toast('Dados locais apagados.');}});
 document.getElementById('gerarRelatorio').addEventListener('click',()=>{const a=document.getElementById('relatorioDataInicio').value,b=document.getElementById('relatorioDataFim').value;if(a&&b&&a>b){toast('A data inicial não pode ser posterior à data final.',true);return;}renderDateReport();});
 ['relatorioDataInicio','relatorioDataFim','relatorioTipo'].forEach(k=>document.getElementById(k).addEventListener('change',renderDateReport));
 document.getElementById('exportarRelatorioCsv').addEventListener('click',()=>{const rows=getDateReportRows();const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const lines=[['Data e hora','Tipo','Produto','Quantidade','Valor','Cliente','Detalhes'].map(cell).join(';'),...rows.map(m=>[dateText(m.date),m.type==='venda'?(m.canceled?'Venda cancelada':'Venda'):'Entrada',m.productName,m.quantity,Number(m.total||0).toFixed(2).replace('.',','),m.client||'',m.details||''].map(cell).join(';'))];const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`conceito-relatorio-${document.getElementById('relatorioDataInicio').value||'inicio'}-${document.getElementById('relatorioDataFim').value||'hoje'}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);});
@@ -920,10 +907,3 @@ addPaymentRow();
  setInterval(()=>{checkExpiry();updateExpiryStatus();},60000);
  document.getElementById('ckrLogout').addEventListener('click',doLogout);
 })();
-
-// ===== PWA: service worker + botão "Instalar app" =====
-if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
-let ckrEventoInstalar=null;
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();ckrEventoInstalar=e;const b=document.getElementById('btnInstalar');if(b)b.hidden=false;});
-document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('#btnInstalar');if(!b||!ckrEventoInstalar)return;ckrEventoInstalar.prompt();try{await ckrEventoInstalar.userChoice;}catch(_){}ckrEventoInstalar=null;b.hidden=true;});
-window.addEventListener('appinstalled',()=>{const b=document.getElementById('btnInstalar');if(b)b.hidden=true;});
