@@ -368,11 +368,11 @@ function cardRate(brand,kind,n){
  return n===1?t.cash:n<=6?t.r2:n<=12?t.r7:n<=17?t.r13:t.r18;
 }
 // Link Blu = custo da venda online + taxa administrativa (a mesma tabela da maquininha, por bandeira e parcelas) + prazo estendido (a partir de 10x, por parcela).
-function bluRate(brand,n){const b=getSettings().blu;n=Math.max(1,Math.floor(n)||1);return Math.round((b.online+cardRate(brand,'credit',n)+(n>=b.extraFrom?b.extraPerInstallment*n:0))*10000)/10000;}
+function bluRate(brand,n,extended){const b=getSettings().blu;n=Math.max(1,Math.floor(n)||1);return Math.round((b.online+cardRate(brand,'credit',n)+(extended!==false&&n>=b.extraFrom?b.extraPerInstallment*n:0))*10000)/10000;}
 const maxInstallments=method=>method===PM.PROM?12:21;
 function payRules(method,responsible){
- const credit=method===PM.CREDIT,fab=credit&&responsible==='fabrica';
- return {brand:method===PM.DEBIT||method===PM.BLU||(credit&&!fab),inst:credit||method===PM.BLU||method===PM.PROM,resp:credit,due:method===PM.PROM};
+ const card=method===PM.CREDIT||method===PM.BLU,fab=card&&responsible==='fabrica';
+ return {brand:method===PM.DEBIT||(card&&!fab),inst:card||method===PM.PROM,resp:card,due:method===PM.PROM,ext:method===PM.BLU&&!fab};
 }
 function addMonthsKey(key,k){const [y,m,d]=String(key).split('-').map(Number),t=new Date(y,m-1+k,1),last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(Math.min(d,last)).padStart(2,'0')}`;}
 function brDate(key){const [y,m,d]=String(key||'').split('-');return d?`${d}/${m}/${y}`:'—';}
@@ -389,14 +389,13 @@ function buildReceivables(saleId,client,customer,payments,date){
 function enrichPayment(p){
  const x={...p,fee:0,feeRate:0,factoryCredit:0},n=Number(x.installments)||1;
  if(x.method===PM.DEBIT)x.feeRate=cardRate(x.brand,'debit',1);
- else if(x.method===PM.CREDIT){if(x.responsible==='fabrica')x.factoryCredit=round2(x.amount*getSettings().factoryCreditPct/100);else x.feeRate=cardRate(x.brand,'credit',n);}
- else if(x.method===PM.BLU)x.feeRate=bluRate(x.brand,n);
+ else if(x.method===PM.CREDIT||x.method===PM.BLU){if(x.responsible==='fabrica')x.factoryCredit=round2(x.amount*getSettings().factoryCreditPct/100);else x.feeRate=x.method===PM.BLU?bluRate(x.brand,n,x.extended):cardRate(x.brand,'credit',n);}
  x.fee=round2(x.amount*x.feeRate/100);
  return x;
 }
 function calcSaleFinance(lines,total,payments){
  const pays=payments.map(enrichPayment),pct=getSettings().factoryCreditPct;
- const fabAmount=pays.filter(p=>p.method===PM.CREDIT&&p.responsible==='fabrica').reduce((s,p)=>s+p.amount,0);
+ const fabAmount=pays.filter(p=>(p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica').reduce((s,p)=>s+p.amount,0);
  const f=total>0?Math.min(1,fabAmount/total):0,totalFee=pays.reduce((s,p)=>s+p.fee,0);
  const items=lines.map(l=>{
   const L=Number(l.lineTotal||0),costTotal=round2(Number(l.unitCost||0)*Number(l.quantity||0));
@@ -410,14 +409,14 @@ function payLabel(x){
  const n=x.installments,brand=x.brand&&BRAND_NAMES[x.brand]?` · ${BRAND_NAMES[x.brand]}`:'';
  if(x.method===PM.CREDIT)return `${x.method}: ${money(x.amount)} em ${n||1}x (${x.responsible==='fabrica'?'fábrica':'loja'+brand})`;
  if(x.method===PM.DEBIT)return `${x.method}: ${money(x.amount)}${x.brand&&BRAND_NAMES[x.brand]?' ('+BRAND_NAMES[x.brand]+')':''}`;
- if(x.method===PM.BLU)return `${x.method}: ${money(x.amount)} em ${n||1}x${x.brand&&BRAND_NAMES[x.brand]?' ('+BRAND_NAMES[x.brand]+')':''}`;
+ if(x.method===PM.BLU)return `${x.method}: ${money(x.amount)} em ${n||1}x (${x.responsible==='fabrica'?'fábrica':'loja'+brand+(x.extended===false?' · sem taxa extra por parcela':'')})`;
  if(x.method===PM.PROM)return `${x.method}: ${money(x.amount)} em ${n||1}x (1º venc. ${brDate(x.dueDate)})`;
  return `${x.method}: ${money(x.amount)}`;
 }
 function describePayInfo(pm){
  if(!pm.method)return '';
  const amount=Number(pm.amount)||0,n=Math.max(1,Math.min(maxInstallments(pm.method),Number(pm.installments)||1)),e=enrichPayment({...pm,amount,installments:n}),pct=v=>v.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';
- if(pm.method===PM.CREDIT&&pm.responsible==='fabrica'){const c=getSettings().factoryCreditPct;return amount>0?`${n}x pela fábrica · crédito com a fábrica: ${money(e.factoryCredit)} (${pct(c)}) · entra como lucro: ${money(amount-e.factoryCredit)}`:`${pct(c)} vira crédito com a fábrica e ${pct(100-c)} entra como lucro`;}
+ if((pm.method===PM.CREDIT||pm.method===PM.BLU)&&pm.responsible==='fabrica'){const c=getSettings().factoryCreditPct;return amount>0?`${n}x pela fábrica · crédito com a fábrica: ${money(e.factoryCredit)} (${pct(c)}) · entra como lucro: ${money(amount-e.factoryCredit)}`:`${pct(c)} vira crédito com a fábrica e ${pct(100-c)} entra como lucro`;}
  if(pm.method===PM.DEBIT||pm.method===PM.CREDIT||pm.method===PM.BLU){
   let t=(n>1&&amount>0?`${n}x de ${money(amount/n)} · `:'')+`Taxa ${pct(e.feeRate)}`+(amount>0?` · ${money(e.fee)} descontados do lucro`:'');
   if(pm.method===PM.BLU)t+=' · recebimento em 30 dias por parcela';
@@ -431,15 +430,15 @@ function describePayInfo(pm){
  }
  return '';
 }
-function payExtraHtml(){return `<label class="field"><span>Bandeira</span><select class="pagamentoBandeira"><option value="vm">Visa / Master</option><option value="ae">Amex / Elo</option></select></label><label class="field"><span>Parcelas</span><input class="pagamentoParcelas" type="number" min="1" step="1" value="1"></label><label class="field"><span>Parcelamento</span><select class="pagamentoResponsavel"><option value="loja">Pela loja</option><option value="fabrica">Pela fábrica</option></select></label><label class="field"><span>1º vencimento</span><input class="pagamentoVencimento" type="date"></label><p class="pay-hint pagamentoInfo" hidden></p>`;}
+function payExtraHtml(){return `<label class="field"><span>Bandeira</span><select class="pagamentoBandeira"><option value="vm">Visa / Master</option><option value="ae">Amex / Elo</option></select></label><label class="field"><span>Parcelas</span><input class="pagamentoParcelas" type="number" min="1" step="1" value="1"></label><label class="field"><span>Parcelamento</span><select class="pagamentoResponsavel"><option value="loja">Pela loja</option><option value="fabrica">Pela fábrica</option></select></label><label class="field"><span>1º vencimento</span><input class="pagamentoVencimento" type="date"></label><label class="check-filter pf-ext"><input type="checkbox" class="pagamentoExtendido" checked><span>Link com taxa extra por parcela (prazo estendido, a partir de 10x)</span></label><p class="pay-hint pagamentoInfo" hidden></p>`;}
 function readPayExtra(box,method,amount){
  const q=sel=>box.querySelector(sel),rules=payRules(method,q('.pagamentoResponsavel').value);
- return {method,amount,installments:rules.inst?Number(q('.pagamentoParcelas').value||0):null,responsible:rules.resp?q('.pagamentoResponsavel').value:null,brand:rules.brand?q('.pagamentoBandeira').value:null,dueDate:rules.due?(q('.pagamentoVencimento').value||''):null};
+ return {method,amount,installments:rules.inst?Number(q('.pagamentoParcelas').value||0):null,responsible:rules.resp?q('.pagamentoResponsavel').value:null,brand:rules.brand?q('.pagamentoBandeira').value:null,dueDate:rules.due?(q('.pagamentoVencimento').value||''):null,extended:rules.ext?q('.pagamentoExtendido').checked:null};
 }
 function syncPayExtra(box,method,amount){
  const q=sel=>box.querySelector(sel),rules=payRules(method,q('.pagamentoResponsavel').value);
  const show=(sel,on)=>{q(sel).closest('label').hidden=!on;};
- show('.pagamentoBandeira',rules.brand);show('.pagamentoParcelas',rules.inst);show('.pagamentoResponsavel',rules.resp);show('.pagamentoVencimento',rules.due);
+ show('.pagamentoBandeira',rules.brand);show('.pagamentoParcelas',rules.inst);show('.pagamentoResponsavel',rules.resp);show('.pagamentoVencimento',rules.due);show('.pagamentoExtendido',rules.ext);
  q('.pagamentoParcelas').max=maxInstallments(method);
  if(rules.due&&!q('.pagamentoVencimento').value)q('.pagamentoVencimento').value=addMonthsKey(localDateKey(new Date()),1);
  const info=q('.pagamentoInfo'),txt=describePayInfo(readPayExtra(box,method,amount));
@@ -464,7 +463,7 @@ function addPaymentRow(){
  row.innerHTML=`<div class="payment-row-main"><label class="field">Forma de pagamento<select class="pagamentoMetodo"><option value="">Selecione...</option>${PAY_METHODS.map(m=>`<option>${esc(m)}</option>`).join('')}</select></label><label class="field">Valor pago (R$)<input class="pagamentoValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><button type="button" class="payment-remove" aria-label="Remover pagamento" title="Remover pagamento">×</button></div><div class="payment-card-options" hidden>${payExtraHtml()}</div>`;
  wrap.appendChild(row);bindMoneyMask(row.querySelector('.pagamentoValor'));
  const refresh=()=>{updatePaymentRow(row);updatePaymentSummary();};
- ['pagamentoMetodo','pagamentoResponsavel','pagamentoBandeira','pagamentoVencimento'].forEach(c=>row.querySelector('.'+c).addEventListener('change',refresh));
+ ['pagamentoMetodo','pagamentoResponsavel','pagamentoBandeira','pagamentoVencimento','pagamentoExtendido'].forEach(c=>row.querySelector('.'+c).addEventListener('change',refresh));
  ['pagamentoValor','pagamentoParcelas'].forEach(c=>row.querySelector('.'+c).addEventListener('input',refresh));
  row.querySelector('.pagamentoValor').addEventListener('money-mask-updated',refresh);
  row.querySelector('.payment-remove').addEventListener('click',()=>{row.remove();updatePaymentSummary();});
@@ -673,6 +672,7 @@ function startSaleEdit(saleId){
   row.querySelector('.pagamentoResponsavel').value=pm.responsible||'loja';
   row.querySelector('.pagamentoBandeira').value=pm.brand||'vm';
   row.querySelector('.pagamentoVencimento').value=pm.dueDate||'';
+  row.querySelector('.pagamentoExtendido').checked=pm.extended!==false;
   updatePaymentRow(row);
  });
  document.getElementById('vendaEdicaoTitulo').textContent=`Editando a venda ${s.id}${s.client?' — '+s.client:''}`;
