@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -105,6 +105,7 @@
         <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
         <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
         <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
+        <button class="nav-link" data-panel="pedidos"><span class="nav-icon">⊕</span> Pedidos à fábrica <span class="nav-count" id="menuPedidos">0</span></button>
         <button class="nav-link" data-panel="contador"><span class="nav-icon">✉</span> Exportar p/ contador</button>
         <div id="ckrExpiryStatus" class="expiry-status" hidden aria-live="polite"></div>
         <button class="nav-link" data-panel="backup"><span class="nav-icon">⇄</span> Backup e transferência</button>
@@ -132,6 +133,7 @@
           <div class="notice"><span class="notice-icon">i</span><p><b>Seus dados ficam neste dispositivo.</b> Para transferir dados entre computador e celular, use <button class="text-button" data-go="backup">Backup e transferência</button>.</p><button class="notice-close" id="closeNotice" aria-label="Fechar aviso">×</button></div>
 
           <div id="promAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="promAlertaTexto"></p><button class="text-button" data-go="promissorias">Ver promissórias</button></div>
+          <div id="pedAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="pedAlertaTexto"></p><button class="text-button" data-go="pedidos">Ver pedidos à fábrica</button></div>
 
           <div class="stats-grid">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">▤</span><span class="stat-label">Produtos cadastrados</span></div><strong id="totalProdutos">0</strong><div class="stat-foot"><span class="tiny-dot blue"></span> Itens diferentes no catálogo</div></article>
@@ -385,16 +387,84 @@
               <div class="surface-heading"><div><h2>Cartão da fábrica e promissória</h2><p id="fabLucroInfo"></p></div></div>
               <div class="form-grid">
                 <label class="field">Parte que vira crédito com a fábrica (%)<input id="fabCreditoPct" inputmode="decimal"></label>
-                <label class="field">Lembrar promissórias com antecedência de (dias)<input id="promLembreteDias" type="number" min="0" step="1"></label>
+                <label class="field">Lembrar promissórias e boletos da fábrica com antecedência de (dias)<input id="promLembreteDias" type="number" min="0" step="1"></label>
               </div>
               <div class="form-actions" style="margin-top:16px"><button class="button button-primary" type="submit">Salvar configurações</button><button class="button button-light" id="taxasPadrao" type="button">Restaurar valores padrão</button></div>
             </section>
           </form>
           <section class="surface list-surface">
-            <div class="surface-heading responsive-heading"><div><h2>Crédito com a fábrica</h2><p>Acumulado pelas vendas no cartão da fábrica, menos o que você já usou.</p></div><button class="button button-light button-small" id="fabUsar" type="button">Registrar uso de crédito</button></div>
+            <div class="surface-heading responsive-heading"><div><h2>Crédito com a fábrica</h2><p>Vendas no cartão da fábrica + créditos lançados manualmente, menos o que já foi usado (inclusive em pedidos).</p></div><button class="button button-light button-small" id="fabUsar" type="button">Registrar uso de crédito</button></div>
             <div class="stats-grid"><article class="stat-card"><div class="stat-top"><span class="stat-label">Acumulado</span></div><strong id="fabAcumulado">R$ 0,00</strong></article><article class="stat-card"><div class="stat-top"><span class="stat-label">Já utilizado</span></div><strong id="fabUtilizado">R$ 0,00</strong></article><article class="stat-card"><div class="stat-top"><span class="stat-label">Saldo disponível</span></div><strong id="fabSaldo">R$ 0,00</strong></article></div>
+
+            <div class="surface-heading" style="margin-top:22px"><div><h2>Adicionar crédito</h2><p>Use para o saldo inicial que você já tem com a fábrica ou para qualquer ajuste.</p></div></div>
+            <div class="form-grid">
+              <label class="field">Data<input id="fabManData" type="date"></label>
+              <label class="field">Valor (R$)<input id="fabManValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label>
+              <label class="field">Descrição<input id="fabManDesc" type="text" autocomplete="off" placeholder="Ex.: saldo inicial"></label>
+            </div>
+            <div class="form-actions" style="margin:12px 0 4px"><button class="button button-primary button-small" id="fabManAdd" type="button">Adicionar crédito</button></div>
+
+            <div class="surface-heading" style="margin-top:22px"><div><h2>Todos os créditos</h2><p id="fabCredResumo">Sem filtro de data: aparecem todos os créditos, de qualquer dia.</p></div></div>
+            <div class="form-grid">
+              <label class="field">Origem<select id="fabFiltroOrigem"><option value="todos">Todos</option><option value="venda">Vendas no cartão da fábrica</option><option value="manual">Lançados manualmente</option></select></label>
+              <label class="field">De<input id="fabFiltroDe" type="date"></label>
+              <label class="field">Até<input id="fabFiltroAte" type="date"></label>
+              <label class="field field-wide">Buscar (cliente, venda, descrição)<input id="fabFiltroBusca" type="text" autocomplete="off" placeholder="Digite para filtrar"></label>
+              <label class="check-filter field-wide"><input type="checkbox" id="fabFiltroSem"><span>Mostrar também vendas no cartão que NÃO geraram crédito (parcelamento pela loja)</span></label>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>ORIGEM</th><th>DETALHES</th><th>CRÉDITO</th><th></th></tr></thead><tbody id="fabCredLinhas"></tbody></table></div>
+            <div id="fabCredVazio" class="empty-state"><div class="empty-symbol">%</div><b>Nenhum crédito encontrado</b><p>Ajuste os filtros ou adicione um crédito acima.</p></div>
+
+            <div class="surface-heading" style="margin-top:26px"><div><h2>Usos do crédito</h2><p>Registros manuais e abatimentos feitos em pedidos à fábrica.</p></div></div>
             <div class="table-wrap"><table><thead><tr><th>DATA</th><th>DESCRIÇÃO</th><th>VALOR USADO</th><th></th></tr></thead><tbody id="fabLinhas"></tbody></table></div>
-            <div id="fabVazio" class="empty-state"><div class="empty-symbol">%</div><b>Nenhum uso registrado</b><p>Quando usar o crédito em compras na fábrica, registre aqui para acompanhar o saldo.</p></div>
+            <div id="fabVazio" class="empty-state"><div class="empty-symbol">%</div><b>Nenhum uso registrado</b><p>Quando usar o crédito em compras na fábrica, registre aqui ou faça um pedido na aba Pedidos à fábrica.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-pedidos">
+          <div class="page-heading"><div><p class="eyebrow">FÁBRICA</p><h1>Pedidos à fábrica</h1><p class="subtitle">Registre os pedidos, abata o crédito que você tem com a fábrica e acompanhe as parcelas.</p></div></div>
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Crédito disponível</span></div><strong id="pedStatSaldo">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Pedidos feitos</span></div><strong id="pedStatPedidos">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Parcelas a pagar</span></div><strong id="pedStatPendente">R$ 0,00</strong></article>
+          </div>
+
+          <div id="pedAlertaPainel" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="pedAlertaPainelTexto"></p></div>
+          <section class="surface list-surface" style="margin-bottom:17px">
+            <div class="surface-heading"><div><h2>Boletos e parcelas a pagar</h2><p>Só entram as parcelas em aberto (boleto e outras formas a prazo), em ordem de vencimento. Pix, dinheiro, transferência e débito já ficam como pagos.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>PARCELA · FORMA</th><th>PEDIDO</th><th></th></tr></thead><tbody id="pedAgenda"></tbody></table></div>
+            <div id="pedAgendaVazio" class="empty-state"><div class="empty-symbol">✓</div><b>Nenhuma parcela em aberto</b><p>Pedidos pagos a prazo (ex.: boleto 30/60/90) aparecem aqui com data e valor.</p></div>
+          </section>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Novo pedido</h2><p>Preencha os produtos, escolha como vai pagar e, se quiser, abata o crédito.</p></div></div>
+            <div class="form-grid">
+              <label class="field">Data do pedido<input id="pedData" type="date"></label>
+              <label class="field" style="grid-column:span 2">Observação (opcional)<input id="pedObs" type="text" autocomplete="off" placeholder="Ex.: pedido de colchões, NF 123"></label>
+            </div>
+            <div class="table-wrap" style="margin-top:14px"><table class="ped-table"><thead><tr><th>PRODUTO</th><th style="width:90px">QUANT.</th><th style="width:140px">VAL. UNIT. (R$)</th><th style="width:120px">VALOR TOTAL</th><th style="width:40px"></th></tr></thead><tbody id="pedItens"></tbody></table></div>
+            <datalist id="pedProdutos"></datalist>
+            <div class="form-actions" style="margin:10px 0 0;align-items:center;justify-content:space-between;flex-wrap:wrap"><button class="button button-light button-small" id="pedAddItem" type="button">+ Adicionar produto</button><div class="sale-total" style="flex:0 1 280px"><span>Total geral</span><strong id="pedTotal">R$ 0,00</strong></div></div>
+
+            <div class="surface-heading" style="margin-top:24px"><div><h2>Pagamento</h2><p>Use o crédito da fábrica e pague o restante com outra forma, à vista ou a prazo.</p></div></div>
+            <label class="check-filter" style="margin-bottom:12px"><input type="checkbox" id="pedUsarCredito"><span>Abater crédito da fábrica neste pedido</span></label>
+            <div id="pedCreditoBox" hidden class="form-grid" style="margin-bottom:14px">
+              <label class="field">Crédito a usar (R$)<input id="pedCredito" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label>
+              <div class="field"><span>&nbsp;</span><button class="button button-light" id="pedUsarTodo" type="button">Usar o máximo possível</button></div>
+              <p class="payment-notice" id="pedSaldoInfo" style="align-self:end"></p>
+            </div>
+            <p class="payment-notice payment-ok" id="pedRestoInfo" style="margin-bottom:12px"></p>
+            <div id="pedRestoBox" class="form-grid">
+              <label class="field">Forma de pagamento do restante<select id="pedForma"></select></label>
+              <label class="field">Prazo<select id="pedPrazo"><option value="0">À vista</option><option value="30" selected>30 dias</option><option value="30/60">30/60</option><option value="30/60/90">30/60/90</option><option value="30/60/90/120">30/60/90/120</option><option value="custom">Personalizado…</option></select></label>
+              <label class="field" id="pedPrazoCustomBox" hidden>Dias das parcelas<input id="pedPrazoCustom" type="text" autocomplete="off" placeholder="Ex.: 30/45/60"></label>
+            </div>
+            <p class="pay-hint" id="pedPreview" style="margin:10px 0 0;font-size:12px;color:#637087;line-height:1.7"></p>
+            <div class="form-actions" style="margin-top:16px"><button class="button button-primary" id="pedSalvar" type="button">Salvar pedido</button><button class="button button-light" id="pedLimpar" type="button">Limpar</button></div>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Pedidos registrados</h2><p>Cada pedido mostra o crédito usado, a forma de pagamento do restante e as parcelas.</p></div><label class="search-box"><span>⌕</span><input id="pedBusca" type="search" placeholder="Buscar produto, data ou forma" autocomplete="off"></label></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>PRODUTOS</th><th>TOTAL</th><th>CRÉDITO USADO</th><th>RESTANTE · FORMA</th><th>PRAZO</th><th></th></tr></thead><tbody id="pedLista"></tbody></table></div>
+            <div id="pedVazio" class="empty-state"><div class="empty-symbol">⊕</div><b>Nenhum pedido registrado</b><p>Faça o primeiro pedido no formulário acima.</p></div>
           </section>
         </section>
 
@@ -436,7 +506,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=11"></script>
-  <script src="modulos.js?v=3"></script>
+  <script src="app.js?v=12"></script>
+  <script src="modulos.js?v=5"></script>
 </body>
 </html>
