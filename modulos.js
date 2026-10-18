@@ -479,18 +479,27 @@ $('pedForma').innerHTML='<option value="">Selecione...</option>'+PED_PAY.map(x=>
 const addDaysKey=(key,n)=>{const [y,mo,d]=key.split('-').map(Number);return localDateKey(new Date(y,mo-1,d+n));};
 const termsText=t=>(t.length===1&&t[0]===0)?'À vista':t.join('/')+' dias';
 const fmtBR=v=>v>0?v.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
-function pedItemRow(){
+function pedItemRow(prod){
  const tr=document.createElement('tr');
- tr.innerHTML='<td><input class="pedNome" list="pedProdutos" autocomplete="off" placeholder="Produto"></td><td><input class="pedQtd" type="number" min="1" step="1" value="1"></td><td><input class="pedUnit" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></td><td class="pedLinha">R$ 0,00</td><td><button type="button" class="cart-remove pedDel" aria-label="Remover produto">×</button></td>';
+ if(prod)tr.dataset.pid=prod.id;
+ tr.innerHTML=`<td><input class="pedNome" list="pedProdutos" autocomplete="off" placeholder="Produto (digite o nome)">${prod?`<small class="ped-est">Estoque atual: ${Number(prod.stock||0)}</small>`:''}</td><td><input class="pedQtd" type="number" min="1" step="1" value="1"></td><td><input class="pedUnit" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></td><td class="pedLinha">R$ 0,00</td><td><button type="button" class="cart-remove pedDel" aria-label="Remover produto">×</button></td>`;
  $('pedItens').appendChild(tr);
  bindMoneyMask(tr.querySelector('.pedUnit'));
+ if(prod){const nm=tr.querySelector('.pedNome');nm.value=prod.name;nm.readOnly=true;tr.querySelector('.pedUnit').value=fmtBR(Number(prod.cost||0));}
  tr.querySelector('.pedUnit').addEventListener('money-mask-updated',pedSync);
  tr.querySelector('.pedQtd').addEventListener('input',pedSync);
+ return tr;
+}
+// Lista vertical de produtos do estoque (com estoque atual) para marcar o que comprar
+function pedPickRender(){
+ const q=fold($('pedPickBusca').value),sel=new Set([...$('pedItens').querySelectorAll('tr[data-pid]')].map(t=>t.dataset.pid));
+ const list=data.products.filter(p=>!q||fold(p.name+' '+(p.code||'')).includes(q)).sort(byName);
+ $('pedPickLista').innerHTML=list.length?list.map(p=>{const st=Number(p.stock||0),cls=st<=0?'zero':st<=2?'low':'';return `<label class="ped-pick-row"><input type="checkbox" data-pick="${esc(p.id)}"${sel.has(p.id)?' checked':''}><span class="nm">${esc(p.name)}${p.code?` <small>· ${esc(p.code)}</small>`:''}</span><span class="est ${cls}">Estoque atual: <b>${st}</b>${st<=0?' · sem estoque':st<=2?' · baixo':''}</span></label>`;}).join(''):'<p class="ped-pick-empty">Nenhum produto encontrado.</p>';
 }
 function pedState(){
  const items=[...$('pedItens').querySelectorAll('tr')].map(tr=>{
   const name=tr.querySelector('.pedNome').value.trim(),qty=Math.floor(Number(tr.querySelector('.pedQtd').value)||0),unit=r2(parseMoneyInput(tr.querySelector('.pedUnit').value));
-  return {tr,name,qty,unit,total:r2(qty*unit)};
+  return {tr,pid:tr.dataset.pid||'',name,qty,unit,total:r2(qty*unit)};
  });
  const total=r2(items.reduce((s,i)=>s+i.total,0)),f=factoryStats(),use=$('pedUsarCredito').checked;
  const credit=use?r2(parseMoneyInput($('pedCredito').value)):0;
@@ -503,7 +512,7 @@ function pedSync(){
  let s=pedState();
  if(s.use&&!$('pedCredito').dataset.manual){$('pedCredito').value=fmtBR(Math.min(s.f.bal,s.total));s=pedState();}
  s.items.forEach(i=>{i.tr.querySelector('.pedLinha').textContent=money(i.total);});
- $('pedTotal').textContent=money(s.total);
+ $('pedTotal').textContent=money(s.total);$('pedItensVazio').hidden=s.items.length>0;
  $('pedCreditoBox').hidden=!s.use;
  $('pedSaldoInfo').textContent=`Saldo disponível: ${money(s.f.bal)}`;
  $('pedPrazoCustomBox').hidden=$('pedPrazo').value!=='custom';
@@ -515,8 +524,18 @@ function pedSync(){
  const head=!hasRest?'':(!meth?'Escolha a forma de pagamento do restante.<br>':(imm?`${meth}: pagamento imediato, as parcelas já ficam como <b>pagas</b>.<br>`:`${meth} a prazo: as parcelas ficam <b>em aberto</b> e o sistema avisa antes de cada vencimento.<br>`));
  $('pedPreview').innerHTML=hasRest?head+(s.terms.length?splitInstallments(s.rest,s.terms.length).map((v,i)=>`${s.terms[i]===0?'À vista':s.terms[i]+' dias'} · ${brDate(addDaysKey(date,s.terms[i]))} · <b>${money(v)}</b>${imm||s.terms[i]===0?' · paga':''}`).join('<br>'):'Informe os dias das parcelas, ex.: 30/60/90.'):'';
 }
-$('pedAddItem').addEventListener('click',()=>{pedItemRow();pedSync();});
-$('pedItens').addEventListener('click',e=>{const b=e.target.closest('.pedDel');if(!b)return;if($('pedItens').children.length>1)b.closest('tr').remove();else{const tr=b.closest('tr');tr.querySelector('.pedNome').value='';tr.querySelector('.pedUnit').value='';tr.querySelector('.pedQtd').value='1';}pedSync();});
+$('pedAddItem').addEventListener('click',()=>{const pk=$('pedPicker');pk.hidden=!pk.hidden;if(!pk.hidden){pedPickRender();$('pedPickBusca').focus();}});
+$('pedPickFechar').addEventListener('click',()=>{$('pedPicker').hidden=true;});
+$('pedPickBusca').addEventListener('input',pedPickRender);
+$('pedAddLivre').addEventListener('click',()=>{const tr=pedItemRow();pedSync();tr.querySelector('.pedNome').focus();});
+$('pedPickLista').addEventListener('change',e=>{
+ const cb=e.target.closest('[data-pick]');if(!cb)return;
+ const pid=cb.dataset.pick;
+ if(cb.checked){const p=productById(pid);if(p&&![...$('pedItens').querySelectorAll('tr[data-pid]')].some(t=>t.dataset.pid===pid))pedItemRow(p);}
+ else[...$('pedItens').querySelectorAll('tr[data-pid]')].filter(t=>t.dataset.pid===pid).forEach(t=>t.remove());
+ pedSync();
+});
+$('pedItens').addEventListener('click',e=>{const b=e.target.closest('.pedDel');if(!b)return;b.closest('tr').remove();if(!$('pedPicker').hidden)pedPickRender();pedSync();});
 $('pedUsarCredito').addEventListener('change',()=>{delete $('pedCredito').dataset.manual;if(!$('pedUsarCredito').checked)$('pedCredito').value='';pedSync();});
 $('pedUsarTodo').addEventListener('click',()=>{delete $('pedCredito').dataset.manual;pedSync();});
 bindMoneyMask($('pedCredito'));
@@ -525,8 +544,8 @@ $('pedCredito').addEventListener('money-mask-updated',pedSync);
 ['pedPrazo','pedData','pedForma'].forEach(k=>$(k).addEventListener('change',pedSync));
 $('pedPrazoCustom').addEventListener('input',pedSync);
 function pedReset(){
- $('pedItens').innerHTML='';pedItemRow();
- $('pedData').value=localDateKey(new Date());$('pedObs').value='';$('pedUsarCredito').checked=false;$('pedCredito').value='';delete $('pedCredito').dataset.manual;
+ $('pedItens').innerHTML='';$('pedPicker').hidden=true;$('pedPickBusca').value='';
+ $('pedData').value=localDateKey(new Date());$('pedObs').value='';$('pedEntregue').checked=false;$('pedUsarCredito').checked=false;$('pedCredito').value='';delete $('pedCredito').dataset.manual;
  $('pedForma').value='';$('pedPrazo').value='30';$('pedPrazoCustom').value='';pedSync();
 }
 $('pedLimpar').addEventListener('click',pedReset);
@@ -544,7 +563,7 @@ $('pedSalvar').addEventListener('click',()=>{
  if(hasRest&&!s.terms.length){toast('Informe o prazo do pagamento (ex.: 30/60/90).',true);return;}
  const now=new Date().toISOString(),terms=hasRest?s.terms:[],imm=PED_IMEDIATO.includes($('pedForma').value);
  const installments=hasRest?splitInstallments(rest,terms.length).map((amount,i)=>({n:i+1,of:terms.length,days:terms[i],dueDate:addDaysKey(date,terms[i]),amount,paid:imm||terms[i]===0,paidAt:(imm||terms[i]===0)?now:''})):[];
- const o={id:id(),date,items:filled.map(i=>({name:i.name,qty:i.qty,unit:i.unit,total:i.total})),total,creditUsed:credit,remainder:hasRest?rest:0,payMethod:hasRest?$('pedForma').value:'',terms,installments,note:$('pedObs').value.trim(),by:currentUserName(),createdAt:now};
+ const o={id:id(),date,items:filled.map(i=>({productId:i.pid,name:i.name,qty:i.qty,unit:i.unit,total:i.total})),total,creditUsed:credit,remainder:hasRest?rest:0,payMethod:hasRest?$('pedForma').value:'',terms,installments,note:$('pedObs').value.trim(),delivered:$('pedEntregue').checked,deliveredAt:$('pedEntregue').checked?now:'',by:currentUserName(),createdAt:now};
  orders().push(o);
  if(credit>0.004)ledger().push({id:id(),date:now,amount:credit,note:`Pedido de ${brDate(date)}${o.note?' · '+o.note:''}`,by:currentUserName(),orderId:o.id});
  if(saveData()){pedReset();toast('Pedido registrado.');}
@@ -566,36 +585,42 @@ function renderPedidos(){
  $('pedStatSaldo').textContent=f.bal>=0?money(f.bal):money(0);
  $('pedStatPedidos').textContent=`${all.length} · ${money(r2(all.reduce((s,o)=>s+o.total,0)))}`;
  $('pedStatPendente').textContent=money(sum(open));
+ $('pedStatEntrega').textContent=all.filter(o=>!o.delivered).length;
  const badge=$('menuPedidos');badge.textContent=urgent;badge.classList.toggle('alert',urgent>0);
  const txt=[late.length?`${late.length} boleto(s)/parcela(s) da fábrica vencido(s) (${money(sum(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sum(soon))})`:''].filter(Boolean).join(' · ');
  $('pedAlerta').hidden=!urgent;$('pedAlertaPainel').hidden=!urgent;$('pedAlertaTexto').textContent=txt;$('pedAlertaPainelTexto').textContent=txt;
  $('pedAgenda').innerHTML=open.map(({o,p,st})=>`<tr><td><b>${esc(brDate(p.dueDate))}</b></td><td><span class="pill ${st.k}">${esc(st.t)}</span></td><td><b>${money(p.amount)}</b></td><td>${p.n}/${p.of} · ${esc(o.payMethod)}</td><td>Pedido de ${esc(brDate(o.date))}<br><small>${esc(o.items.map(i=>i.name).join(', '))}</small></td><td><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">Marcar paga</button></td></tr>`).join('');
  $('pedAgendaVazio').style.display=open.length?'none':'block';
  $('pedProdutos').innerHTML=data.products.map(p=>`<option value="${esc(p.name)}"></option>`).join('');
- const list=all.filter(o=>!q||fold([brDate(o.date),o.payMethod,o.note,o.items.map(i=>i.name).join(' ')].join(' ')).includes(q));
+ const fe=$('pedFiltroEntrega').value;
+ const list=all.filter(o=>(fe==='todos'||(fe==='aguardando'&&!o.delivered)||(fe==='entregues'&&o.delivered))&&(!q||fold([brDate(o.date),o.payMethod,o.note,o.items.map(i=>i.name).join(' ')].join(' ')).includes(q)));
  $('pedLista').innerHTML=list.map(o=>{
   const prods=o.items.map(i=>`${i.qty}× ${esc(i.name)} (${money(i.unit)})`).join('<br>');
   const parc=o.installments.length?o.installments.map(p=>{
    const st=pedStatus(p,lim);
    return `<span class="p">${p.n}/${p.of} · ${brDate(p.dueDate)} · <b>${money(p.amount)}</b> <span class="pill ${st.k}">${esc(st.t)}</span><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">${p.paid?'Desmarcar':'Marcar paga'}</button></span>`;
   }).join(''):'<span class="p">Pago totalmente com crédito da fábrica</span>';
-  return `<tr><td>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${o.remainder>0?`${money(o.remainder)} · <b>${esc(o.payMethod)}</b>`:'—'}</td><td>${o.terms.length?termsText(o.terms):'—'}</td><td><button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="6"><div class="ped-parc">${parc}</div></td></tr>`;
+  return `<tr><td>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${o.remainder>0?`${money(o.remainder)} · <b>${esc(o.payMethod)}</b>`:'—'}</td><td>${o.terms.length?termsText(o.terms):'—'}</td><td>${o.delivered?`<span class="pill recebida">Entregue</span>${o.deliveredAt?`<br><small>${esc(dateText(o.deliveredAt))}</small>`:''}<br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Desmarcar</button>`:`<span class="pill aberta">Aguardando</span><br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Marcar entregue</button>`}</td><td><button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="7"><div class="ped-parc">${parc}</div></td></tr>`;
  }).join('');
  $('pedVazio').style.display=list.length?'none':'block';
 }
-$('pedBusca').addEventListener('input',renderPedidos);
+$('pedBusca').addEventListener('input',renderPedidos);$('pedFiltroEntrega').addEventListener('change',renderPedidos);
 function pedTogglePay(btn){
  const [oid,n]=btn.dataset.pedPay.split('|'),o=orders().find(x=>x.id===oid),inst=o&&o.installments.find(x=>String(x.n)===n);if(!inst)return;
  inst.paid=!inst.paid;inst.paidAt=inst.paid?new Date().toISOString():'';if(saveData())toast(inst.paid?'Parcela marcada como paga.':'Parcela reaberta.');
 }
 $('pedAgenda').addEventListener('click',e=>{const p=e.target.closest('[data-ped-pay]');if(p)pedTogglePay(p);});
 $('pedLista').addEventListener('click',e=>{
- const d=e.target.closest('[data-ped-del]'),p=e.target.closest('[data-ped-pay]');
+ const d=e.target.closest('[data-ped-del]'),p=e.target.closest('[data-ped-pay]'),en=e.target.closest('[data-ped-ent]');
  if(d){
   const o=orders().find(x=>x.id===d.dataset.pedDel);if(!o)return;
   if(!confirm(`Excluir o pedido de ${brDate(o.date)} (${money(o.total)})?${o.creditUsed>0?` O crédito de ${money(o.creditUsed)} volta para o saldo.`:''}`))return;
   data.factoryOrders=orders().filter(x=>x.id!==o.id);data.factoryLedger=ledger().filter(x=>x.orderId!==o.id);
   if(saveData())toast('Pedido excluído.');
+ }else if(en){
+  const o=orders().find(x=>x.id===en.dataset.pedEnt);if(!o)return;
+  o.delivered=!o.delivered;o.deliveredAt=o.delivered?new Date().toISOString():'';
+  if(saveData())toast(o.delivered?'Pedido marcado como entregue.':'Entrega desmarcada.');
  }else if(p)pedTogglePay(p);
 });
 setInterval(renderPedidos,600000);
