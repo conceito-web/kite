@@ -50,7 +50,9 @@ function add(p,q=1){
  if(it)it.quantity+=q;else cart.push({productId:p.id,name:p.name,quantity:q,price:r2(p.price),cost:Number(p.cost||0)});
  render();
 }
-const search=q=>{const w=fold(q).split(/\s+/).filter(Boolean);return w.length?data.products.filter(p=>w.every(x=>fold(p.name+' '+(p.code||'')).includes(x))).sort(byName).slice(0,8):[];};
+// Busca do PDV: ignora acentos/maiúsculas; várias palavras valem em qualquer ordem.
+// Com o quadrinho "Mostrar só produtos com estoque" marcado, produtos com estoque zerado não aparecem.
+const search=q=>{const w=fold(q).split(/\s+/).filter(Boolean),so=$('pdvSoEstoque')&&$('pdvSoEstoque').checked;return w.length?data.products.filter(p=>(!so||Number(p.stock)>0)&&w.every(x=>fold(p.name+' '+(p.code||'')).includes(x))).sort(byName).slice(0,8):[];};
 const parseQuery=()=>{const m=$('pdvBusca').value.match(/^\s*(?:(\d+)\s*\*\s*)?(.*?)\s*$/);return {q:Math.max(1,Number(m[1]||1)),text:m[2]};};
 function showSug(){
  const l=search(parseQuery().text),box=$('pdvSug');
@@ -132,6 +134,7 @@ $('pdvFinalizar').addEventListener('click',finish);
 $('pdvImprimir').addEventListener('click',()=>{if(lastReceipt)printCoupon(lastReceipt);});
 $('pdvPdf').addEventListener('click',()=>{if(lastReceipt)createReceiptPdf(lastReceipt);});
 $('pdvBusca').addEventListener('input',()=>{$('pdvPos').hidden=true;showSug();});
+$('pdvSoEstoque').addEventListener('change',showSug);
 $('pdvBusca').addEventListener('keydown',e=>{
  if(e.key==='Escape'){$('pdvBusca').value='';$('pdvSug').hidden=true;return;}
  if(e.key!=='Enter')return;
