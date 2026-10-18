@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -427,6 +427,7 @@
             <article class="stat-card"><div class="stat-top"><span class="stat-label">Crédito disponível</span></div><strong id="pedStatSaldo">R$ 0,00</strong></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-label">Pedidos feitos</span></div><strong id="pedStatPedidos">R$ 0,00</strong></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-label">Parcelas a pagar</span></div><strong id="pedStatPendente">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Aguardando entrega</span></div><strong id="pedStatEntrega">0</strong></article>
           </div>
 
           <div id="pedAlertaPainel" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="pedAlertaPainelTexto"></p></div>
@@ -441,9 +442,16 @@
               <label class="field">Data do pedido<input id="pedData" type="date"></label>
               <label class="field" style="grid-column:span 2">Observação (opcional)<input id="pedObs" type="text" autocomplete="off" placeholder="Ex.: pedido de colchões, NF 123"></label>
             </div>
+            <label class="check-filter" style="margin-top:12px"><input type="checkbox" id="pedEntregue"><span>Pedido já foi entregue</span></label>
             <div class="table-wrap" style="margin-top:14px"><table class="ped-table"><thead><tr><th>PRODUTO</th><th style="width:90px">QUANT.</th><th style="width:140px">VAL. UNIT. (R$)</th><th style="width:120px">VALOR TOTAL</th><th style="width:40px"></th></tr></thead><tbody id="pedItens"></tbody></table></div>
             <datalist id="pedProdutos"></datalist>
             <div class="form-actions" style="margin:10px 0 0;align-items:center;justify-content:space-between;flex-wrap:wrap"><button class="button button-light button-small" id="pedAddItem" type="button">+ Adicionar produto</button><div class="sale-total" style="flex:0 1 280px"><span>Total geral</span><strong id="pedTotal">R$ 0,00</strong></div></div>
+            <p id="pedItensVazio" class="payment-notice" style="margin-top:10px">Nenhum produto no pedido ainda. Clique em "+ Adicionar produto" para escolher da lista de estoque.</p>
+            <div id="pedPicker" class="ped-picker" hidden>
+              <div class="ped-pick-head"><label class="search-box"><span>⌕</span><input id="pedPickBusca" type="search" placeholder="Buscar produto ou código" autocomplete="off"></label><button class="button button-light button-small" id="pedAddLivre" type="button">+ Outro produto (digitar)</button><button class="button button-primary button-small" id="pedPickFechar" type="button">Concluir</button></div>
+              <p class="ped-pick-dica">Marque os produtos que precisa comprar mais (o estoque atual aparece ao lado). Desmarque para tirar do pedido. Para um produto que não está na lista, use "Outro produto".</p>
+              <div id="pedPickLista" class="ped-pick-lista"></div>
+            </div>
 
             <div class="surface-heading" style="margin-top:24px"><div><h2>Pagamento</h2><p>Use o crédito da fábrica e pague o restante com outra forma, à vista ou a prazo.</p></div></div>
             <label class="check-filter" style="margin-bottom:12px"><input type="checkbox" id="pedUsarCredito"><span>Abater crédito da fábrica neste pedido</span></label>
@@ -462,8 +470,8 @@
             <div class="form-actions" style="margin-top:16px"><button class="button button-primary" id="pedSalvar" type="button">Salvar pedido</button><button class="button button-light" id="pedLimpar" type="button">Limpar</button></div>
           </section>
           <section class="surface list-surface">
-            <div class="surface-heading responsive-heading"><div><h2>Pedidos registrados</h2><p>Cada pedido mostra o crédito usado, a forma de pagamento do restante e as parcelas.</p></div><label class="search-box"><span>⌕</span><input id="pedBusca" type="search" placeholder="Buscar produto, data ou forma" autocomplete="off"></label></div>
-            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>PRODUTOS</th><th>TOTAL</th><th>CRÉDITO USADO</th><th>RESTANTE · FORMA</th><th>PRAZO</th><th></th></tr></thead><tbody id="pedLista"></tbody></table></div>
+            <div class="surface-heading responsive-heading"><div><h2>Pedidos registrados</h2><p>Cada pedido mostra o crédito usado, a forma de pagamento do restante e as parcelas.</p></div><div class="search-tools"><select id="pedFiltroEntrega" aria-label="Filtrar entrega"><option value="todos">Todos os pedidos</option><option value="aguardando">Aguardando entrega</option><option value="entregues">Entregues</option></select><label class="search-box"><span>⌕</span><input id="pedBusca" type="search" placeholder="Buscar produto, data ou forma" autocomplete="off"></label></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>PRODUTOS</th><th>TOTAL</th><th>CRÉDITO USADO</th><th>RESTANTE · FORMA</th><th>PRAZO</th><th>ENTREGA</th><th></th></tr></thead><tbody id="pedLista"></tbody></table></div>
             <div id="pedVazio" class="empty-state"><div class="empty-symbol">⊕</div><b>Nenhum pedido registrado</b><p>Faça o primeiro pedido no formulário acima.</p></div>
           </section>
         </section>
@@ -507,6 +515,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=12"></script>
-  <script src="modulos.js?v=5"></script>
+  <script src="modulos.js?v=7"></script>
 </body>
 </html>
