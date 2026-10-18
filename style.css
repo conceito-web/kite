@@ -346,3 +346,7 @@ tr.row-canceled td:not(.sale-status){opacity:.6}
 .rate-input{width:100%;max-width:140px;min-height:40px;padding:0 10px;border:1.5px solid var(--line);border-radius:9px;font-family:inherit}
 .row-action{white-space:nowrap}
 @media print{#panel-promissorias,#panel-taxas{display:none!important}}
+
+.ped-table{min-width:560px}.ped-table td{padding:6px}.ped-table input{width:100%;min-width:0;height:38px;padding:0 10px;border:1px solid #e0e6ef;border-radius:8px;background:#fff;font:500 12px 'DM Sans';color:#26364e;outline:none}.ped-table input:focus{border-color:#9db7ff;box-shadow:0 0 0 3px #3468f511}.ped-sub td{background:#fafbfd}.ped-parc{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.ped-parc span.p{display:inline-flex;gap:8px;align-items:center;padding:5px 9px;border:1px solid #e8edf5;border-radius:8px;background:#fff;font-size:11px;color:#56657b}
+#panel-pedidos .stats-grid{margin-bottom:17px}#panel-taxas .check-filter.field-wide{grid-column:1/-1}
+body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
