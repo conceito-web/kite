@@ -569,6 +569,58 @@ $('pedSalvar').addEventListener('click',()=>{
  if(credit>0.004)ledger().push({id:id(),date:now,amount:credit,note:`Pedido de ${brDate(date)}${o.note?' · '+o.note:''}`,by:currentUserName(),orderId:o.id});
  if(saveData()){pedReset();toast('Pedido registrado.');}
 });
+// ---- PDF para a fábrica: conferência de valores antes de fechar o pedido ----
+function pedDraft(){
+ const s=pedState(),date=$('pedData').value||localDateKey(new Date());
+ const filled=s.items.filter(i=>i.name||i.unit>0);
+ if(!filled.length){toast('Adicione ao menos um produto ao pedido.',true);return null;}
+ if(filled.some(i=>!i.name||i.qty<1||i.unit<=0)){toast('Cada produto precisa de nome, quantidade e valor unitário.',true);return null;}
+ const total=r2(filled.reduce((a,i)=>a+i.total,0)),credit=s.use?r2(Math.min(s.credit,total,s.f.bal>0?s.f.bal:0)):0,rest=r2(total-credit),hasRest=rest>0.004;
+ const terms=hasRest?s.terms:[],installments=hasRest&&terms.length?splitInstallments(rest,terms.length).map((amount,i)=>({n:i+1,of:terms.length,days:terms[i],dueDate:addDaysKey(date,terms[i]),amount})):[];
+ return {date,items:filled.map(i=>({name:i.name,qty:i.qty,unit:i.unit,total:i.total})),total,creditUsed:credit,remainder:hasRest?rest:0,payMethod:hasRest?$('pedForma').value:'',terms,installments,note:$('pedObs').value.trim()};
+}
+function buildOrderPdf(o){
+ if(!window.jspdf||!window.jspdf.jsPDF){toast('A biblioteca de PDF não carregou. Verifique a internet e tente novamente.',true);return null;}
+ const doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'});let y=18;
+ const room=h=>{if(y+h>272){doc.addPage();y=18;}};
+ doc.setFont('helvetica','bold');doc.setFontSize(17);doc.text('CONCEITO - PEDIDO À FÁBRICA',15,y);y+=7;
+ doc.setFontSize(11);doc.text('Conferência de valores antes do fechamento',15,y);y+=8;
+ doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(`Data do pedido: ${brDate(o.date)}`,15,y);y+=6;
+ if(o.note){const ls=doc.splitTextToSize(`Observação: ${o.note}`,180);doc.text(ls,15,y);y+=ls.length*5;}
+ y+=4;
+ doc.setFont('helvetica','bold');doc.text('PRODUTO',15,y);doc.text('QTD.',122,y,{align:'right'});doc.text('VALOR UNIT.',160,y,{align:'right'});doc.text('VALOR TOTAL',195,y,{align:'right'});y+=3;doc.line(15,y,195,y);y+=6;doc.setFont('helvetica','normal');
+ o.items.forEach((it,i)=>{const nm=doc.splitTextToSize(`${i+1}. ${it.name}`,98);room(Math.max(7,nm.length*5));doc.text(nm,15,y);doc.text(String(it.qty),122,y,{align:'right'});doc.text(money(it.unit),160,y,{align:'right'});doc.text(money(it.total),195,y,{align:'right'});y+=Math.max(7,nm.length*5);});
+ y+=1;doc.line(15,y,195,y);y+=7;
+ const units=o.items.reduce((a,i)=>a+i.qty,0);
+ room(40);doc.setFontSize(10);doc.text(`${o.items.length} item(ns) · ${units} unidade(s)`,15,y);
+ doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('TOTAL DO PEDIDO:',125,y);doc.text(money(o.total),195,y,{align:'right'});y+=9;
+ doc.setFont('helvetica','normal');doc.setFontSize(10);
+ if(o.creditUsed>0){doc.text('Crédito com a fábrica a abater:',125,y);doc.text('- '+money(o.creditUsed),195,y,{align:'right'});y+=6;doc.setFont('helvetica','bold');doc.text('Restante a pagar:',125,y);doc.text(money(o.remainder),195,y,{align:'right'});doc.setFont('helvetica','normal');y+=8;}
+ else y+=1;
+ if(o.remainder>0){
+  const forma=o.payMethod?`${o.payMethod}${o.terms.length?' - '+termsText(o.terms):''}`:'a combinar';
+  doc.text(`Forma de pagamento prevista: ${forma}`,15,y);y+=6;
+  o.installments.forEach(p=>{room(6);doc.text(`   Parcela ${p.n}/${p.of}: ${p.days===0?'à vista':'vencimento '+brDate(p.dueDate)} - ${money(p.amount)}`,15,y);y+=5;});
+ }else if(o.creditUsed>0){doc.text('Pedido totalmente abatido com o crédito da fábrica.',15,y);y+=6;}
+ y+=8;room(60);
+ doc.setDrawColor(120);doc.rect(15,y,180,52);y+=8;
+ doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text('CONFIRMAÇÃO DA FÁBRICA',20,y);y+=7;
+ doc.setFont('helvetica','normal');doc.setFontSize(10);
+ const ls=doc.splitTextToSize('Por favor, confira os produtos, quantidades e valores acima e responda antes de fecharmos o pedido.',170);doc.text(ls,20,y);y+=ls.length*5+4;
+ doc.rect(20,y-3.5,4.5,4.5);doc.text('Os valores conferem.',27,y);y+=8;
+ doc.rect(20,y-3.5,4.5,4.5);doc.text('Há divergência. Valores corretos / observações:',27,y);y+=7;
+ doc.line(20,y,190,y);y+=7;doc.line(20,y,190,y);y+=9;
+ doc.text('Responsável: ______________________________   Data: ____/____/______',20,y);
+ doc.setFontSize(8);doc.setTextColor(110);doc.text('Documento para conferência de valores. Não é nota fiscal.',15,287);doc.setTextColor(0);
+ return doc;
+}
+async function pedPdf(o){
+ const doc=buildOrderPdf(o);if(!doc)return;
+ const name=`pedido-fabrica-${o.date}.pdf`,file=new File([doc.output('blob')],name,{type:'application/pdf'});
+ if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'Pedido à fábrica - conferência de valores',text:'Segue o pedido para conferência dos valores.'});return;}catch(e){if(e.name==='AbortError')return;}}
+ doc.save(name);toast('PDF gerado. Envie para a fábrica pedindo a confirmação.');
+}
+$('pedPdf').addEventListener('click',()=>{const o=pedDraft();if(o)pedPdf(o);});
 const todayDiff=k=>{const [y,mo,d]=k.split('-').map(Number),[a,b,c]=localDateKey(new Date()).split('-').map(Number);return Math.round((new Date(y,mo-1,d)-new Date(a,b-1,c))/86400000);};
 function pedStatus(p,lim){
  if(p.paid)return {k:'recebida',t:'Paga',late:false,urgent:false};
@@ -601,7 +653,7 @@ function renderPedidos(){
    const st=pedStatus(p,lim);
    return `<span class="p">${p.n}/${p.of} · ${brDate(p.dueDate)} · <b>${money(p.amount)}</b> <span class="pill ${st.k}">${esc(st.t)}</span><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">${p.paid?'Desmarcar':'Marcar paga'}</button></span>`;
   }).join(''):'<span class="p">Pago totalmente com crédito da fábrica</span>';
-  return `<tr><td>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${o.remainder>0?`${money(o.remainder)} · <b>${esc(o.payMethod)}</b>`:'—'}</td><td>${o.terms.length?termsText(o.terms):'—'}</td><td>${o.delivered?`<span class="pill recebida">Entregue</span>${o.deliveredAt?`<br><small>${esc(dateText(o.deliveredAt))}</small>`:''}<br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Desmarcar</button>`:`<span class="pill aberta">Aguardando</span><br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Marcar entregue</button>`}</td><td><button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="7"><div class="ped-parc">${parc}</div></td></tr>`;
+  return `<tr><td>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${o.remainder>0?`${money(o.remainder)} · <b>${esc(o.payMethod)}</b>`:'—'}</td><td>${o.terms.length?termsText(o.terms):'—'}</td><td>${o.delivered?`<span class="pill recebida">Entregue</span>${o.deliveredAt?`<br><small>${esc(dateText(o.deliveredAt))}</small>`:''}<br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Desmarcar</button>`:`<span class="pill aberta">Aguardando</span><br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Marcar entregue</button>`}</td><td><button type="button" class="row-action" data-ped-pdf="${esc(o.id)}">PDF</button><button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="7"><div class="ped-parc">${parc}</div></td></tr>`;
  }).join('');
  $('pedVazio').style.display=list.length?'none':'block';
 }
@@ -612,6 +664,7 @@ function pedTogglePay(btn){
 }
 $('pedAgenda').addEventListener('click',e=>{const p=e.target.closest('[data-ped-pay]');if(p)pedTogglePay(p);});
 $('pedLista').addEventListener('click',e=>{
+ const pf=e.target.closest('[data-ped-pdf]');if(pf){const o=orders().find(x=>x.id===pf.dataset.pedPdf);if(o)pedPdf(o);return;}
  const d=e.target.closest('[data-ped-del]'),p=e.target.closest('[data-ped-pay]'),en=e.target.closest('[data-ped-ent]');
  if(d){
   const o=orders().find(x=>x.id===d.dataset.pedDel);if(!o)return;
