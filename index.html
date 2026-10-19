@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -185,7 +185,7 @@
           </section>
           <section class="surface list-surface">
             <div class="surface-heading responsive-heading"><div><h2>Lista de produtos</h2><p id="produtoSubtitulo">Todos os itens cadastrados</p></div><div class="search-tools"><label class="check-filter"><input type="checkbox" id="filtroEstoquePositivo"><span>Só com estoque</span></label><div class="search-box"><span>⌕</span><input id="buscaProduto" type="search" placeholder="Buscar produto..."></div></div></div>
-            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody><tfoot><tr class="total-row"><td colspan="2"><b>TOTAL</b></td><td><b id="totalQtdProdutos">0</b></td><td><b id="totalCustoProdutos">R$ 0,00</b></td><td><b id="totalVendaProdutos">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
             <div id="semProdutos" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhum produto cadastrado</b><p>Use o formulário acima para adicionar seu primeiro item.</p></div>
           </section>
         </section>
