@@ -144,6 +144,8 @@ function renderProducts(){
  const soPositivos=document.getElementById('filtroEstoquePositivo').checked;
  const items=data.products.filter(p=>(p.name.toLowerCase().includes(q)||String(p.code||'').toLowerCase().includes(q))&&(!soPositivos||Number(p.stock)>0)).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
  document.getElementById('listaProdutos').innerHTML=items.map(p=>`<tr><td><span class="product-name">${esc(p.name)}</span></td><td>${esc(p.code||'—')}</td><td class="${p.stock<=2?'stock-low':''}">${Number(p.stock)}</td><td>${money(p.cost)}</td><td>${money(p.price)}</td><td><button class="row-action" data-edit="${esc(p.id)}">Editar</button><button class="row-action delete" data-delete="${esc(p.id)}">Excluir</button></td></tr>`).join('');
+ const totQtd=items.reduce((s,p)=>s+Number(p.stock||0),0),totCusto=items.reduce((s,p)=>s+Number(p.cost||0)*Number(p.stock||0),0),totVenda=items.reduce((s,p)=>s+Number(p.price||0)*Number(p.stock||0),0);
+ document.getElementById('totalQtdProdutos').textContent=totQtd;document.getElementById('totalCustoProdutos').textContent=money(totCusto);document.getElementById('totalVendaProdutos').textContent=money(totVenda);
  document.getElementById('semProdutos').style.display=items.length?'none':'block';
  document.getElementById('produtoSubtitulo').textContent=`${items.length} ${items.length===1?'item encontrado':'itens encontrados'}`;
 }
