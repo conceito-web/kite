@@ -73,13 +73,14 @@ function finish(){
  const client=$('pdvCliente').value.trim(),saleId=Date.now().toString(36).toUpperCase(),date=new Date().toISOString(),customer=findCustomerForSale(client,''),discount=r2(t.sub-t.total);
  if(payments.length){const perr=validatePayments(payments,client);if(perr){toast(perr,true);return;}}
  let alloc=0;
- const items=cart.map((it,i)=>{let lt;if(i===cart.length-1)lt=r2(t.total-alloc);else{lt=t.sub?r2(r2(it.quantity*it.price)*(t.total/t.sub)):0;alloc+=lt;}return {...it,lineTotal:lt};});
+ const plan=planFifo(cart);
+ const items=cart.map((it,i)=>{let lt;if(i===cart.length-1)lt=r2(t.total-alloc);else{lt=t.sub?r2(r2(it.quantity*it.price)*(t.total/t.sub)):0;alloc+=lt;}return {...it,cost:plan[i].unitCost,lineTotal:lt};});
  const fin=calcSaleFinance(items.map(it=>({lineTotal:it.lineTotal,quantity:it.quantity,unitCost:it.cost})),t.total,payments),payDet=payments.map(payLabel).join(' | ');
  const prefix=[client?`Cliente: ${client}`:'',`Venda ${saleId}`,'PDV',`Subtotal: ${money(t.sub)}`,discount?`Desconto total: ${money(discount)}`:'',`Pagamentos: ${payDet}`,change?`Troco: ${money(change)}`:''].filter(Boolean).join(' · ');
  cart.forEach((it,i)=>{
-  const p=productById(it.productId),costTotal=r2(it.cost*it.quantity);
-  p.stock-=it.quantity;
-  recordMovement('venda',p,it.quantity,items[i].lineTotal,`${prefix} · Item ${i+1}/${cart.length}`,{client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note:'',payments:fin.payments,subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,unitPrice:it.price,unitCost:it.cost,costTotal,profit:fin.items[i].profit,fee:fin.items[i].fee,factoryCredit:fin.items[i].factoryCredit,saleId,date,cashSessionId:s.id,source:'pdv',cashReceived:t.paid,change});
+  const p=productById(it.productId),costTotal=plan[i].costTotal;
+  stockOut(p,it.quantity,plan[i].allocs);
+  recordMovement('venda',p,it.quantity,items[i].lineTotal,`${prefix} · Item ${i+1}/${cart.length}`,{client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note:'',payments:fin.payments,subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,unitPrice:it.price,unitCost:items[i].cost,fifo:plan[i].allocs,costTotal,profit:fin.items[i].profit,fee:fin.items[i].fee,factoryCredit:fin.items[i].factoryCredit,saleId,date,cashSessionId:s.id,source:'pdv',cashReceived:t.paid,change});
  });
  const rec={id:saleId,date,client,note:'',items,subtotal:t.sub,discount,total:t.total,payments:fin.payments,paid:t.paid,change};
  receivables().push(...buildReceivables(saleId,client,customer,fin.payments,date));
@@ -268,10 +269,10 @@ $('xmlConfirmar').addEventListener('click',async()=>{
  rows.forEach(({n,it,act,cost,price})=>{
   let p;
   if(act===''){p={id:id(),name:it.name,code:it.code||it.ean||'',cost,price,stock:0};data.products.push(p);novos++;}
-  else{p=productById(act);if(upd&&cost>0)p.cost=cost;}
+  else{p=productById(act);}
   saveLink(n,it,p);
-  p.stock=Number(p.stock||0)+it.qty;
-  recordMovement('entrada',p,it.qty,r2(cost*it.qty),`NF-e ${n.number}/${n.serie} · ${n.supplier}`,{xmlKey:n.key,supplier:n.supplier,supplierCnpj:n.cnpj,nfNumber:n.number,unitCost:cost});
+  const lc=stockIn(p,it.qty,cost); // PEPS: novo lote com o custo da nota
+  recordMovement('entrada',p,it.qty,r2(lc*it.qty),`NF-e ${n.number}/${n.serie} · ${n.supplier}`,{xmlKey:n.key,supplier:n.supplier,supplierCnpj:n.cnpj,nfNumber:n.number,unitCost:lc});
   done.add(n);
  });
  done.forEach(n=>imports().push({key:n.key,number:n.number,serie:n.serie,supplier:n.supplier,cnpj:n.cnpj,date:n.date,total:n.total,importedAt:new Date().toISOString(),importedBy:currentUserName(),items:rows.filter(x=>x.n===n).length}));
