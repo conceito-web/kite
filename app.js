@@ -253,7 +253,8 @@ function maskPhone(v){const d=digits(v).slice(0,11);if(d.length<=10)return d.rep
 function resetCustomerForm(){editingCustomerId=null;document.getElementById('formCliente').reset();document.getElementById('formClienteTitulo').textContent='Cadastrar cliente';document.getElementById('salvarClienteBtn').textContent='Salvar cliente';document.getElementById('cancelarClienteEdicao').hidden=true;}
 function renderCustomers(){
  const customers=data.customers||[],q=(document.getElementById('buscaCliente')?.value||'').trim().toLowerCase();
- const filtered=customers.filter(c=>[c.name,c.cpf,c.phone,c.city,c.state].some(v=>String(v||'').toLowerCase().includes(q))).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+ const qd=digits(q);
+ const filtered=customers.filter(c=>[c.name,c.cpf,c.phone,c.city,c.state].some(v=>String(v||'').toLowerCase().includes(q))||(qd&&[c.cpf,c.phone].some(v=>digits(v).includes(qd)))).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
  document.getElementById('listaClientes').innerHTML=filtered.map(c=>`<tr><td><span class="product-name">${esc(c.name)}</span></td><td>${esc(c.cpf||'—')}</td><td>${esc(c.phone||'—')}</td><td>${esc([c.city,c.state].filter(Boolean).join(' / ')||'—')}</td><td><button class="row-action" data-customer-edit="${esc(c.id)}">Editar</button><button class="row-action delete" data-customer-delete="${esc(c.id)}">Excluir</button></td></tr>`).join('');
  document.getElementById('semClientes').style.display=filtered.length?'none':'block';
  document.getElementById('clienteSubtitulo').textContent=`${filtered.length} ${filtered.length===1?'cliente encontrado':'clientes encontrados'}`;
