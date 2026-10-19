@@ -139,7 +139,7 @@
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">▤</span><span class="stat-label">Produtos cadastrados</span></div><strong id="totalProdutos">0</strong><div class="stat-foot"><span class="tiny-dot blue"></span> Itens diferentes no catálogo</div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">▥</span><span class="stat-label">Unidades em estoque</span></div><strong id="totalUnidades">0</strong><div class="stat-foot"><span class="tiny-dot violet"></span> Quantidade disponível</div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Vendas registradas</span></div><strong id="totalVendas">0</strong><div class="stat-foot"><span class="tiny-dot green"></span> Vendas neste dispositivo</div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">R$</span><span class="stat-label">Valor em estoque</span></div><strong id="valorEstoque">R$ 0,00</strong><div class="stat-foot"><span class="tiny-dot orange"></span> Calculado pelo custo</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">R$</span><span class="stat-label">Valor em estoque</span></div><strong id="valorEstoque">R$ 0,00</strong><div class="stat-foot"><span class="tiny-dot orange"></span> Calculado pelos lotes (PEPS)</div></article>
             <article class="stat-card profit-stat"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Lucro das vendas</span></div><strong id="lucroTotal">R$ 0,00</strong><div class="profit-bottom"><span class="profit-margin">Margem: <b id="margemLucro">0,0%</b></span><span id="lucroHistoricoNota" class="profit-note">Calculado pelo custo registrado em cada venda</span></div></article>
           </div>
 
@@ -217,10 +217,11 @@
 
         <section class="panel" id="panel-entrada">
           <div class="page-heading"><div><p class="eyebrow">ESTOQUE</p><h1>Entrada de estoque</h1><p class="subtitle">Registre mercadorias recebidas ou reposições.</p></div></div>
-          <section class="surface operation-card"><div class="operation-art green-art">↓</div><h2>Registrar nova entrada</h2><p class="operation-intro">A quantidade informada será adicionada ao estoque atual.</p>
+          <section class="surface operation-card"><div class="operation-art green-art">↓</div><h2>Registrar nova entrada</h2><p class="operation-intro">A quantidade entra como um novo lote com o custo informado. As vendas saem primeiro do lote mais antigo (PEPS).</p>
             <form id="formEntrada" class="form-stack">
               <label class="field">Produto<select id="entradaProduto" required></select></label>
               <label class="field">Quantidade recebida<input id="entradaQuantidade" type="number" min="1" step="1" required placeholder="Ex.: 10"></label>
+              <label class="field">Custo unitário desta compra (opcional)<input id="entradaCusto" type="text" inputmode="numeric" autocomplete="off" placeholder="Em branco = último custo do produto"></label>
               <label class="field">Observação (opcional)<input id="entradaObs" maxlength="180" placeholder="Ex.: compra do fornecedor"></label>
               <button class="button button-success full-button" type="submit">Confirmar entrada <span>→</span></button>
             </form>
@@ -480,7 +481,7 @@
           <div class="page-heading"><div><p class="eyebrow">ESTOQUE</p><h1>Importar XML</h1><p class="subtitle">Dê entrada no estoque a partir dos XML de NF-e recebidos dos fornecedores.</p></div></div>
           <section class="surface form-surface">
             <div class="surface-heading"><div><h2>Selecionar notas</h2><p>Você confere cada item antes de confirmar. Notas já importadas são ignoradas.</p></div></div>
-            <div class="form-grid"><label class="field field-wide">Arquivos XML<input id="xmlArquivos" type="file" accept=".xml,text/xml,application/xml" multiple></label><label class="field">Margem para produtos novos (%)<input id="xmlMargem" type="text" inputmode="decimal" placeholder="Ex.: 100"></label><label class="check-filter"><input type="checkbox" id="xmlAtualizaCusto" checked><span>Atualizar o custo dos produtos já cadastrados</span></label><label class="check-filter"><input type="checkbox" id="xmlRateio" checked><span>Ratear frete, seguro e outras despesas do total da nota entre os itens</span></label></div>
+            <div class="form-grid"><label class="field field-wide">Arquivos XML<input id="xmlArquivos" type="file" accept=".xml,text/xml,application/xml" multiple></label><label class="field">Margem para produtos novos (%)<input id="xmlMargem" type="text" inputmode="decimal" placeholder="Ex.: 100"></label><label class="check-filter"><input type="checkbox" id="xmlAtualizaCusto" checked disabled><span>Custo da nota entra como novo lote (PEPS)</span></label><label class="check-filter"><input type="checkbox" id="xmlRateio" checked><span>Ratear frete, seguro e outras despesas do total da nota entre os itens</span></label></div>
           </section>
           <div id="xmlRevisao"></div>
           <div id="xmlAcoes" class="form-actions" hidden style="margin-bottom:17px"><button class="button button-primary" id="xmlConfirmar" type="button">Confirmar entrada no estoque</button><button class="button button-light" id="xmlCancelar" type="button">Cancelar</button></div>
@@ -514,7 +515,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=12"></script>
-  <script src="modulos.js?v=7"></script>
+  <script src="app.js?v=13"></script>
+  <script src="modulos.js?v=8"></script>
 </body>
 </html>
