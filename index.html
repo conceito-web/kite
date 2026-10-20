@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -306,6 +306,7 @@
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Total de vendas no período</span></div><strong id="relatorioTotalVendas">R$ 0,00</strong></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">↓</span><span class="stat-label">Total de entradas no período</span></div><strong id="relatorioTotalEntradas">R$ 0,00</strong></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">▤</span><span class="stat-label">Movimentações encontradas</span></div><strong id="relatorioQtd">0</strong></article>
+            <article class="stat-card" id="relatorioCardLucro" hidden><div class="stat-top"><span class="stat-icon icon-orange">$</span><span class="stat-label">Lucro das vendas no período</span></div><strong id="relatorioLucro">R$ 0,00</strong><div class="stat-foot" id="relatorioLucroNota"></div></article>
           </div>
           <section class="surface list-surface report-results">
             <div class="surface-heading responsive-heading"><div><h2>Resultado do período</h2><p id="relatorioDescricao">Selecione as datas e gere o relatório.</p></div><div class="report-actions"><button id="exportarRelatorioCsv" class="button button-light button-small" type="button">Exportar CSV</button><button id="imprimirRelatorio" class="button button-light button-small" type="button">Imprimir / PDF</button></div></div>
