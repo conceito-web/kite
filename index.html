@@ -176,7 +176,8 @@
             <div class="surface-heading"><div><h2 id="formProdutoTitulo">Adicionar produto</h2><p>Preencha as informações abaixo.</p></div><span class="form-badge">NOVO ITEM</span></div>
             <form id="formProduto" class="form-grid">
               <label class="field field-wide">Nome do produto<input id="produtoNome" required maxlength="120" placeholder="Ex.: Colchão Queen Premium"></label>
-              <label class="field">Código / referência<input id="produtoCodigo" maxlength="60" placeholder="Ex.: CON-001"></label>
+              <label class="field">Código / referência<div class="cep-row"><input id="produtoCodigo" maxlength="60" placeholder="Automático (ou digite)"><button class="button button-light" id="gerarCodigo" type="button" title="Gerar o próximo código automático">Gerar</button></div></label>
+              <label class="field">Data de cadastro<input id="produtoData" type="date" required></label>
               <label class="field">Preço de custo (R$)<input id="produtoCusto" type="text" inputmode="numeric" autocomplete="off" value="0,00" placeholder="0,00" required></label>
               <label class="field">Preço de venda (R$)<input id="produtoPreco" type="text" inputmode="numeric" autocomplete="off" value="0,00" placeholder="0,00" required></label>
               <label class="field">Estoque inicial<input id="produtoEstoque" type="number" min="0" step="1" value="0" required></label>
@@ -185,7 +186,7 @@
           </section>
           <section class="surface list-surface">
             <div class="surface-heading responsive-heading"><div><h2>Lista de produtos</h2><p id="produtoSubtitulo">Todos os itens cadastrados</p></div><div class="search-tools"><label class="check-filter"><input type="checkbox" id="filtroEstoquePositivo"><span>Só com estoque</span></label><div class="search-box"><span>⌕</span><input id="buscaProduto" type="search" placeholder="Buscar produto..."></div></div></div>
-            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody><tfoot><tr class="total-row"><td colspan="2"><b>TOTAL</b></td><td><b id="totalQtdProdutos">0</b></td><td><b id="totalCustoProdutos">R$ 0,00</b></td><td><b id="totalVendaProdutos">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
+            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>CADASTRO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody><tfoot><tr class="total-row"><td colspan="3"><b>TOTAL</b></td><td><b id="totalQtdProdutos">0</b></td><td><b id="totalCustoProdutos">R$ 0,00</b></td><td><b id="totalVendaProdutos">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
             <div id="semProdutos" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhum produto cadastrado</b><p>Use o formulário acima para adicionar seu primeiro item.</p></div>
           </section>
         </section>
@@ -515,7 +516,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=13"></script>
-  <script src="modulos.js?v=9"></script>
+  <script src="app.js?v=14"></script>
+  <script src="modulos.js?v=10"></script>
 </body>
 </html>
