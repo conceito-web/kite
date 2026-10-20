@@ -268,7 +268,7 @@ $('xmlConfirmar').addEventListener('click',async()=>{
  catch(err){toast('Não foi possível guardar os arquivos XML neste navegador.',true);return;}
  rows.forEach(({n,it,act,cost,price})=>{
   let p;
-  if(act===''){p={id:id(),name:it.name,code:it.code||it.ean||'',cost,price,stock:0};data.products.push(p);novos++;}
+  if(act===''){p={id:id(),name:it.name,code:it.code||it.ean||nextProductCode(),cost,price,stock:0,createdAt:todayISO()};data.products.push(p);novos++;}
   else{p=productById(act);}
   saveLink(n,it,p);
   const lc=stockIn(p,it.qty,cost); // PEPS: novo lote com o custo da nota
