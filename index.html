@@ -199,15 +199,15 @@
               <div class="form-actions"><button class="button button-light" id="loteAddLinha" type="button">+ Adicionar linha</button><button class="button button-light" id="loteLimpar" type="button">Limpar</button><button class="button button-primary" type="submit">Salvar lote</button></div>
             </form>
           </section>
-          <section class="surface list-surface">
-            <div class="surface-heading responsive-heading"><div><h2>Lista de produtos</h2><p id="produtoSubtitulo">Todos os itens cadastrados</p></div><div class="search-tools"><label class="check-filter"><input type="checkbox" id="filtroEstoquePositivo"><span>Só com estoque</span></label><div class="search-box"><span>⌕</span><input id="buscaProduto" type="search" placeholder="Buscar produto..."></div></div></div>
-            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>CADASTRO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody><tfoot><tr class="total-row"><td colspan="3"><b>TOTAL</b></td><td><b id="totalQtdProdutos">0</b></td><td><b id="totalCustoProdutos">R$ 0,00</b></td><td><b id="totalVendaProdutos">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
-            <div id="semProdutos" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhum produto cadastrado</b><p>Use o formulário acima para adicionar seu primeiro item.</p></div>
-          </section>
           <section class="surface list-surface" id="notasSurface">
             <div class="surface-heading responsive-heading"><div><h2>Consulta por nota</h2><p id="notaSubtitulo">Produtos e valores de cada nota</p></div><div class="search-tools"><div class="search-box"><span>⌕</span><input id="buscaNota" type="search" placeholder="Buscar nº da nota..." autocomplete="off"></div></div></div>
             <div class="table-wrap"><table class="nota-table"><thead><tr><th>Nº NOTA</th><th>QUANT.</th><th>PRODUTO</th><th>VALOR UNIT.</th><th>VALOR TOTAL</th></tr></thead><tbody id="listaNotas"></tbody><tfoot><tr class="total-row"><td><b>TOTAL GERAL</b></td><td><b id="notaTotalQtd">0</b></td><td></td><td></td><td><b id="notaTotalGeral">R$ 0,00</b></td></tr></tfoot></table></div>
             <div id="semNotas" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhuma nota encontrada</b><p>Informe o número da nota ao cadastrar produtos ou ao registrar uma entrada.</p></div>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Lista de produtos</h2><p id="produtoSubtitulo">Todos os itens cadastrados</p></div><div class="search-tools"><label class="check-filter"><input type="checkbox" id="filtroEstoquePositivo"><span>Só com estoque</span></label><div class="search-box"><span>⌕</span><input id="buscaProduto" type="search" placeholder="Buscar produto..."></div></div></div>
+            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>CADASTRO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody><tfoot><tr class="total-row"><td colspan="3"><b>TOTAL</b></td><td><b id="totalQtdProdutos">0</b></td><td><b id="totalCustoProdutos">R$ 0,00</b></td><td><b id="totalVendaProdutos">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
+            <div id="semProdutos" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhum produto cadastrado</b><p>Use o formulário acima para adicionar seu primeiro item.</p></div>
           </section>
         </section>
 
