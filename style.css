@@ -357,3 +357,17 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 @media(max-width:1000px){.report-summary-grid.com-lucro{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.report-summary-grid.com-lucro{grid-template-columns:1fr}}
 .report-summary-grid .stat-card[hidden]{display:none}
+
+/* Número da nota / cadastro em lote / consulta por nota */
+.lote-head{margin-bottom:15px}
+.lote-table{min-width:820px}
+.lote-table td{padding:6px 5px;vertical-align:middle}
+.lote-table input{width:100%;min-width:0;height:38px;padding:0 9px;border:1px solid #e0e6ef;border-radius:8px;background:#fff;font:500 12px 'DM Sans';color:#26364e;outline:none}
+.lote-table input:focus{border-color:#9db7ff;box-shadow:0 0 0 3px #3468f511}
+.lote-table .lt-qtd{max-width:90px}
+.lote-table .lt-total{font-weight:700;color:#2a3850;white-space:nowrap}
+.lote-table tfoot td{font-size:12px}
+.lote-hint{font-size:11px;color:#9aa3b1;margin:12px 0 14px}
+.nota-table{min-width:640px}
+.nota-table .nota-sub td{background:#f6f8fc;font-weight:800;color:#2a3850;border-bottom:2px solid #e3e8f0}
+.nota-table .nota-num{font-weight:800;color:#2a3850;white-space:nowrap}
