@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -98,6 +98,7 @@
         <button class="nav-link" data-panel="produtos"><span class="nav-icon">▤</span> Produtos <span class="nav-count" id="menuProdutos">0</span></button>
         <button class="nav-link" data-panel="clientes"><span class="nav-icon">♙</span> Clientes <span class="nav-count" id="menuClientes">0</span></button>
         <button class="nav-link" data-panel="entrada"><span class="nav-icon">↙</span> Entrada de estoque</button>
+        <button class="nav-link" data-panel="lote"><span class="nav-icon">☰</span> Cadastro em lote</button>
         <button class="nav-link" data-panel="xml"><span class="nav-icon">⇩</span> Importar XML</button>
         <button class="nav-link" data-panel="venda"><span class="nav-icon">↗</span> Registrar venda</button>
         <button class="nav-link" data-panel="pdv"><span class="nav-icon">▣</span> PDV (Caixa)</button>
@@ -163,7 +164,7 @@
             </section>
             <section class="surface quick-surface">
               <div class="surface-heading"><div><h2>Acesso rápido</h2><p>O que deseja fazer agora?</p></div></div>
-              <button class="quick-action" data-go="produtos"><span class="quick-icon blue-bg">＋</span><span><b>Cadastrar produto</b><small>Adicione um item ao catálogo</small></span><i>→</i></button>
+              <button class="quick-action" data-go="lote"><span class="quick-icon blue-bg">＋</span><span><b>Cadastrar produtos</b><small>Adicione um item ao catálogo</small></span><i>→</i></button>
               <button class="quick-action" data-go="entrada"><span class="quick-icon green-bg">↓</span><span><b>Registrar entrada</b><small>Atualize a quantidade em estoque</small></span><i>→</i></button>
               <button class="quick-action" data-go="venda"><span class="quick-icon orange-bg">↗</span><span><b>Registrar venda</b><small>Dê baixa automática no estoque</small></span><i>→</i></button>
               <button class="quick-action" data-go="backup"><span class="quick-icon violet-bg">⇄</span><span><b>Transferir dados</b><small>Exportar ou importar um backup</small></span><i>→</i></button>
@@ -172,9 +173,9 @@
         </section>
 
         <section class="panel" id="panel-produtos">
-          <div class="page-heading"><div><p class="eyebrow">CATÁLOGO</p><h1>Produtos</h1><p class="subtitle">Cadastre e gerencie os produtos da sua loja.</p></div></div>
-          <section class="surface form-surface">
-            <div class="surface-heading"><div><h2 id="formProdutoTitulo">Adicionar produto</h2><p>Preencha as informações abaixo.</p></div><span class="form-badge">NOVO ITEM</span></div>
+          <div class="page-heading"><div><p class="eyebrow">CATÁLOGO</p><h1>Produtos</h1><p class="subtitle">Cadastre e gerencie os produtos da sua loja.</p></div><button class="button button-primary" data-go="lote" type="button"><span>＋</span> Cadastrar produtos (lote)</button></div>
+          <section class="surface form-surface" id="produtoFormCard" style="display:none">
+            <div class="surface-heading"><div><h2 id="formProdutoTitulo">Editar produto</h2><p>Altere as informações abaixo.</p></div><span class="form-badge">EDIÇÃO</span></div>
             <form id="formProduto" class="form-grid">
               <label class="field field-wide">Nome do produto<input id="produtoNome" required maxlength="120" placeholder="Ex.: Colchão Queen Premium"></label>
               <label class="field">Código / referência<div class="cep-row"><input id="produtoCodigo" maxlength="60" placeholder="Automático (ou digite)"><button class="button button-light" id="gerarCodigo" type="button" title="Gerar o próximo código automático">Gerar</button></div></label>
@@ -182,32 +183,44 @@
               <label class="field">Preço de custo (R$)<input id="produtoCusto" type="text" inputmode="numeric" autocomplete="off" value="0,00" placeholder="0,00" required></label>
               <label class="field">Preço de venda (R$)<input id="produtoPreco" type="text" inputmode="numeric" autocomplete="off" value="0,00" placeholder="0,00" required></label>
               <label class="field">Estoque inicial<input id="produtoEstoque" type="number" min="0" step="1" value="0" required></label>
-              <label class="field">Número da nota<input id="produtoNota" maxlength="30" autocomplete="off" placeholder="Opcional (ex.: 12345)"></label>
+              <label class="field">Nº da nota (opcional)<input id="produtoNota" maxlength="40" autocomplete="off" placeholder="Ex.: 12345"></label>
               <div class="form-actions field-wide"><button class="button button-primary" id="salvarProdutoBtn" type="submit">Salvar produto</button><button class="button button-light" id="cancelarEdicao" type="button" hidden>Cancelar edição</button></div>
             </form>
-          </section>
-          <section class="surface form-surface" id="loteSurface">
-            <div class="surface-heading"><div><h2>Cadastro em lote</h2><p>Vários produtos de uma mesma nota. Cada produto entra no estoque já ligado ao número da nota.</p></div><span class="form-badge">LOTE</span></div>
-            <form id="formLote">
-              <div class="form-grid lote-head">
-                <label class="field">Número da nota<input id="loteNota" required maxlength="30" autocomplete="off" placeholder="Ex.: 12345"></label>
-                <label class="field">Data de cadastro<input id="loteData" type="date" required></label>
-                <label class="field">Fornecedor (opcional)<input id="loteFornecedor" maxlength="120" autocomplete="off" placeholder="Nome do fornecedor"></label>
-              </div>
-              <div class="table-wrap"><table class="lote-table"><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>QUANT.</th><th>CUSTO UNIT. (R$)</th><th>PREÇO DE VENDA (R$)</th><th>TOTAL</th><th></th></tr></thead><tbody id="loteRows"></tbody><tfoot><tr class="total-row"><td colspan="2"><b>TOTAL DA NOTA</b></td><td><b id="loteTotalQtd">0</b></td><td></td><td></td><td><b id="loteTotalValor">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
-              <p class="lote-hint">Código em branco = gerado automaticamente. Linhas vazias são ignoradas. Dica: aperte Enter no último campo para criar uma nova linha.</p>
-              <div class="form-actions"><button class="button button-light" id="loteAddLinha" type="button">+ Adicionar linha</button><button class="button button-light" id="loteLimpar" type="button">Limpar</button><button class="button button-primary" type="submit">Salvar lote</button></div>
-            </form>
-          </section>
-          <section class="surface list-surface" id="notasSurface">
-            <div class="surface-heading responsive-heading"><div><h2>Consulta por nota</h2><p id="notaSubtitulo">Produtos e valores de cada nota</p></div><div class="search-tools"><div class="search-box"><span>⌕</span><input id="buscaNota" type="search" placeholder="Buscar nº da nota..." autocomplete="off"></div></div></div>
-            <div class="table-wrap"><table class="nota-table"><thead><tr><th>Nº NOTA</th><th>QUANT.</th><th>PRODUTO</th><th>VALOR UNIT.</th><th>VALOR TOTAL</th></tr></thead><tbody id="listaNotas"></tbody><tfoot><tr class="total-row"><td><b>TOTAL GERAL</b></td><td><b id="notaTotalQtd">0</b></td><td></td><td></td><td><b id="notaTotalGeral">R$ 0,00</b></td></tr></tfoot></table></div>
-            <div id="semNotas" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhuma nota encontrada</b><p>Informe o número da nota ao cadastrar produtos ou ao registrar uma entrada.</p></div>
           </section>
           <section class="surface list-surface">
             <div class="surface-heading responsive-heading"><div><h2>Lista de produtos</h2><p id="produtoSubtitulo">Todos os itens cadastrados</p></div><div class="search-tools"><label class="check-filter"><input type="checkbox" id="filtroEstoquePositivo"><span>Só com estoque</span></label><div class="search-box"><span>⌕</span><input id="buscaProduto" type="search" placeholder="Buscar produto..."></div></div></div>
             <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>CADASTRO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody><tfoot><tr class="total-row"><td colspan="3"><b>TOTAL</b></td><td><b id="totalQtdProdutos">0</b></td><td><b id="totalCustoProdutos">R$ 0,00</b></td><td><b id="totalVendaProdutos">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
-            <div id="semProdutos" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhum produto cadastrado</b><p>Use o formulário acima para adicionar seu primeiro item.</p></div>
+            <div id="semProdutos" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhum produto cadastrado</b><p>Use o botão “Cadastrar produtos (lote)” para adicionar seus itens.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-lote">
+          <style>
+            #loteLinhas input{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line,#e3e8f0);border-radius:10px;font:inherit;background:#fff}
+            #loteLinhas td{padding:6px 6px;vertical-align:middle}
+            #loteLinhas input.erro{border-color:#e5484d;background:#fff5f5}
+            .lote-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}
+            .lote-total{margin-left:auto;font-weight:700}
+          </style>
+          <div class="page-heading"><div><p class="eyebrow">CATÁLOGO</p><h1>Cadastro em lote</h1><p class="subtitle">Cadastre vários produtos de uma vez, aproveitando o mesmo número de nota.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Dados da nota</h2><p>Valem para todos os produtos do lote. O preço de venda é calculado pelo custo + margem e pode ser ajustado em cada linha.</p></div><span class="form-badge">ENTRADA</span></div>
+            <div class="form-grid">
+              <label class="field">Nº da nota<input id="loteNota" maxlength="40" autocomplete="off" placeholder="Ex.: 12345"></label>
+              <label class="field">Fornecedor (opcional)<input id="loteFornecedor" maxlength="120" autocomplete="off" placeholder="Ex.: Fábrica XYZ"></label>
+              <label class="field">Data<input id="loteData" type="date"></label>
+              <label class="field">Margem sobre o custo (%)<input id="loteMargem" type="text" inputmode="decimal" autocomplete="off" value="135,20" placeholder="135,20"></label>
+            </div>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading"><div><h2>Produtos da nota</h2><p>Deixe o código em branco para gerar automático.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th style="width:140px">CÓDIGO</th><th style="width:90px">QTD.</th><th style="width:130px">CUSTO (R$)</th><th style="width:130px">VENDA (R$)</th><th style="width:60px"></th></tr></thead><tbody id="loteLinhas"></tbody></table></div>
+            <div class="lote-tools">
+              <button class="button button-light" id="loteAddLinha" type="button">＋ Adicionar linha</button>
+              <button class="button button-light" id="loteRecalc" type="button" title="Aplica a margem a todas as linhas, inclusive as que você ajustou">↻ Recalcular todos os preços</button>
+              <button class="button button-primary" id="loteSalvar" type="button">Salvar lote</button>
+              <span class="lote-total" id="loteResumo"></span>
+            </div>
           </section>
         </section>
 
@@ -243,7 +256,6 @@
               <label class="field">Produto<select id="entradaProduto" required></select></label>
               <label class="field">Quantidade recebida<input id="entradaQuantidade" type="number" min="1" step="1" required placeholder="Ex.: 10"></label>
               <label class="field">Custo unitário desta compra (opcional)<input id="entradaCusto" type="text" inputmode="numeric" autocomplete="off" placeholder="Em branco = último custo do produto"></label>
-              <label class="field">Número da nota (opcional)<input id="entradaNota" maxlength="30" autocomplete="off" placeholder="Ex.: 12345"></label>
               <label class="field">Observação (opcional)<input id="entradaObs" maxlength="180" placeholder="Ex.: compra do fornecedor"></label>
               <button class="button button-success full-button" type="submit">Confirmar entrada <span>→</span></button>
             </form>
@@ -555,7 +567,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=15"></script>
   <script src="modulos.js?v=11"></script>
 </body>
 </html>
