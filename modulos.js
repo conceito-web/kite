@@ -83,7 +83,7 @@ function finish(){
   recordMovement('venda',p,it.quantity,items[i].lineTotal,`${prefix} · Item ${i+1}/${cart.length}`,{client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note:'',payments:fin.payments,subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,unitPrice:it.price,unitCost:items[i].cost,fifo:plan[i].allocs,costTotal,profit:fin.items[i].profit,fee:fin.items[i].fee,factoryCredit:fin.items[i].factoryCredit,saleId,date,cashSessionId:s.id,source:'pdv',cashReceived:t.paid,change});
  });
  const rec={id:saleId,date,client,note:'',items,subtotal:t.sub,discount,total:t.total,payments:fin.payments,paid:t.paid,change};
- receivables().push(...buildReceivables(saleId,client,customer,fin.payments,date));
+ receivables().push(...buildReceivables(saleId,client,customer,fin.payments,date));markQuoteSold(saleId,'pdv');
  cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');$('pdvPagMetodo').value='';pdvSync();
  if(saveData()){
   lastReceipt=rec;
@@ -679,8 +679,152 @@ $('pedLista').addEventListener('click',e=>{
 });
 setInterval(renderPedidos,600000);
 
+// ================= ORÇAMENTOS =================
+// Orçamento = cliente + itens + desconto gravados SEM baixar estoque e SEM lançar no financeiro.
+// Situação: aberto → vendido (ao finalizar a venda convertida) ou cancelado.
+const quotes=()=>data.quotes||(data.quotes=[]);
+let pendingQuote=null; // {id,target:'venda'|'pdv'} orçamento carregado no carrinho, aguardando finalizar
+const qNum=q=>'Nº '+String(q.number).padStart(4,'0');
+const qDays=()=>Math.max(1,Math.round(Number((data.settings||{}).quoteDays))||7);
+const qUntil=q=>new Date(new Date(q.date).getTime()+(q.validDays||7)*864e5);
+const qExpired=q=>q.status==='aberto'&&qUntil(q).getTime()<Date.now();
+const qFmt=v=>v>0?Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
+const qMonth=d=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0');};
+
+function saveQuote(src,target){
+ // src: {client,note,items:[{productId,name,quantity,price,cost}],subtotal,discountCash,discountPercent,total}
+ if(!src.items.length){toast('Adicione pelo menos um produto antes de salvar o orçamento.',true);return;}
+ let alloc=0;
+ const items=src.items.map((it,i)=>{let lt;if(i===src.items.length-1)lt=r2(src.total-alloc);else{lt=src.subtotal?r2(r2(it.quantity*it.price)*(src.total/src.subtotal)):0;alloc+=lt;}return {productId:it.productId,name:it.name,quantity:it.quantity,price:it.price,cost:Number(it.cost||0),lineTotal:lt};});
+ const base={client:src.client,note:src.note||'',items,subtotal:src.subtotal,discountCash:src.discountCash,discountPercent:src.discountPercent,discount:r2(src.subtotal-src.total),total:src.total};
+ const old=pendingQuote&&pendingQuote.target===target?quotes().find(x=>x.id===pendingQuote.id&&x.status==='aberto'):null;
+ let q;
+ if(old){Object.assign(old,base,{editedAt:new Date().toISOString()});q=old;}
+ else{q={id:id(),number:quotes().reduce((n,x)=>Math.max(n,x.number||0),0)+1,date:new Date().toISOString(),validDays:qDays(),status:'aberto',createdBy:currentUserName(),...base};quotes().push(q);}
+ pendingQuote=null;
+ if(saveData()){toast(`Orçamento ${qNum(q)} ${old?'atualizado':'salvo'}. Estoque e financeiro não foram alterados.`);return q;}
+}
+function markQuoteSold(saleId,target){
+ if(!pendingQuote||pendingQuote.target!==target)return;
+ const q=quotes().find(x=>x.id===pendingQuote.id);
+ if(q&&q.status==='aberto'){q.status='vendido';q.saleId=saleId;q.soldAt=new Date().toISOString();}
+ pendingQuote=null;
+}
+window.markQuoteSold=markQuoteSold;
+
+// ---- salvar a partir de Registrar venda ----
+$('salvarOrcamentoVenda').addEventListener('click',()=>{
+ if(editingSale){toast('Termine ou cancele a edição da venda antes de salvar um orçamento.',true);return;}
+ const t=saleTotals();
+ const q=saveQuote({client:$('vendaCliente').value.trim(),note:$('vendaObs').value.trim(),items:saleCart.map(x=>({...x})),subtotal:t.subtotal,discountCash:t.discountCash,discountPercent:t.discountPercent,total:t.total},'venda');
+ if(!q)return;
+ saleCart=[];$('formVenda').reset();$('linhasPagamento').innerHTML='';addPaymentRow();renderCart();updateSalePreview();goTo('orcamentos');
+});
+// ---- salvar a partir do PDV ----
+$('pdvOrcamento').addEventListener('click',()=>{
+ const t=totals();
+ const q=saveQuote({client:$('pdvCliente').value.trim(),note:'',items:cart.map(x=>({...x})),subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,total:t.total},'pdv');
+ if(!q)return;
+ cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');$('pdvPagMetodo').value='';pdvSync();render();goTo('orcamentos');
+});
+
+// ---- converter em venda ----
+function qLines(q){
+ const out=[],missing=[];
+ q.items.forEach(it=>{const p=productById(it.productId);if(!p){missing.push(it.name);return;}out.push({productId:p.id,name:p.name,quantity:it.quantity,price:it.price,cost:Number(p.cost||0)});});
+ if(missing.length)toast('Produto(s) não encontrado(s) no catálogo e ignorado(s): '+missing.join(', '),true);
+ return out;
+}
+function qToSale(q){
+ if(editingSale){toast('Termine ou cancele a edição da venda antes de converter um orçamento.',true);return;}
+ if(saleCart.length&&!confirm('O carrinho de Registrar venda tem itens. Substituí-los pelos do orçamento?'))return;
+ const lines=qLines(q);if(!lines.length)return;
+ saleCart=lines;$('vendaCliente').value=q.client||'';$('vendaObs').value=q.note||'';$('vendaDescontoReais').value=qFmt(q.discountCash);$('vendaDescontoPercentual').value=qFmt(q.discountPercent);
+ pendingQuote={id:q.id,target:'venda'};renderCart();updateSalePreview();qBanners();goTo('venda');
+ toast(`Orçamento ${qNum(q)} carregado. Ajuste o que precisar e confirme a venda.`);
+}
+function qToPdv(q){
+ if(!openSession()){toast('Abra o caixa no PDV antes de levar o orçamento para lá.',true);goTo('pdv');return;}
+ if(cart.length&&!confirm('O carrinho do PDV tem itens. Substituí-los pelos do orçamento?'))return;
+ const lines=qLines(q);if(!lines.length)return;
+ cart=lines;pays=[];$('pdvCliente').value=q.client||'';$('pdvDescReais').value=qFmt(q.discountCash);$('pdvDescPct').value=qFmt(q.discountPercent);
+ pendingQuote={id:q.id,target:'pdv'};$('pdvPos').hidden=true;pdvSync();render();qBanners();goTo('pdv');
+ toast(`Orçamento ${qNum(q)} carregado no PDV.`);
+}
+function qBanners(){
+ const q=pendingQuote&&quotes().find(x=>x.id===pendingQuote.id),on=t=>!!(q&&pendingQuote.target===t);
+ $('vendaOrcAviso').hidden=!on('venda');$('pdvOrcAviso').hidden=!on('pdv');
+ if(q){$('vendaOrcTitulo').textContent=`Convertendo orçamento ${qNum(q)}`;$('pdvOrcAviso').textContent=`Convertendo orçamento ${qNum(q)}. Ao finalizar, ele passa para “Vendido”.`;}
+}
+$('cancelarOrcVenda').addEventListener('click',()=>{pendingQuote=null;qBanners();toast('Orçamento desvinculado. O carrinho continua como está.');});
+
+// ---- PDF, cupom 80 mm e WhatsApp ----
+const qItemsText=q=>q.items.map(x=>`${x.name} | Qtd.: ${x.quantity} | Unit.: ${money(x.price)} | Total: ${money(x.lineTotal)}`);
+function qPdf(q){
+ if(!window.jspdf||!window.jspdf.jsPDF){toast('A biblioteca de PDF não carregou. Verifique a internet e tente novamente.',true);return;}
+ const doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'});let y=18;
+ doc.setFont('helvetica','bold');doc.setFontSize(18);doc.text('CONCEITO - ORÇAMENTO '+qNum(q),15,y);y+=10;
+ doc.setFont('helvetica','normal');doc.setFontSize(10);
+ doc.text(`Data: ${new Date(q.date).toLocaleDateString('pt-BR')}   |   Válido até: ${qUntil(q).toLocaleDateString('pt-BR')}`,15,y);y+=6;
+ doc.text(`Cliente: ${q.client||'Não informado'}`,15,y);y+=9;
+ doc.setFont('helvetica','bold');doc.text('PRODUTO',15,y);doc.text('QTD.',108,y);doc.text('VALOR UNIT.',126,y);doc.text('VALOR TOTAL',166,y);y+=3;doc.line(15,y,195,y);y+=6;doc.setFont('helvetica','normal');
+ q.items.forEach(it=>{const nm=doc.splitTextToSize(it.name,88),h=Math.max(7,nm.length*5);if(y+h>265){doc.addPage();y=18;}doc.text(nm,15,y);doc.text(String(it.quantity),108,y);doc.text(money(it.price),126,y);doc.text(money(it.lineTotal),166,y);y+=h;});
+ y+=2;doc.line(15,y,195,y);y+=8;
+ if(q.discount>0){doc.text('Subtotal:',135,y);doc.text(money(q.subtotal),195,y,{align:'right'});y+=6;doc.text('Desconto:',135,y);doc.text('- '+money(q.discount),195,y,{align:'right'});y+=7;}
+ doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('TOTAL:',125,y);doc.text(money(q.total),195,y,{align:'right'});y+=11;
+ doc.setFont('helvetica','normal');doc.setFontSize(10);if(y>255){doc.addPage();y=18;}
+ if(q.note){const l=doc.splitTextToSize('Obs.: '+q.note,175);doc.text(l,15,y);y+=l.length*5+2;}
+ const f=doc.splitTextToSize(`Orçamento válido por ${q.validDays} dias (até ${qUntil(q).toLocaleDateString('pt-BR')}). Não é documento fiscal e não reserva estoque; preços e disponibilidade podem mudar após a validade.`,175);doc.text(f,15,y);
+ doc.save(`orcamento-conceito-${String(q.number).padStart(4,'0')}.pdf`);
+}
+function qCoupon(q){
+ const rows=q.items.map(i=>`<tr><td colspan="2">${esc(i.name)}</td></tr><tr><td>${i.quantity} x ${money(i.price)}</td><td class="r">${money(i.lineTotal)}</td></tr>`).join('');
+ const html=`<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{font:12px/1.4 monospace;width:74mm;margin:0}h1{font-size:15px;text-align:center;margin:0}.c{text-align:center}.r{text-align:right}table{width:100%;border-collapse:collapse}hr{border:0;border-top:1px dashed #000}</style><h1>CONCEITO</h1><p class="c"><b>ORÇAMENTO ${esc(qNum(q))}</b><br>NÃO É DOCUMENTO FISCAL<br>${esc(new Date(q.date).toLocaleDateString('pt-BR'))}<br>Válido até ${esc(qUntil(q).toLocaleDateString('pt-BR'))}${q.client?'<br>Cliente: '+esc(q.client):''}</p><hr><table>${rows}</table><hr><table>${q.discount>0?`<tr><td>Subtotal</td><td class="r">${money(q.subtotal)}</td></tr><tr><td>Desconto</td><td class="r">- ${money(q.discount)}</td></tr>`:''}<tr><td><b>TOTAL</b></td><td class="r"><b>${money(q.total)}</b></td></tr></table><hr><p class="c">Orçamento válido por ${q.validDays} dias.<br>Não reserva estoque.</p>`;
+ const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+ f.contentDocument.open();f.contentDocument.write(html);f.contentDocument.close();
+ setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),1500);},250);
+}
+function qWhats(q){
+ const cust=findCustomerForSale(q.client,''),phone=prompt('Digite o WhatsApp do cliente com DDD (somente números), ou deixe vazio para escolher uma conversa:',cust?digits(cust.phone):'');
+ if(phone===null)return;
+ let n=phone.replace(/\D/g,'');if(n&&n.length<10){toast('Informe um número com DDD válido.',true);return;}if(n&&n.length<=11)n='55'+n;
+ const L=[`Olá${q.client?' '+q.client:''}! Segue o *ORÇAMENTO ${qNum(q)}* da Conceito.`,`Data: ${new Date(q.date).toLocaleDateString('pt-BR')} · Válido até ${qUntil(q).toLocaleDateString('pt-BR')}`,...qItemsText(q)];
+ if(q.discount>0)L.push(`Subtotal: ${money(q.subtotal)}`,`Desconto: ${money(q.discount)}`);
+ L.push(`TOTAL: ${money(q.total)}`);if(q.note)L.push(`Observação: ${q.note}`);L.push('Orçamento sem valor fiscal e sem reserva de estoque.');
+ window.open(`https://wa.me/${n}?text=${encodeURIComponent(L.join('\n'))}`,'_blank','noopener');
+}
+
+// ---- painel: relatório mensal + lista ----
+if(!$('orcMes').value)$('orcMes').value=qMonth(new Date());
+function renderQuotes(){
+ const open=quotes().filter(q=>q.status==='aberto').length;$('menuOrcamentos').textContent=open;
+ if(document.activeElement!==$('orcValidade'))$('orcValidade').value=qDays();
+ const mes=$('orcMes').value,list=quotes().filter(q=>!mes||qMonth(q.date)===mes).sort((a,b)=>b.number-a.number);
+ const c=s=>list.filter(q=>q.status===s),sum=a=>r2(a.reduce((t,q)=>t+q.total,0)),sold=c('vendido'),done=list.length-c('aberto').length;
+ const conv=list.length?(sold.length/list.length*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%':'—';
+ const row=(l,v)=>`<div class="sale-total"><span>${l}</span><strong>${v}</strong></div>`;
+ $('orcResumo').innerHTML=row('Orçamentos feitos',list.length)+row('Viraram venda',`${sold.length} (${money(sum(sold))})`)+row('Em aberto',c('aberto').length)+row('Cancelados',c('cancelado').length)+row('Valor total orçado',money(sum(list)))+row('Taxa de conversão (vendidos ÷ feitos)',conv);
+ qBanners();
+ const pill=q=>q.status==='vendido'?`<span class="pill ativa">Vendido</span>${q.saleId?`<br><small>Venda ${esc(q.saleId)}</small>`:''}`:q.status==='cancelado'?'<span class="pill cancelada">Cancelado</span>':`<span class="pill">Aberto</span>${qExpired(q)?'<br><small>vencido</small>':''}`;
+ const btn=(a,t,i)=>`<button type="button" class="row-action" data-q-act="${a}" data-q-id="${esc(i)}">${t}</button>`;
+ $('orcLista').innerHTML=list.map(q=>`<tr${q.status==='cancelado'?' class="row-canceled"':''}><td>${esc(qNum(q))}</td><td>${esc(new Date(q.date).toLocaleDateString('pt-BR'))}</td><td>${esc(q.client||'—')}</td><td>${money(q.total)}</td><td class="sale-status">${pill(q)}</td><td>${btn('pdf','PDF',q.id)}${btn('cup','Cupom 80 mm',q.id)}${btn('wa','WhatsApp',q.id)}${q.status==='aberto'?btn('venda','Converter em venda',q.id)+btn('pdv','Levar ao PDV',q.id)+btn('cancel','Cancelar',q.id):''}${q.status==='cancelado'?btn('reabrir','Reabrir',q.id):''}</td></tr>`).join('')||'<tr><td colspan="6" class="cart-empty">Nenhum orçamento neste período.</td></tr>';
+}
+window.renderQuotes=renderQuotes;
+$('orcMes').addEventListener('input',renderQuotes);
+$('orcValidade').addEventListener('change',()=>{data.settings=data.settings||{};data.settings.quoteDays=Math.max(1,Math.min(365,Math.round(Number($('orcValidade').value))||7));saveData();});
+$('orcLista').addEventListener('click',e=>{
+ const b=e.target.closest('[data-q-act]');if(!b)return;
+ const q=quotes().find(x=>x.id===b.dataset.qId);if(!q)return;
+ switch(b.dataset.qAct){
+  case 'pdf':qPdf(q);break;case 'cup':qCoupon(q);break;case 'wa':qWhats(q);break;
+  case 'venda':qToSale(q);break;case 'pdv':qToPdv(q);break;
+  case 'cancel':if(confirm(`Cancelar o orçamento ${qNum(q)}?`)){q.status='cancelado';q.canceledAt=new Date().toISOString();if(pendingQuote&&pendingQuote.id===q.id)pendingQuote=null;if(saveData())toast('Orçamento cancelado.');}break;
+  case 'reabrir':q.status='aberto';q.canceledAt='';if(saveData())toast('Orçamento reaberto.');break;
+ }
+});
+
 // ================= integração =================
 const baseRender=window.renderAll;
-window.renderAll=function(){baseRender();render();xmlHist();ctPreview();renderProm();renderFactory();renderPedidos();pedSync();if(!taxasDirty)loadTaxasForm();};
-render();xmlHist();ctPreview();renderProm();renderFactory();loadTaxasForm();pedReset();renderPedidos();
+window.renderAll=function(){baseRender();render();renderQuotes();xmlHist();ctPreview();renderProm();renderFactory();renderPedidos();pedSync();if(!taxasDirty)loadTaxasForm();};
+render();xmlHist();ctPreview();renderProm();renderFactory();loadTaxasForm();pedReset();renderPedidos();renderQuotes();
 })();
