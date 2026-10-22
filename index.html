@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -182,13 +182,32 @@
               <label class="field">Preço de custo (R$)<input id="produtoCusto" type="text" inputmode="numeric" autocomplete="off" value="0,00" placeholder="0,00" required></label>
               <label class="field">Preço de venda (R$)<input id="produtoPreco" type="text" inputmode="numeric" autocomplete="off" value="0,00" placeholder="0,00" required></label>
               <label class="field">Estoque inicial<input id="produtoEstoque" type="number" min="0" step="1" value="0" required></label>
+              <label class="field">Número da nota<input id="produtoNota" maxlength="30" autocomplete="off" placeholder="Opcional (ex.: 12345)"></label>
               <div class="form-actions field-wide"><button class="button button-primary" id="salvarProdutoBtn" type="submit">Salvar produto</button><button class="button button-light" id="cancelarEdicao" type="button" hidden>Cancelar edição</button></div>
+            </form>
+          </section>
+          <section class="surface form-surface" id="loteSurface">
+            <div class="surface-heading"><div><h2>Cadastro em lote</h2><p>Vários produtos de uma mesma nota. Cada produto entra no estoque já ligado ao número da nota.</p></div><span class="form-badge">LOTE</span></div>
+            <form id="formLote">
+              <div class="form-grid lote-head">
+                <label class="field">Número da nota<input id="loteNota" required maxlength="30" autocomplete="off" placeholder="Ex.: 12345"></label>
+                <label class="field">Data de cadastro<input id="loteData" type="date" required></label>
+                <label class="field">Fornecedor (opcional)<input id="loteFornecedor" maxlength="120" autocomplete="off" placeholder="Nome do fornecedor"></label>
+              </div>
+              <div class="table-wrap"><table class="lote-table"><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>QUANT.</th><th>CUSTO UNIT. (R$)</th><th>PREÇO DE VENDA (R$)</th><th>TOTAL</th><th></th></tr></thead><tbody id="loteRows"></tbody><tfoot><tr class="total-row"><td colspan="2"><b>TOTAL DA NOTA</b></td><td><b id="loteTotalQtd">0</b></td><td></td><td></td><td><b id="loteTotalValor">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
+              <p class="lote-hint">Código em branco = gerado automaticamente. Linhas vazias são ignoradas. Dica: aperte Enter no último campo para criar uma nova linha.</p>
+              <div class="form-actions"><button class="button button-light" id="loteAddLinha" type="button">+ Adicionar linha</button><button class="button button-light" id="loteLimpar" type="button">Limpar</button><button class="button button-primary" type="submit">Salvar lote</button></div>
             </form>
           </section>
           <section class="surface list-surface">
             <div class="surface-heading responsive-heading"><div><h2>Lista de produtos</h2><p id="produtoSubtitulo">Todos os itens cadastrados</p></div><div class="search-tools"><label class="check-filter"><input type="checkbox" id="filtroEstoquePositivo"><span>Só com estoque</span></label><div class="search-box"><span>⌕</span><input id="buscaProduto" type="search" placeholder="Buscar produto..."></div></div></div>
             <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>CADASTRO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody><tfoot><tr class="total-row"><td colspan="3"><b>TOTAL</b></td><td><b id="totalQtdProdutos">0</b></td><td><b id="totalCustoProdutos">R$ 0,00</b></td><td><b id="totalVendaProdutos">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
             <div id="semProdutos" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhum produto cadastrado</b><p>Use o formulário acima para adicionar seu primeiro item.</p></div>
+          </section>
+          <section class="surface list-surface" id="notasSurface">
+            <div class="surface-heading responsive-heading"><div><h2>Consulta por nota</h2><p id="notaSubtitulo">Produtos e valores de cada nota</p></div><div class="search-tools"><div class="search-box"><span>⌕</span><input id="buscaNota" type="search" placeholder="Buscar nº da nota..." autocomplete="off"></div></div></div>
+            <div class="table-wrap"><table class="nota-table"><thead><tr><th>Nº NOTA</th><th>QUANT.</th><th>PRODUTO</th><th>VALOR UNIT.</th><th>VALOR TOTAL</th></tr></thead><tbody id="listaNotas"></tbody><tfoot><tr class="total-row"><td><b>TOTAL GERAL</b></td><td><b id="notaTotalQtd">0</b></td><td></td><td></td><td><b id="notaTotalGeral">R$ 0,00</b></td></tr></tfoot></table></div>
+            <div id="semNotas" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhuma nota encontrada</b><p>Informe o número da nota ao cadastrar produtos ou ao registrar uma entrada.</p></div>
           </section>
         </section>
 
@@ -224,6 +243,7 @@
               <label class="field">Produto<select id="entradaProduto" required></select></label>
               <label class="field">Quantidade recebida<input id="entradaQuantidade" type="number" min="1" step="1" required placeholder="Ex.: 10"></label>
               <label class="field">Custo unitário desta compra (opcional)<input id="entradaCusto" type="text" inputmode="numeric" autocomplete="off" placeholder="Em branco = último custo do produto"></label>
+              <label class="field">Número da nota (opcional)<input id="entradaNota" maxlength="30" autocomplete="off" placeholder="Ex.: 12345"></label>
               <label class="field">Observação (opcional)<input id="entradaObs" maxlength="180" placeholder="Ex.: compra do fornecedor"></label>
               <button class="button button-success full-button" type="submit">Confirmar entrada <span>→</span></button>
             </form>
@@ -535,7 +555,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
   <script src="modulos.js?v=11"></script>
 </body>
 </html>
