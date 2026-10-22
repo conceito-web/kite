@@ -154,7 +154,7 @@ document.getElementById('mobileMenu').addEventListener('click',()=>document.getE
 document.getElementById('closeNotice').addEventListener('click',()=>document.querySelector('.notice').style.display='none');
 document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
 
-function renderAll(){renderStats();renderProducts();renderSelects();renderHistory();renderRecent();renderCustomers();renderDashboardInsights();renderDateReport();renderSaleSearch();}
+function renderAll(){renderStats();renderProducts();renderSelects();renderHistory();renderRecent();renderCustomers();renderDashboardInsights();renderDateReport();renderSaleSearch();renderNotas();}
 function renderStats(){
  document.getElementById('totalProdutos').textContent=data.products.length;
  document.getElementById('menuProdutos').textContent=data.products.length;
@@ -345,28 +345,97 @@ document.getElementById('listaClientes').addEventListener('click',e=>{
  if(del){const c=customerById(del);if(!c)return;if(!confirm(`Excluir o cadastro de "${c.name}"? O histórico de vendas será mantido.`))return;data.customers=data.customers.filter(x=>x.id!==del);if(editingCustomerId===del)resetCustomerForm();if(saveData())toast('Cliente excluído.');}
 });
 ['produtoCusto','produtoPreco','entradaCusto'].forEach(k=>bindMoneyMask(document.getElementById(k)));
-function resetProductForm(){editingId=null;document.getElementById('formProduto').reset();document.getElementById('produtoEstoque').disabled=false;document.getElementById('produtoEstoque').title='';document.getElementById('produtoCusto').value='0,00';document.getElementById('produtoPreco').value='0,00';document.getElementById('produtoEstoque').value='0';document.getElementById('formProdutoTitulo').textContent='Adicionar produto';document.getElementById('salvarProdutoBtn').textContent='Salvar produto';document.getElementById('cancelarEdicao').hidden=true;lastAutoCode='';document.getElementById('produtoCodigo').value=lastAutoCode=nextProductCode();document.getElementById('produtoData').value=todayISO();}
+function resetProductForm(){editingId=null;document.getElementById('formProduto').reset();document.getElementById('produtoEstoque').disabled=false;document.getElementById('produtoEstoque').title='';document.getElementById('produtoNota').disabled=false;document.getElementById('produtoNota').value='';document.getElementById('produtoCusto').value='0,00';document.getElementById('produtoPreco').value='0,00';document.getElementById('produtoEstoque').value='0';document.getElementById('formProdutoTitulo').textContent='Adicionar produto';document.getElementById('salvarProdutoBtn').textContent='Salvar produto';document.getElementById('cancelarEdicao').hidden=true;lastAutoCode='';document.getElementById('produtoCodigo').value=lastAutoCode=nextProductCode();document.getElementById('produtoData').value=todayISO();}
 document.getElementById('gerarCodigo').addEventListener('click',()=>{document.getElementById('produtoCodigo').value=lastAutoCode=nextProductCode();});
 document.getElementById('formProduto').addEventListener('submit',e=>{
- e.preventDefault();const name=document.getElementById('produtoNome').value.trim();let code=document.getElementById('produtoCodigo').value.trim();const cost=parseMoneyInput(document.getElementById('produtoCusto').value),price=parseMoneyInput(document.getElementById('produtoPreco').value),stock=Number(document.getElementById('produtoEstoque').value);let createdAt=document.getElementById('produtoData').value||todayISO();
+ e.preventDefault();const name=document.getElementById('produtoNome').value.trim();let code=document.getElementById('produtoCodigo').value.trim();const cost=parseMoneyInput(document.getElementById('produtoCusto').value),price=parseMoneyInput(document.getElementById('produtoPreco').value),stock=Number(document.getElementById('produtoEstoque').value),nota=document.getElementById('produtoNota').value.trim();let createdAt=document.getElementById('produtoData').value||todayISO();
  if(!name||!Number.isFinite(cost)||!Number.isFinite(price)||cost<0||price<0||!Number.isInteger(stock)||stock<0){toast('Confira os dados informados.',true);return;}
+ if(!editingId&&nota&&stock<1){toast('Para ligar o produto a uma nota, informe o estoque inicial (quantidade da nota).',true);return;}
  if(!code)code=nextProductCode(); // campo vazio = gera automático
  if(code&&data.products.some(p=>p.id!==editingId&&(p.code||'').toLowerCase()===code.toLowerCase())){toast('Já existe um produto com esse código.',true);return;}
  if(editingId){const p=productById(editingId);if(!p)return;
   if(Math.abs(cost-Number(p.cost||0))>0.004){ensureLayers(p);if(new Set(p.layers.map(l=>l.cost)).size>1&&!confirm('Este produto tem lotes com custos diferentes (PEPS). Alterar o custo aqui CORRIGE o custo de todas as unidades em estoque. Para registrar uma compra com custo novo, use Entrada. Continuar?'))return;p.layers.forEach(l=>l.cost=cost);p.cost=cost;}
   p.name=name;p.code=code;p.price=price;p.createdAt=createdAt;toast('Produto atualizado. O estoque foi mantido.');}
- else{const p={id:id(),name,code,cost,price,stock:0,createdAt};data.products.push(p);if(stock>0){stockIn(p,stock,cost);recordMovement('entrada',p,stock,cost*stock,'Estoque inicial',{unitCost:cost});}toast('Produto cadastrado com sucesso.');}
+ else{const p={id:id(),name,code,cost,price,stock:0,createdAt};data.products.push(p);if(stock>0){stockIn(p,stock,cost);recordMovement('entrada',p,stock,Math.round(cost*stock*100)/100,nota?`NF ${nota} · Estoque inicial`:'Estoque inicial',nota?{unitCost:cost,nfNumber:nota}:{unitCost:cost});}toast('Produto cadastrado com sucesso.');}
  if(saveData())resetProductForm();
 });
 document.getElementById('cancelarEdicao').addEventListener('click',resetProductForm);
 document.getElementById('listaProdutos').addEventListener('click',e=>{
  const edit=e.target.dataset.edit,del=e.target.dataset.delete;
- if(edit){const p=productById(edit);if(!p)return;editingId=p.id;document.getElementById('produtoNome').value=p.name;document.getElementById('produtoCodigo').value=p.code||'';document.getElementById('produtoData').value=String(p.createdAt||'').slice(0,10)||todayISO();document.getElementById('produtoCusto').value=Number(p.cost||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});document.getElementById('produtoPreco').value=Number(p.price||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});document.getElementById('produtoEstoque').value=p.stock;document.getElementById('produtoEstoque').disabled=true;document.getElementById('formProdutoTitulo').textContent='Editar produto';document.getElementById('salvarProdutoBtn').textContent='Salvar alterações';document.getElementById('cancelarEdicao').hidden=false;document.getElementById('produtoEstoque').title='Para alterar estoque, use Entrada ou Venda.';document.getElementById('formProduto').scrollIntoView({behavior:'smooth',block:'start'});}
+ if(edit){const p=productById(edit);if(!p)return;editingId=p.id;document.getElementById('produtoNome').value=p.name;document.getElementById('produtoCodigo').value=p.code||'';document.getElementById('produtoData').value=String(p.createdAt||'').slice(0,10)||todayISO();document.getElementById('produtoCusto').value=Number(p.cost||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});document.getElementById('produtoPreco').value=Number(p.price||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});document.getElementById('produtoEstoque').value=p.stock;document.getElementById('produtoEstoque').disabled=true;document.getElementById('produtoNota').value='';document.getElementById('produtoNota').disabled=true;document.getElementById('formProdutoTitulo').textContent='Editar produto';document.getElementById('salvarProdutoBtn').textContent='Salvar alterações';document.getElementById('cancelarEdicao').hidden=false;document.getElementById('produtoEstoque').title='Para alterar estoque, use Entrada ou Venda.';document.getElementById('formProduto').scrollIntoView({behavior:'smooth',block:'start'});}
  if(del){const p=productById(del);if(!p)return;if(!confirm(`Excluir "${p.name}" do catálogo? O histórico será mantido.`))return;data.products=data.products.filter(x=>x.id!==del);if(editingId===del)resetProductForm();if(saveData())toast('Produto excluído.');}
 });
 document.getElementById('buscaProduto').addEventListener('input',renderProducts);
 document.getElementById('filtroEstoquePositivo').addEventListener('change',renderProducts);
-document.getElementById('formEntrada').addEventListener('submit',e=>{e.preventDefault();const p=productById(document.getElementById('entradaProduto').value),qty=Number(document.getElementById('entradaQuantidade').value),note=document.getElementById('entradaObs').value.trim();if(!p){toast('Cadastre e selecione um produto primeiro.',true);return;}if(!Number.isInteger(qty)||qty<1){toast('Informe uma quantidade inteira maior que zero.',true);return;}const uc=parseMoneyInput(document.getElementById('entradaCusto').value)||Number(p.cost||0);stockIn(p,qty,uc);recordMovement('entrada',p,qty,uc*qty,note,{unitCost:uc});if(saveData()){e.target.reset();toast('Entrada registrada com sucesso.');}});
+// ===== Cadastro em lote (mesma nota) e consulta por nota =====
+function loteRowHtml(){return '<tr class="lote-row"><td><input class="lt-nome" maxlength="120" placeholder="Nome do produto"></td><td><input class="lt-cod" maxlength="60" placeholder="Automático"></td><td><input class="lt-qtd" type="number" min="1" step="1" value="1"></td><td><input class="lt-custo" type="text" inputmode="numeric" autocomplete="off" value="0,00"></td><td><input class="lt-preco" type="text" inputmode="numeric" autocomplete="off" value="0,00"></td><td class="lt-total">R$ 0,00</td><td><button type="button" class="row-action delete lt-del" title="Remover linha">✕</button></td></tr>';}
+function loteAddRow(focus){const tb=document.getElementById('loteRows');tb.insertAdjacentHTML('beforeend',loteRowHtml());const tr=tb.lastElementChild;bindMoneyMask(tr.querySelector('.lt-custo'));bindMoneyMask(tr.querySelector('.lt-preco'));if(focus)tr.querySelector('.lt-nome').focus();return tr;}
+function loteReset(){document.getElementById('formLote').reset();document.getElementById('loteRows').innerHTML='';for(let i=0;i<3;i++)loteAddRow(false);document.getElementById('loteData').value=todayISO();loteTotals();}
+function loteTotals(){let q=0,t=0;document.querySelectorAll('#loteRows .lote-row').forEach(tr=>{const qty=Number(tr.querySelector('.lt-qtd').value)||0,cost=parseMoneyInput(tr.querySelector('.lt-custo').value),sub=Math.round(qty*cost*100)/100;tr.querySelector('.lt-total').textContent=money(sub);q+=qty;t+=sub;});document.getElementById('loteTotalQtd').textContent=q;document.getElementById('loteTotalValor').textContent=money(Math.round(t*100)/100);}
+(function(){
+ const tb=document.getElementById('loteRows');
+ tb.addEventListener('input',loteTotals);
+ tb.addEventListener('money-mask-updated',loteTotals,true);
+ tb.addEventListener('click',e=>{const b=e.target.closest('.lt-del');if(!b)return;b.closest('tr').remove();if(!tb.children.length)loteAddRow(false);loteTotals();});
+ tb.addEventListener('keydown',e=>{if(e.key!=='Enter'||!e.target.matches('input'))return;e.preventDefault();const tr=e.target.closest('tr');if(e.target.classList.contains('lt-preco')){const next=tr.nextElementSibling;(next?next.querySelector('.lt-nome'):loteAddRow(true).querySelector('.lt-nome')).focus();}else{const inputs=[...tr.querySelectorAll('input')],i=inputs.indexOf(e.target);if(inputs[i+1])inputs[i+1].focus();}});
+ document.getElementById('loteAddLinha').addEventListener('click',()=>loteAddRow(true));
+ document.getElementById('loteLimpar').addEventListener('click',()=>{if(!confirm('Limpar todos os dados do lote?'))return;loteReset();});
+ document.getElementById('formLote').addEventListener('submit',e=>{
+  e.preventDefault();
+  const nota=document.getElementById('loteNota').value.trim(),fornecedor=document.getElementById('loteFornecedor').value.trim(),createdAt=document.getElementById('loteData').value||todayISO();
+  if(!nota){toast('Informe o número da nota.',true);return;}
+  const rows=[];let bad=false;
+  document.querySelectorAll('#loteRows .lote-row').forEach((tr,i)=>{
+   const name=tr.querySelector('.lt-nome').value.trim(),code=tr.querySelector('.lt-cod').value.trim();
+   if(!name&&!code)return; // linha vazia
+   const qty=Number(tr.querySelector('.lt-qtd').value),cost=parseMoneyInput(tr.querySelector('.lt-custo').value),price=parseMoneyInput(tr.querySelector('.lt-preco').value);
+   if(!name||!Number.isInteger(qty)||qty<1){bad=true;toast(`Linha ${i+1}: informe o nome e uma quantidade inteira maior que zero.`,true);return;}
+   rows.push({name,code,qty,cost,price});
+  });
+  if(bad)return;
+  if(!rows.length){toast('Preencha pelo menos um produto.',true);return;}
+  // códigos automáticos sequenciais dentro do lote
+  let max=0;const scan=c=>{const m=/^CON-(\d+)$/i.exec(String(c||'').trim());if(m)max=Math.max(max,parseInt(m[1],10));};
+  data.products.forEach(p=>scan(p.code));rows.forEach(r=>scan(r.code));
+  rows.forEach(r=>{if(!r.code)r.code='CON-'+String(++max).padStart(3,'0');});
+  const seen=new Set();
+  for(const r of rows){const k=r.code.toLowerCase();if(seen.has(k)){toast(`O código "${r.code}" está repetido neste lote.`,true);return;}seen.add(k);if(data.products.some(p=>(p.code||'').toLowerCase()===k)){toast(`Já existe um produto com o código "${r.code}".`,true);return;}}
+  const jaExiste=data.movements.some(m=>m.type==='entrada'&&String(m.nfNumber||'').trim().toLowerCase()===nota.toLowerCase());
+  if(jaExiste&&!confirm(`A nota ${nota} já tem produtos lançados. Adicionar estes produtos a ela mesmo assim?`))return;
+  rows.forEach(r=>{
+   const p={id:id(),name:r.name,code:r.code,cost:r.cost,price:r.price,stock:0,createdAt};
+   data.products.push(p);
+   stockIn(p,r.qty,r.cost);
+   recordMovement('entrada',p,r.qty,Math.round(r.cost*r.qty*100)/100,`NF ${nota} · Cadastro em lote`,{unitCost:r.cost,nfNumber:nota,...(fornecedor?{supplier:fornecedor}:{})});
+  });
+  if(saveData()){loteReset();toast(`${rows.length} ${rows.length===1?'produto cadastrado':'produtos cadastrados'} na nota ${nota}.`);}
+ });
+ document.getElementById('buscaNota').addEventListener('input',renderNotas);
+ loteReset();
+})();
+// Consulta por nota: lê as entradas de estoque que têm número de nota (cadastro, lote, entrada manual e XML).
+function renderNotas(){
+ const box=document.getElementById('buscaNota');if(!box)return;
+ const q=box.value.trim().toLowerCase(),groups=new Map();
+ data.movements.filter(m=>m.type==='entrada'&&String(m.nfNumber??'').trim()!==''&&String(m.nfNumber).trim().toLowerCase().includes(q)).forEach(m=>{const k=String(m.nfNumber).trim();if(!groups.has(k))groups.set(k,[]);groups.get(k).push(m);});
+ let html='',totQ=0,totV=0;
+ groups.forEach((list,nota)=>{
+  list=list.slice().reverse();let gq=0,gv=0;const sup=(list.find(m=>m.supplier)||{}).supplier||'';
+  list.forEach(m=>{
+   const qty=Number(m.quantity||0),total=Number(m.total||0),uc=(m.unitCost!=null&&m.unitCost!==''&&Number.isFinite(Number(m.unitCost)))?Number(m.unitCost):(qty?total/qty:0);
+   gq+=qty;gv+=total;
+   html+=`<tr><td class="nota-num">${esc(nota)}</td><td>${qty}</td><td><span class="product-name">${esc(m.productName)}</span></td><td>${money(uc)}</td><td>${money(total)}</td></tr>`;
+  });
+  gv=Math.round(gv*100)/100;totQ+=gq;totV+=gv;
+  html+=`<tr class="nota-sub"><td>Total da nota ${esc(nota)}</td><td>${gq}</td><td>${esc(sup)}</td><td></td><td>${money(gv)}</td></tr>`;
+ });
+ document.getElementById('listaNotas').innerHTML=html;
+ document.getElementById('notaTotalQtd').textContent=totQ;
+ document.getElementById('notaTotalGeral').textContent=money(Math.round(totV*100)/100);
+ document.getElementById('semNotas').style.display=groups.size?'none':'block';
+ document.getElementById('notaSubtitulo').textContent=groups.size?`${groups.size} ${groups.size===1?'nota encontrada':'notas encontradas'}`:'Produtos e valores de cada nota';
+}
+document.getElementById('formEntrada').addEventListener('submit',e=>{e.preventDefault();const p=productById(document.getElementById('entradaProduto').value),qty=Number(document.getElementById('entradaQuantidade').value),obs=document.getElementById('entradaObs').value.trim(),nota=document.getElementById('entradaNota').value.trim(),note=nota?`NF ${nota}${obs?' · '+obs:''}`:obs;if(!p){toast('Cadastre e selecione um produto primeiro.',true);return;}if(!Number.isInteger(qty)||qty<1){toast('Informe uma quantidade inteira maior que zero.',true);return;}const uc=parseMoneyInput(document.getElementById('entradaCusto').value)||Number(p.cost||0);stockIn(p,qty,uc);recordMovement('entrada',p,qty,Math.round(uc*qty*100)/100,note,nota?{unitCost:uc,nfNumber:nota}:{unitCost:uc});if(saveData()){e.target.reset();toast('Entrada registrada com sucesso.');}});
 function cartSubtotal(){return Math.round(saleCart.reduce((sum,item)=>sum+item.quantity*item.price,0)*100)/100;}
 function saleTotals(){
  const subtotal=saleCart.length?cartSubtotal():Math.round(Number(document.getElementById('vendaQuantidade').value||0)*parseMoneyInput(document.getElementById('vendaPreco').value)*100)/100;
