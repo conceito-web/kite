@@ -101,6 +101,7 @@
         <button class="nav-link" data-panel="xml"><span class="nav-icon">⇩</span> Importar XML</button>
         <button class="nav-link" data-panel="venda"><span class="nav-icon">↗</span> Registrar venda</button>
         <button class="nav-link" data-panel="pdv"><span class="nav-icon">▣</span> PDV (Caixa)</button>
+        <button class="nav-link" data-panel="orcamentos"><span class="nav-icon">✎</span> Orçamentos <span class="nav-count" id="menuOrcamentos">0</span></button>
         <button class="nav-link" data-panel="promissorias"><span class="nav-icon">◔</span> Promissórias <span class="nav-count" id="menuPromissorias">0</span></button>
         <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
         <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
@@ -233,6 +234,7 @@
           <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Registrar venda</h1><p class="subtitle">Registre uma venda e atualize o estoque automaticamente.</p></div></div>
           <section class="surface operation-card"><div class="operation-art orange-art">↗</div><h2>Nova venda</h2><p class="operation-intro">Confira o produto, a quantidade e o valor antes de confirmar.</p>
             <form id="formVenda" class="form-stack">
+              <div id="vendaOrcAviso" class="sale-edit-banner" hidden><div><b id="vendaOrcTitulo"></b><p>Altere o que quiser. Ao confirmar a venda, o orçamento passa para “Vendido”.</p></div><button type="button" class="button button-light button-small" id="cancelarOrcVenda">Desvincular</button></div>
               <div id="vendaEdicaoAviso" class="sale-edit-banner" hidden><div><b id="vendaEdicaoTitulo">Editando venda</b><p>Ajuste itens, valores ou pagamentos. Ao salvar, o estoque, o total vendido e o lucro são recalculados.</p></div><button type="button" class="button button-light button-small" id="cancelarEdicaoVenda">Cancelar edição</button></div>
               <div class="field product-search"><span>Buscar produto</span><div class="product-search-box"><input id="vendaBuscaProduto" type="search" autocomplete="off" placeholder="Digite o nome ou parte dele (ou o código)"><div id="vendaSugestoes" class="product-suggest" hidden></div></div></div>
               <label class="check-filter"><input type="checkbox" id="filtroVendaEstoque"><span>Mostrar só produtos com estoque</span></label>
@@ -259,6 +261,7 @@
               </section>
               <label class="field">Observação (opcional)<input id="vendaObs" maxlength="180" placeholder="Observação da venda"></label>
               <button class="button button-primary full-button" type="submit"><b id="confirmarVendaTexto" style="font:inherit">Confirmar venda e baixar estoque</b> <span>→</span></button>
+              <button class="button button-light full-button" id="salvarOrcamentoVenda" type="button">✎ Salvar como orçamento</button>
               <div id="reciboAcoes" class="receipt-actions" hidden>
                 <p id="reciboStatus">Venda registrada. Gere o recibo em PDF e envie ao cliente.</p>
                 <button class="button button-light full-button" id="baixarReciboPdf" type="button">⬇ Baixar recibo em PDF</button>
@@ -349,11 +352,26 @@
                 <div id="pdvPagExtra" class="payment-card-options pdv-pag-extra" hidden></div>
                 <div id="pdvChips" class="pdv-chips"></div>
                 <div class="pdv-total"><span id="pdvRestoLabel">Falta receber</span><strong id="pdvResto">R$ 0,00</strong></div>
+                <p id="pdvOrcAviso" class="pay-hint" hidden></p>
                 <button class="button button-primary full-button" id="pdvFinalizar" type="button">Finalizar venda (F2)</button>
+                <button class="button button-light full-button" id="pdvOrcamento" type="button">✎ Salvar como orçamento</button>
                 <div id="pdvPos" class="receipt-actions" hidden><p id="pdvPosTexto"></p><button class="button button-light full-button" id="pdvImprimir" type="button">Imprimir cupom (80 mm)</button><button class="button button-light full-button" id="pdvPdf" type="button">⬇ Baixar recibo em PDF</button><small>O cupom não tem valor fiscal. A NFC-e continua sendo emitida no seu outro sistema.</small></div>
               </section>
             </div>
           </div>
+        </section>
+
+        <section class="panel" id="panel-orcamentos">
+          <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Orçamentos</h1><p class="subtitle">Orçamentos não baixam estoque nem entram no financeiro. Converta em venda quando o cliente fechar.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Relatório do mês</h2><p>Os números consideram os orçamentos criados no mês escolhido. Deixe vazio para ver todos.</p></div></div>
+            <div class="form-grid"><label class="field">Mês<input type="month" id="orcMes"></label><label class="field">Validade padrão (dias)<input type="number" id="orcValidade" min="1" max="365" step="1"></label></div>
+            <div id="orcResumo"></div>
+          </section>
+          <section class="surface">
+            <div class="surface-heading"><div><h2>Lista de orçamentos</h2></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Nº</th><th>DATA</th><th>CLIENTE</th><th>TOTAL</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="orcLista"></tbody></table></div>
+          </section>
         </section>
 
         <section class="panel" id="panel-promissorias">
@@ -517,7 +535,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=14"></script>
-  <script src="modulos.js?v=10"></script>
+  <script src="app.js?v=15"></script>
+  <script src="modulos.js?v=11"></script>
 </body>
 </html>
