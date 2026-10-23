@@ -15,6 +15,11 @@ const DEFAULT_CATS=[
  ['Outras','Materiais, reparos e gastos diversos']
 ];
 const METHODS=['Dinheiro','Pix','Cartão de débito','Cartão de crédito','Boleto','Transferência','Débito automático','Outro'];
+const DEFAULT_ACCOUNTS=[
+ ['Nubank',['Poupança','Jurídica']],
+ ['Itaú',['Poupança CA*','Poupança CA','Poupança CE','Poupança AN']]
+];
+const SEP=' — ';
 const PALETTE=['#3468f5','#1b9b6b','#e89b3b','#8c6be8','#d74b55','#14a3b8','#c2569e','#7a8699','#9bb23a','#e5733d'];
 const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const list=()=>data.expenses||(data.expenses=[]);
@@ -26,6 +31,29 @@ function cats(){
  const base=DEFAULT_CATS.map(c=>c[0]),extra=cfg().expenseCats||[],used=list().map(e=>e.category).filter(Boolean);
  return [...new Set([...base,...extra,...used])];
 }
+// ---------- contas de origem do dinheiro ----------
+function accountList(){
+ const map=new Map();
+ DEFAULT_ACCOUNTS.forEach(([b,cs])=>map.set(b,[...cs]));
+ const add=v=>{const i=String(v||'').indexOf(SEP);if(i<1)return;const b=v.slice(0,i),c=v.slice(i+SEP.length);if(!map.has(b))map.set(b,[]);if(!map.get(b).includes(c))map.get(b).push(c);};
+ (cfg().expenseAccounts||[]).forEach(add);list().forEach(x=>add(x.account));
+ return map;
+}
+function syncAccounts(){
+ const sel=$('finConta'),cur=sel.value;
+ sel.innerHTML='<option value="">Não informar</option>'+[...accountList()].map(([b,cs])=>`<optgroup label="${esc(b)}">${cs.map(c=>`<option value="${esc(b+SEP+c)}">${esc(b)}: ${esc(c)}</option>`).join('')}</optgroup>`).join('');
+ if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+function newAccount(){
+ if(denied())return;
+ const v=(prompt('Nova conta. Escreva Banco: Conta\nEx.: Inter: Jurídica')||'').trim();if(!v)return;
+ const i=v.indexOf(':');if(i<1||!v.slice(i+1).trim()){toast('Use o formato Banco: Conta (ex.: Inter: Jurídica).',true);return;}
+ const val=v.slice(0,i).trim()+SEP+v.slice(i+1).trim();
+ const ex=cfg().expenseAccounts||(cfg().expenseAccounts=[]);
+ if(!ex.includes(val))ex.push(val);
+ syncAccounts();$('finConta').value=val;saveData();
+}
+const accLabel=a=>a?a.replace(SEP,': '):'';
 const hintOf=c=>(DEFAULT_CATS.find(x=>x[0]===c)||[])[1]||'Categoria criada por você.';
 const colorOf=c=>PALETTE[Math.max(0,cats().indexOf(c))%PALETTE.length];
 function addMonths(key,n){
@@ -185,7 +213,7 @@ function filtered(){
   if(st==='pago'&&sit!=='pago')return false;
   if(st==='pendente'&&sit==='pago')return false;
   if(st==='vencida'&&sit!=='vencida')return false;
-  if(q&&!fold([x.description,x.category,x.method,x.note].join(' ')).includes(q))return false;
+  if(q&&!fold([x.description,x.category,x.method,x.account,x.note].join(' ')).includes(q))return false;
   return true;
  }).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
 }
@@ -193,7 +221,7 @@ function renderList(){
  const rows=filtered(),today=todayISO(),total=r2(rows.reduce((n,x)=>n+Number(x.amount||0),0));
  $('finLista').innerHTML=rows.map(x=>{
   const sit=statusOf(x,today),pill=sit==='pago'?`<span class="pill pago">Pago${x.paidDate?' em '+dayText(x.paidDate):''}</span>`:sit==='vencida'?'<span class="pill vencida">Vencida</span>':'<span class="pill pendente">Pendente</span>';
-  return `<tr><td>${dayText(x.date)}</td><td><span class="fin-dot" style="background:${colorOf(x.category)}"></span>${esc(x.category||'Outras')}</td><td><span class="product-name">${esc(x.description)}</span>${x.recurring?' <small class="fin-muted">↻ recorrente</small>':''}${x.note?`<small class="fin-sub">${esc(x.note)}</small>`:''}</td><td>${esc(x.method||'—')}</td><td>${dayText(x.dueDate)}</td><td>${pill}</td><td><b>${money(x.amount)}</b></td><td class="fin-actions">${x.status==='pago'?'':`<button type="button" class="row-action" data-fin="pay" data-id="${esc(x.id)}">Pagar</button>`}<button type="button" class="row-action" data-fin="edit" data-id="${esc(x.id)}">Editar</button><button type="button" class="row-action" data-fin="repeat" data-id="${esc(x.id)}" title="Lançar de novo no mês seguinte">Repetir</button><button type="button" class="row-action delete" data-fin="del" data-id="${esc(x.id)}">Excluir</button></td></tr>`;
+  return `<tr><td>${dayText(x.date)}</td><td><span class="fin-dot" style="background:${colorOf(x.category)}"></span>${esc(x.category||'Outras')}</td><td><span class="product-name">${esc(x.description)}</span>${x.recurring?' <small class="fin-muted">↻ recorrente</small>':''}${x.note?`<small class="fin-sub">${esc(x.note)}</small>`:''}</td><td>${esc(x.method||'—')}${x.account?`<small class="fin-sub">${esc(accLabel(x.account))}</small>`:''}</td><td>${dayText(x.dueDate)}</td><td>${pill}</td><td><b>${money(x.amount)}</b></td><td class="fin-actions">${x.status==='pago'?'':`<button type="button" class="row-action" data-fin="pay" data-id="${esc(x.id)}">Pagar</button>`}<button type="button" class="row-action" data-fin="edit" data-id="${esc(x.id)}">Editar</button><button type="button" class="row-action" data-fin="repeat" data-id="${esc(x.id)}" title="Lançar de novo no mês seguinte">Repetir</button><button type="button" class="row-action delete" data-fin="del" data-id="${esc(x.id)}">Excluir</button></td></tr>`;
  }).join('');
  $('finVazio').style.display=rows.length?'none':'block';
  $('finListaTotal').textContent=`${rows.length} lançamento(s) · total ${money(total)}`;
@@ -223,7 +251,7 @@ function syncForm(){
 function resetForm(){
  editId=null;$('finForm').reset();$('finData').value=todayISO();$('finPago').value='';
  $('finFormTitulo').textContent='Nova despesa';$('finSalvar').textContent='Salvar despesa';$('finFormBadge').textContent='LANÇAMENTO';
- syncForm();catHint();
+ syncAccounts();syncForm();catHint();
 }
 function openForm(){const c=$('finFormCard');c.style.display='';c.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('finDesc').focus({preventScroll:true}),250);}
 function closeForm(){$('finFormCard').style.display='none';resetForm();}
@@ -231,7 +259,7 @@ function fillForm(x){
  editId=x.id;syncCats();
  $('finData').value=x.date||todayISO();$('finCat').value=x.category||'Outras';$('finDesc').value=x.description||'';
  $('finValor').value=Number(x.amount||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
- $('finForma').value=x.method||METHODS[0];$('finStatus').value=x.status||'pendente';$('finVenc').value=x.dueDate||'';$('finPago').value=x.paidDate||'';
+ $('finForma').value=x.method||METHODS[0];syncAccounts();$('finConta').value=x.account||'';$('finStatus').value=x.status||'pendente';$('finVenc').value=x.dueDate||'';$('finPago').value=x.paidDate||'';
  $('finTipo').value=x.recurring?'rec':'avulsa';$('finObs').value=x.note||'';
  $('finFormTitulo').textContent='Editar despesa';$('finSalvar').textContent='Salvar alterações';$('finFormBadge').textContent='EDIÇÃO';
  syncForm();catHint();openForm();
@@ -244,7 +272,7 @@ function save(ev){
  if(!desc){toast('Informe a descrição da despesa.',true);$('finDesc').focus();return;}
  if(!(amount>0)){toast('Informe o valor da despesa.',true);$('finValor').focus();return;}
  const date=$('finData').value||todayISO(),status=$('finStatus').value;
- const rec={date,category:$('finCat').value||'Outras',description:desc,amount,method:$('finForma').value,status,
+ const rec={date,category:$('finCat').value||'Outras',description:desc,amount,method:$('finForma').value,account:$('finConta').value,status,
   dueDate:$('finVenc').value||'',paidDate:status==='pago'?($('finPago').value||date):'',recurring:$('finTipo').value==='rec',note:$('finObs').value.trim()};
  const now=new Date().toISOString();let msg='Despesa salva.';
  if(editId){
@@ -276,8 +304,8 @@ function onListClick(ev){
 }
 function exportCsv(){
  const rows=filtered(),cell=v=>{const s=String(v??'');return /[";\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;},today=todayISO();
- const head=['Data','Categoria','Descrição','Forma de pagamento','Vencimento','Pagamento','Situação','Valor (R$)','Recorrente','Observação'];
- const lines=[head.join(';')].concat(rows.map(x=>[dayText(x.date),x.category,x.description,x.method,x.dueDate?dayText(x.dueDate):'',x.paidDate?dayText(x.paidDate):'',statusOf(x,today),Number(x.amount||0).toFixed(2).replace('.',','),x.recurring?'Sim':'Não',x.note].map(cell).join(';')));
+ const head=['Data','Categoria','Descrição','Forma de pagamento','Conta de origem','Vencimento','Pagamento','Situação','Valor (R$)','Recorrente','Observação'];
+ const lines=[head.join(';')].concat(rows.map(x=>[dayText(x.date),x.category,x.description,x.method,accLabel(x.account),x.dueDate?dayText(x.dueDate):'',x.paidDate?dayText(x.paidDate):'',statusOf(x,today),Number(x.amount||0).toFixed(2).replace('.',','),x.recurring?'Sim':'Não',x.note].map(cell).join(';')));
  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
  a.href=URL.createObjectURL(blob);a.download=`despesas-${todayISO()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
  toast('Planilha de despesas exportada.');
@@ -288,7 +316,7 @@ function init(){
  if(!$('panel-financeiro'))return;
  $('finForma').innerHTML=METHODS.map(m=>`<option>${esc(m)}</option>`).join('');
  $('finFiltroForma').innerHTML='<option value="">Todas as formas</option>'+METHODS.map(m=>`<option>${esc(m)}</option>`).join('');
- bindMoneyMask($('finValor'));bindMoneyMask($('finMeta'));
+ syncAccounts();bindMoneyMask($('finValor'));bindMoneyMask($('finMeta'));
  setPreset('mes');resetForm();
  $('finPreset').addEventListener('change',()=>{setPreset($('finPreset').value);render();});
  ['finDe','finAte'].forEach(k=>$(k).addEventListener('change',()=>{$('finPreset').value='custom';render();}));
@@ -296,7 +324,7 @@ function init(){
  $('finBusca').addEventListener('input',renderList);
  $('finNovo').addEventListener('click',()=>{if(denied())return;resetForm();openForm();});
  $('finCancelar').addEventListener('click',closeForm);
- $('finForm').addEventListener('submit',save);
+ $('finForm').addEventListener('submit',save);$('finNovaConta').addEventListener('click',newAccount);
  $('finStatus').addEventListener('change',syncForm);$('finTipo').addEventListener('change',syncForm);
  $('finData').addEventListener('change',syncForm);
  $('finCat').addEventListener('change',catHint);
