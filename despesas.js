@@ -1,5 +1,5 @@
 'use strict';
-// Conceito: Despesas, lucro líquido, gráficos financeiros, meta de lucro e previsão de gastos.
+// Conceito: Despesas, lucro líquido, gráficos financeiros, previsão de gastos.
 // Usa as funções e dados do app.js (data, money, saveData, localDateKey, shortMoney, ...).
 // Lucro líquido = lucro bruto das vendas (já com custo PEPS e taxas de cartão/crédito) − despesas.
 (function(){
@@ -20,6 +20,9 @@ const DEFAULT_ACCOUNTS=[
  ['Itaú',['Poupança CA*','Poupança CA','Poupança CE','Poupança AN']]
 ];
 const SEP=' — ';
+// Contas do Conceito caixa (value 'caixa:<chave>'): despesa PAGA com uma delas sai do saldo da conta.
+const CAIXA=[['caixa:blu','Caixa BLU'],['caixa:nubank','Caixa NUBANK'],['caixa:dinheiro','Dinheiro CAIXA']];
+const isCaixa=a=>String(a||'').indexOf('caixa:')===0;
 const PALETTE=['#3468f5','#1b9b6b','#e89b3b','#8c6be8','#d74b55','#14a3b8','#c2569e','#7a8699','#9bb23a','#e5733d'];
 const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const list=()=>data.expenses||(data.expenses=[]);
@@ -41,7 +44,7 @@ function accountList(){
 }
 function syncAccounts(){
  const sel=$('finConta'),cur=sel.value;
- sel.innerHTML='<option value="">Não informar</option>'+[...accountList()].map(([b,cs])=>`<optgroup label="${esc(b)}">${cs.map(c=>`<option value="${esc(b+SEP+c)}">${esc(b)}: ${esc(c)}</option>`).join('')}</optgroup>`).join('');
+ sel.innerHTML='<option value="">Não informar</option><optgroup label="Conceito caixa (desconta do saldo)">'+CAIXA.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('')+'</optgroup>'+[...accountList()].map(([b,cs])=>`<optgroup label="${esc(b)}">${cs.map(c=>`<option value="${esc(b+SEP+c)}">${esc(b)}: ${esc(c)}</option>`).join('')}</optgroup>`).join('');
  if([...sel.options].some(o=>o.value===cur))sel.value=cur;
 }
 function newAccount(){
@@ -53,7 +56,7 @@ function newAccount(){
  if(!ex.includes(val))ex.push(val);
  syncAccounts();$('finConta').value=val;saveData();
 }
-const accLabel=a=>a?a.replace(SEP,': '):'';
+const accLabel=a=>isCaixa(a)?((CAIXA.find(c=>c[0]===a)||[])[1]||a):(a?a.replace(SEP,': '):'');
 const hintOf=c=>(DEFAULT_CATS.find(x=>x[0]===c)||[])[1]||'Categoria criada por você.';
 const colorOf=c=>PALETTE[Math.max(0,cats().indexOf(c))%PALETTE.length];
 function addMonths(key,n){
@@ -180,15 +183,6 @@ function renderYear(){
 }
 function renderGoalAndCompare(){
  const [cs,ce]=monthRange(0),[ps,pe]=monthRange(-1),cur=calc(cs,ce),prev=calc(ps,pe);
- // meta
- const goal=Number(cfg().profitGoal||0),inp=$('finMeta');
- if(document.activeElement!==inp)inp.value=goal>0?goal.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
- const done=goal>0?Math.max(0,cur.liquido)/goal*100:0;
- $('finMetaBarra').style.width=Math.min(100,done)+'%';
- $('finMetaTexto').innerHTML=goal>0
-  ?(cur.liquido>=goal?`<b class="fin-pos">Meta atingida!</b> Lucro líquido do mês: ${signed(cur.liquido)} (${money(cur.liquido-goal)} acima da meta).`
-   :`Lucro líquido do mês: <b>${signed(cur.liquido)}</b> de ${money(goal)} (${pct(Math.max(0,done),0)}). <b>Faltam ${money(goal-cur.liquido)}</b>.`)
-  :'Defina uma meta de lucro líquido para acompanhar quanto falta neste mês.';
  // comparativo
  const var_=(a,b,badUp)=>{
   if(!b)return '<span class="fin-muted">—</span>';
@@ -292,7 +286,7 @@ function onListClick(ev){
  const x=list().find(i=>i.id===b.dataset.id);if(!x)return;
  const act=b.dataset.fin;
  if(act==='edit'){fillForm(x);return;}
- if(act==='pay'){x.status='pago';x.paidDate=todayISO();if(saveData())toast('Despesa marcada como paga.');return;}
+ if(act==='pay'){x.status='pago';x.paidDate=todayISO();if(saveData())toast(x.account?'Despesa marcada como paga.':'Despesa marcada como paga. Em Editar, escolha de qual conta saiu para descontar do caixa.');return;}
  if(act==='repeat'){
   const c={...x,id:id(),date:addMonths(x.date,1),dueDate:x.dueDate?addMonths(x.dueDate,1):'',status:'pendente',paidDate:'',recurring:true,createdAt:new Date().toISOString()};
   x.recurring=true;list().push(c);if(saveData())toast(`Lançada de novo em ${dayText(c.date)} (pendente).`);return;
@@ -316,7 +310,7 @@ function init(){
  if(!$('panel-financeiro'))return;
  $('finForma').innerHTML=METHODS.map(m=>`<option>${esc(m)}</option>`).join('');
  $('finFiltroForma').innerHTML='<option value="">Todas as formas</option>'+METHODS.map(m=>`<option>${esc(m)}</option>`).join('');
- syncAccounts();bindMoneyMask($('finValor'));bindMoneyMask($('finMeta'));
+ syncAccounts();bindMoneyMask($('finValor'));
  setPreset('mes');resetForm();
  $('finPreset').addEventListener('change',()=>{setPreset($('finPreset').value);render();});
  ['finDe','finAte'].forEach(k=>$(k).addEventListener('change',()=>{$('finPreset').value='custom';render();}));
@@ -336,7 +330,6 @@ function init(){
   cfg().expenseCats=[...(cfg().expenseCats||[]),n];
   if(saveData()){syncCats();$('finCat').value=n;catHint();toast('Categoria criada.');}
  });
- $('finMeta').addEventListener('change',()=>{if(denied())return;cfg().profitGoal=r2(parseMoneyInput($('finMeta').value));saveData();});
  $('finLista').addEventListener('click',onListClick);
  $('finCsv').addEventListener('click',exportCsv);
 }
