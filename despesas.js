@@ -21,7 +21,7 @@ const DEFAULT_ACCOUNTS=[
 ];
 const SEP=' — ';
 // Contas do Conceito caixa (value 'caixa:<chave>'): despesa PAGA com uma delas sai do saldo da conta.
-const CAIXA=[['caixa:blu','Caixa BLU'],['caixa:nubank','Caixa NUBANK'],['caixa:dinheiro','Dinheiro CAIXA']];
+const CAIXA=[['caixa:blu','Caixa BLU'],['caixa:nubank','Caixa NUBANK'],['caixa:dinheiro','Dinheiro CAIXA'],['caixa:agenda','Caixa AGENDA BLU']];
 const isCaixa=a=>String(a||'').indexOf('caixa:')===0;
 const PALETTE=['#3468f5','#1b9b6b','#e89b3b','#8c6be8','#d74b55','#14a3b8','#c2569e','#7a8699','#9bb23a','#e5733d'];
 const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
