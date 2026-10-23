@@ -413,3 +413,20 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 @media(max-width:1000px){.fin-grid-2,.fin-grid-2.fin-grid-even{grid-template-columns:1fr}.fin-list-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.report-filters.fin-filters{grid-template-columns:1fr}.fin-list-filters{grid-template-columns:1fr;padding:0 12px 14px}.fin-card{padding:15px}.fin-heading .button{width:100%}}
 @media print{#panel-financeiro .fin-heading .button,#panel-financeiro .fin-form,#panel-financeiro .fin-list-filters{display:none!important}}
+
+/* ===== Conceito caixa ===== */
+.cx-total{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#f6f8fc;border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.cx-total span{font-size:12px;color:#536178;font-weight:700}
+.cx-total strong{font:800 20px Manrope,Arial,sans-serif;color:#253249}
+.cx-list{display:grid;gap:10px;margin-bottom:12px}
+.cx-acc{border:1px solid #e6ebf3;border-radius:12px;padding:12px 14px;display:grid;gap:8px}
+.cx-acc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.cx-acc-top b{font-size:13px;color:#253249}
+.cx-acc-top small{display:block;color:#8490a3;font-size:11px;margin-top:2px;line-height:1.4}
+.cx-acc-top strong{font:800 16px Manrope,Arial,sans-serif;color:#253249;white-space:nowrap}
+.cx-acc-btns{display:flex;gap:8px;flex-wrap:wrap}
+.cx-neg{color:#c0343e!important}
+.cx-pos{color:#1b9869}
+.pill.cxauto{background:#edf2ff;color:#2454dd}.pill.cxman{background:#f1f3f7;color:#667085}
+#cxFormCard [hidden]{display:none!important}
+@media print{#panel-financeiro #cxFormCard,#panel-financeiro .cx-acc-btns,#cxNovo{display:none!important}}
