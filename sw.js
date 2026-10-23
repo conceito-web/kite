@@ -1,5 +1,5 @@
-const CACHE = 'conceito-v15';
-const CORE = ['./', 'index.html', 'app.js', 'modulos.js', 'despesas.js?v=2', 'style.css?v=19', 'manifest.webmanifest',
+const CACHE = 'conceito-v17';
+const CORE = ['./', 'index.html', 'app.js', 'modulos.js', 'despesas.js?v=3', 'caixa.js?v=1', 'style.css?v=20', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
@@ -7,7 +7,7 @@ const JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    await c.addAll(CORE);
+    await Promise.all(CORE.map(async u=>{ const res=await fetch(new Request(u,{cache:'reload'})); if(!res.ok) throw new Error(u); await c.put(u,res); }));   // cache:'reload' = sempre baixa a versão nova
     try { await c.add(JSPDF); } catch (_) {}
     try { await c.add(JSZIP); } catch (_) {}
     self.skipWaiting();
