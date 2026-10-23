@@ -371,3 +371,45 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 .nota-table{min-width:640px}
 .nota-table .nota-sub td{background:#f6f8fc;font-weight:800;color:#2a3850;border-bottom:2px solid #e3e8f0}
 .nota-table .nota-num{font-weight:800;color:#2a3850;white-space:nowrap}
+
+/* ===== Despesas e lucro líquido ===== */
+.fin-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.report-filters.fin-filters{grid-template-columns:repeat(3,minmax(0,1fr))}
+.fin-stats{margin-bottom:15px}
+.fin-stats .stat-card>strong.fin-pos,.fin-pos{color:#159568}
+.fin-stats .stat-card>strong.fin-neg,.fin-neg{color:#c0343e}
+.fin-muted{color:#8490a3;font-weight:600}
+.fin-grid-2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:17px;margin:17px 0}
+.fin-grid-2.fin-grid-even{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0}
+.fin-card{padding:20px;min-width:0}
+.fin-svg{display:block;width:100%;height:auto}
+.fin-donut-wrap{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.fin-donut{position:relative;width:160px;height:160px;flex:0 0 160px;border-radius:50%;display:grid;place-items:center;background:#e8edf5}
+.fin-donut:before{content:"";position:absolute;inset:22px;border-radius:50%;background:#fff}
+.fin-donut-center{position:relative;text-align:center;line-height:1.25;max-width:100px}
+.fin-donut-center strong{display:block;font:800 14px Manrope,Arial,sans-serif;color:#172b49}
+.fin-donut-center span{font-size:11px;color:#7c8ba2}
+.fin-legend{flex:1;min-width:170px;display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.fin-legend li{display:flex;align-items:center;gap:8px;font-size:12px;color:#34445c}
+.fin-legend .fin-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fin-legend small{color:#8490a3;min-width:30px;text-align:right}
+.fin-legend .fin-empty{color:#9aa4b2}
+.fin-dot{display:inline-block;width:10px;height:10px;border-radius:3px;flex:0 0 10px;margin-right:7px;vertical-align:middle}
+.fin-legend .fin-dot{margin-right:0}
+.fin-progress{height:12px;border-radius:99px;background:#edf1f7;overflow:hidden;margin:16px 0 10px}
+.fin-progress i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#3468f5,#1b9b6b);transition:width .4s}
+.fin-meta-text{margin:0;font-size:12px;line-height:1.6;color:#536178}
+.fin-cmp td,.fin-cmp th{white-space:nowrap}
+.fin-cmp td:first-child{font-weight:700;color:#253249}
+.fin-forecast{display:grid;gap:8px;margin-top:14px}
+.fin-forecast div{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#f6f8fc;border-radius:10px;padding:10px 12px;font-size:12px;color:#536178}
+.fin-forecast strong{font:800 13px Manrope,Arial,sans-serif;color:#253249;white-space:nowrap}
+.fin-form [hidden]{display:none!important}
+.fin-hint{margin:-4px 0 0;font-size:11px;color:#8490a3}
+.fin-list-filters{display:grid;grid-template-columns:2fr repeat(3,minmax(0,1fr));gap:12px;padding:0 20px 16px}
+.fin-sub{display:block;color:#8490a3;font-size:10px;margin-top:2px}
+.fin-actions{white-space:nowrap}
+.pill.pago{background:#e8f8f0;color:#1b9869}.pill.pendente{background:#fff4e0;color:#b36a05}
+@media(max-width:1000px){.fin-grid-2,.fin-grid-2.fin-grid-even{grid-template-columns:1fr}.fin-list-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.report-filters.fin-filters{grid-template-columns:1fr}.fin-list-filters{grid-template-columns:1fr;padding:0 12px 14px}.fin-card{padding:15px}.fin-heading .button{width:100%}}
+@media print{#panel-financeiro .fin-heading .button,#panel-financeiro .fin-form,#panel-financeiro .fin-list-filters{display:none!important}}
