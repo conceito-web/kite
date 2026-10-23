@@ -1,4 +1,7 @@
 'use strict';
+// REGRAS: Dinheiro → "Dinheiro CAIXA" · Pix → "Caixa NUBANK" · Cartão FÁBRICA → 40% (100% − crédito) no "Caixa BLU" na hora ·
+// Cartão LOJA (crédito, link Blu e débito) → valor líquido (já sem taxa) dividido nas parcelas; cada parcela fica na "Caixa AGENDA BLU"
+// e entra no "Caixa BLU" na data de entrada (padrão: 30 dias por parcela; débito 1 dia). Dia, data e valor de cada parcela podem ser editados.
 // Conceito: CAIXA (DFC) — substitui a antiga "Meta de lucro mensal".
 // Contas: Caixa BLU (recebe sozinho das vendas no cartão), Caixa NUBANK e Dinheiro CAIXA (movimentos manuais/transferências).
 // Regras automáticas (por venda não cancelada):
@@ -11,9 +14,10 @@
 (function(){
 const $=x=>document.getElementById(x), r2=n=>Math.round(Number(n||0)*100)/100;
 const ACCS=[
- {k:'blu',name:'Caixa BLU',sub:'Recebe sozinho das vendas no cartão'},
- {k:'nubank',name:'Caixa NUBANK',sub:'Recebe por transferência do Caixa BLU'},
- {k:'dinheiro',name:'Dinheiro CAIXA',sub:'Dinheiro físico da loja'}
+ {k:'blu',name:'Caixa BLU',sub:'Cartão fábrica e parcelas da loja que já venceram'},
+ {k:'nubank',name:'Caixa NUBANK',sub:'Recebe os Pix das vendas e transferências'},
+ {k:'dinheiro',name:'Dinheiro CAIXA',sub:'Dinheiro físico da loja'},
+ {k:'agenda',name:'Caixa AGENDA BLU',sub:'Parcelas do cartão loja que ainda vão entrar no Caixa BLU'}
 ];
 const accName=k=>(ACCS.find(a=>a.k===k)||{}).name||k;
 const ledger=()=>data.cashLedger||(data.cashLedger=[]);
@@ -21,6 +25,8 @@ const conf=()=>data.cashConfig||(data.cashConfig={});
 const signed=v=>(v<0?'−':'')+money(Math.abs(v));
 const isCard=m=>m===PM.CREDIT||m===PM.BLU||m===PM.DEBIT;
 const CASH='Dinheiro',PIX='Pix';
+const addDays=(day,n)=>{const p=String(day).split('-').map(Number);return localDateKey(new Date(p[0],p[1]-1,p[2]+n));};
+const dias=deb=>{const v=Number(conf()[deb?'debitDays':'creditDays']);return Number.isFinite(v)&&v>=0?Math.floor(v):(deb?1:30);};
 const pixAcc=()=>{const k=conf().pixAccount;return ACCS.some(a=>a.k===k)?k:'nubank';};
 const monthStart=()=>{const n=new Date();return localDateKey(new Date(n.getFullYear(),n.getMonth(),1));};
 const fmtIn=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -37,7 +43,7 @@ function ensureStart(){
 
 // ---------- entradas automáticas (vendas no cartão e em dinheiro) ----------
 function autoEntries(){
- const start=conf().start||'',first=new Map();
+ const start=conf().start||'',first=new Map(),ov=conf().parcelas||{};
  data.movements.forEach(m=>{
   if(m.type!=='venda'||m.canceled)return;
   const k=m.saleId||m.id;if(!first.has(k))first.set(k,m);   // os pagamentos ficam repetidos em cada item da venda: conta uma vez só
@@ -45,18 +51,28 @@ function autoEntries(){
  const out=[];
  first.forEach((m,k)=>{
   const day=localDateKey(m.date);if(!day||(start&&day<start))return;
-  let fab=0,loja=0,cash=0,pix=0;
-  (m.payments||[]).forEach(p=>{
-   if(p&&p.method===CASH){cash+=Number(p.amount||0);return;}
-   if(p&&p.method===PIX){pix+=Number(p.amount||0);return;}
-   if(!p||!isCard(p.method))return;
+  let fab=0,cash=0,pix=0;const parcs=[];
+  (m.payments||[]).forEach((p,pi)=>{
+   if(!p)return;
    const amt=Number(p.amount||0);
-   if((p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica')fab+=amt-Number(p.factoryCredit||0);
-   else loja+=amt-Number(p.fee||0);
+   if(p.method===CASH){cash+=amt;return;}
+   if(p.method===PIX){pix+=amt;return;}
+   if(!isCard(p.method))return;
+   if((p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica'){fab+=amt-Number(p.factoryCredit||0);return;}
+   // cartão loja / débito: valor líquido (sem taxa) dividido em parcelas, cada uma com sua data de entrada
+   const deb=p.method===PM.DEBIT,n=deb?1:Math.max(1,Math.min(60,Math.floor(Number(p.installments)||1))),net=r2(amt-Number(p.fee||0));
+   if(!(net>0))return;
+   const cents=Math.round(net*100),q=Math.floor(cents/n);
+   for(let i=1;i<=n;i++){
+    const pkey=k+':'+pi+':'+i,o=ov[pkey]||null,defDate=addDays(day,deb?dias(true):dias(false)*i),defAmt=r2((i<n?q:cents-q*(n-1))/100);
+    const date=(o&&o.date)||defDate,amount=(o&&o.amount!=null)?r2(o.amount):defAmt;
+    if(!(amount>0))continue;
+    parcs.push({pkey,saleKey:k,client:m.client||'',saleDay:day,method:p.method,i,n,date,amount,defDate,defAmt,edited:!!o});
+   }
   });
-  fab=r2(fab);loja=r2(loja);cash=r2(cash);pix=r2(pix);
-  if(fab+loja+cash+pix<=0.004)return;
-  out.push({key:k,date:day,ts:String(m.date||''),client:m.client||'',fab,loja,cash,pix,blu:r2(fab+loja)});
+  fab=r2(fab);cash=r2(cash);pix=r2(pix);
+  if(fab+cash+pix<=0.004&&!parcs.length)return;
+  out.push({key:k,date:day,ts:String(m.date||''),client:m.client||'',fab,cash,pix,blu:fab,parcs});
  });
  return out;
 }
@@ -73,33 +89,46 @@ function expenseEntries(){
  return out;
 }
 function balances(){
- const b={blu:0,nubank:0,dinheiro:0},auto=autoEntries(),exp=expenseEntries(),pa=pixAcc();let fab=0,loja=0,cash=0,pix=0;
- auto.forEach(a=>{b.blu+=a.blu;b.dinheiro+=a.cash;b[pa]+=a.pix;fab+=a.fab;loja+=a.loja;cash+=a.cash;pix+=a.pix;});
+ const b={blu:0,nubank:0,dinheiro:0,agenda:0},auto=autoEntries(),exp=expenseEntries(),pa=pixAcc(),hoje=todayISO(),parcs=[];
+ let fab=0,cash=0,pix=0,lojaRec=0,lojaPend=0;
+ auto.forEach(a=>{
+  b.blu+=a.fab;b.dinheiro+=a.cash;b[pa]+=a.pix;fab+=a.fab;cash+=a.cash;pix+=a.pix;
+  a.parcs.forEach(p=>{
+   p.due=p.date<=hoje;   // venceu: já está no Caixa BLU; senão fica na Caixa AGENDA BLU
+   if(p.due){b.blu+=p.amount;lojaRec+=p.amount;}else{b.agenda+=p.amount;lojaPend+=p.amount;}
+   parcs.push(p);
+  });
+ });
  exp.forEach(x=>{b[x.acc]+=x.amount;});
  ledger().forEach(e=>{if(e.account in b)b[e.account]+=Number(e.amount||0);});
  Object.keys(b).forEach(k=>b[k]=r2(b[k]));
- return {b,auto,exp,fab:r2(fab),loja:r2(loja),cash:r2(cash),pix:r2(pix),pa,total:r2(b.blu+b.nubank+b.dinheiro)};
+ return {b,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda)};
 }
 
 // ---------- tela ----------
 function renderCard(S){
  $('cxTotal').textContent=signed(S.total);
+ const tl=document.querySelector('#cxCard .cx-total span');if(tl)tl.textContent='Saldo total (com o que está a receber)';
  $('cxContas').innerHTML=ACCS.map(a=>{
-  const sub=a.k==='blu'?`${a.sub} · fábrica ${money(S.fab)} + loja ${money(S.loja)}`:a.k==='dinheiro'?`${a.sub} · vendas em dinheiro ${money(S.cash)}`:a.sub;
-  const sub2=a.k===S.pa?`${sub} · Pix ${money(S.pix)}`:sub;
-  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub2)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button></div></div>`;
+  let sub=a.sub;
+  if(a.k==='blu')sub+=` · fábrica ${money(S.fab)} + loja ${money(S.lojaRec)}`;
+  if(a.k==='dinheiro')sub+=` · vendas em dinheiro ${money(S.cash)}`;
+  if(a.k==='agenda')sub+=` · a receber ${money(S.lojaPend)}`;
+  if(a.k===S.pa)sub+=` · Pix ${money(S.pix)}`;
+  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button></div></div>`;
  }).join('');
  const fabPct=100-getSettings().factoryCreditPct;
- $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja e débito entram já sem a taxa. <b>Dinheiro CAIXA:</b> recebe as vendas pagas em dinheiro. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <b>Pix:</b> entra com o valor cheio (sem taxa) na conta escolhida abaixo. <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
+ $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
 }
 function rowsAll(S){
  const rows=[];
  S.auto.forEach(a=>{
   const desc=`Venda #${String(a.key).slice(-6)}${a.client?' · '+a.client:''}`;
-  if(a.blu>0)rows.push({acc:'blu',date:a.date,ts:a.ts,amount:a.blu,auto:true,desc,
-   sub:[a.fab>0?`cartão fábrica ${money(a.fab)}`:'',a.loja>0?`cartão loja/débito líquido ${money(a.loja)}`:''].filter(Boolean).join(' + ')});
+  if(a.fab>0)rows.push({acc:'blu',date:a.date,ts:a.ts,amount:a.fab,auto:true,desc,sub:`cartão fábrica ${money(a.fab)}`});
   if(a.cash>0)rows.push({acc:'dinheiro',date:a.date,ts:a.ts,amount:a.cash,auto:true,desc,sub:'pago em dinheiro'});
   if(a.pix>0)rows.push({acc:S.pa,date:a.date,ts:a.ts,amount:a.pix,auto:true,desc,sub:'pago em Pix'});
+  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,desc,
+   sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}`}));
  });
  S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,desc:x.desc,sub:x.sub}));
  ledger().forEach(e=>{
@@ -121,10 +150,80 @@ function renderList(S){
  $('cxLinhas').innerHTML=shown.map(r=>`<tr><td>${dayText(r.date)}</td><td>${esc(accName(r.acc))}</td><td><span class="product-name">${esc(r.desc)}</span>${r.sub?`<small class="fin-sub">${esc(r.sub)}</small>`:''}</td><td>${r.auto?'<span class="pill cxauto">Automático</span>':'<span class="pill cxman">Manual</span>'}</td><td><b class="${r.amount<0?'cx-neg':'cx-pos'}">${signed(r.amount)}</b></td><td class="fin-actions">${r.auto?'':`<button type="button" class="row-action delete" data-cx-del="${esc(r.id)}">Excluir</button>`}</td></tr>`).join('');
  $('cxVazio').style.display=rows.length?'none':'block';
 }
+// ---------- Agenda BLU: parcelas do cartão loja ----------
+const INP='style="padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px;max-width:100%"';
+function buildAgenda(){
+ if($('cxAgenda')||!$('cxExtrato'))return;
+ const sec=document.createElement('section');
+ sec.className='surface list-surface';sec.id='cxAgenda';sec.style.marginBottom='17px';
+ sec.innerHTML=`<div class="surface-heading responsive-heading"><div><h2>Agenda BLU · parcelas do cartão loja</h2><p id="cxAgResumo"></p></div><div class="search-tools"><select id="cxAgFiltro" aria-label="Filtrar parcelas"><option value="pend">A receber</option><option value="rec">Já entraram no Caixa BLU</option><option value="">Todas</option></select></div></div>
+ <div style="display:flex;gap:14px;flex-wrap:wrap;padding:0 16px 8px">
+  <label class="field" style="min-width:170px">Dias entre parcelas (crédito / link Blu)<input type="number" id="cxDiasCred" min="0" max="365" step="1" ${INP}></label>
+  <label class="field" style="min-width:170px">Dias para entrar (débito)<input type="number" id="cxDiasDeb" min="0" max="365" step="1" ${INP}></label>
+ </div>
+ <p class="fin-meta-text" style="padding:0 16px">Cada parcela mostra de qual venda veio. Padrão: a parcela 1 entra X dias após a venda, a 2 entra 2×X dias, e assim por diante. Você pode digitar a <b>data</b> e o <b>valor</b> de qualquer parcela; ao chegar a data, ela sai da Caixa AGENDA BLU e entra no Caixa BLU.</p>
+ <div class="table-wrap"><table><thead><tr><th>ENTRA EM</th><th>DE QUAL VENDA</th><th>PARCELA</th><th>VALOR (R$)</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="cxAgLinhas"></tbody></table></div>
+ <div id="cxAgVazio" class="empty-state" style="display:none"><div class="empty-symbol">$</div><b>Nenhuma parcela aqui</b><p>As vendas no cartão loja (crédito, link Blu ou débito) aparecem aqui, parcela por parcela.</p></div>`;
+ $('cxExtrato').parentNode.insertBefore(sec,$('cxExtrato'));
+ $('cxAgFiltro').addEventListener('change',()=>renderAgenda(balances()));
+ sec.addEventListener('change',onAgendaChange);
+ sec.addEventListener('click',onAgendaClick);
+}
+function renderAgenda(S){
+ if(!$('cxAgenda'))return;
+ const f=$('cxAgFiltro').value,pend=S.parcs.filter(p=>!p.due),rec=S.parcs.filter(p=>p.due);
+ $('cxAgResumo').textContent=`A receber: ${money(S.lojaPend)} em ${pend.length} parcela(s) · já entraram no Caixa BLU: ${money(S.lojaRec)} em ${rec.length} parcela(s)`;
+ const a=$('cxDiasCred'),d=$('cxDiasDeb');
+ if(document.activeElement!==a)a.value=dias(false);
+ if(document.activeElement!==d)d.value=dias(true);
+ const list=(f==='pend'?pend:f==='rec'?rec:S.parcs.slice()).sort((x,y)=>f==='rec'?String(y.date).localeCompare(String(x.date)):String(x.date).localeCompare(String(y.date))).slice(0,300);
+ $('cxAgLinhas').innerHTML=list.map(p=>`<tr>
+  <td><input type="date" value="${esc(p.date)}" data-pdate="${esc(p.pkey)}" ${INP}></td>
+  <td><span class="product-name">Venda #${esc(String(p.saleKey).slice(-6))}${p.client?' · '+esc(p.client):''}</span><small class="fin-sub">vendida em ${dayText(p.saleDay)} · ${esc(p.method)}</small></td>
+  <td>${p.i}/${p.n}</td>
+  <td><input type="text" inputmode="decimal" value="${fmtIn(p.amount)}" data-pamt="${esc(p.pkey)}" style="width:110px;padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px"></td>
+  <td>${p.due?'<span class="pill" style="background:#e8f7f0;color:#1b9869">Entrou no Caixa BLU</span>':'<span class="pill cxauto">A receber</span>'}${p.edited?'<small class="fin-sub">editada por você</small>':''}</td>
+  <td class="fin-actions">${p.edited?`<button type="button" class="row-action" data-prest="${esc(p.pkey)}">Restaurar padrão</button>`:''}</td></tr>`).join('');
+ $('cxAgVazio').style.display=list.length?'none':'block';
+}
+function setOv(key,o){
+ const m=conf().parcelas||(conf().parcelas={});
+ if(o.date==null&&o.amount==null)delete m[key];else m[key]=o;
+}
+function onAgendaChange(ev){
+ const el=ev.target;
+ if(el.id==='cxDiasCred'||el.id==='cxDiasDeb'){
+  if(denied()){render();return;}
+  const v=Math.floor(Number(el.value));
+  if(!(el.value!==''&&v>=0&&v<=365)){toast('Informe de 0 a 365 dias.',true);render();return;}
+  conf()[el.id==='cxDiasCred'?'creditDays':'debitDays']=v;
+  if(saveData())toast('Prazos atualizados. As parcelas que você não editou foram recalculadas.');
+  return;
+ }
+ const kd=el.dataset.pdate,ka=el.dataset.pamt,key=kd||ka;if(!key)return;
+ if(denied()){render();return;}
+ const p=balances().parcs.find(x=>x.pkey===key);if(!p){render();return;}
+ const o=Object.assign({},(conf().parcelas||{})[key]);
+ if(kd){
+  if(!el.value||el.value===p.defDate)delete o.date;else o.date=el.value;
+ }else{
+  const v=r2(parseMoneyInput(el.value));
+  if(!(v>0)){toast('Informe um valor maior que zero.',true);render();return;}
+  if(Math.abs(v-p.defAmt)<0.005)delete o.amount;else o.amount=v;
+ }
+ setOv(key,o);
+ if(saveData())toast('Parcela atualizada.');
+}
+function onAgendaClick(ev){
+ const b=ev.target.closest('[data-prest]');if(!b||denied())return;
+ setOv(b.dataset.prest,{});
+ if(saveData())toast('Parcela voltou ao padrão.');
+}
+
 function render(){
  ensureStart();
  const panel=$('panel-financeiro');if(!panel||!panel.classList.contains('active'))return;
- const S=balances();renderCard(S);renderList(S);
+ const S=balances();renderCard(S);renderAgenda(S);renderList(S);
  if(!$('cxFormCard').style.display)syncForm();
 }
 
@@ -202,7 +301,7 @@ function onListClick(ev){
 // ---------- ligações ----------
 function init(){
  if(!$('cxCard'))return;
- fillSelects();bindMoneyMask($('cxValor'));$('cxData').value=todayISO();
+ buildAgenda();fillSelects();bindMoneyMask($('cxValor'));$('cxData').value=todayISO();
  $('cxNovo').addEventListener('click',()=>openForm('transf','blu','nubank'));
  $('cxCancelar').addEventListener('click',closeForm);
  $('cxForm').addEventListener('submit',save);
