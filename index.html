@@ -419,6 +419,7 @@
                 <p class="fin-hint field-wide" id="finCatHint"></p>
                 <label class="field">Valor (R$)<input id="finValor" type="text" inputmode="numeric" placeholder="0,00"></label>
                 <label class="field">Forma de pagamento<select id="finForma"></select></label>
+                <label class="field">Saiu de qual conta?<div class="cep-row"><select id="finConta"></select><button class="button button-light" id="finNovaConta" type="button" title="Cadastrar nova conta">＋ Nova</button></div></label>
                 <label class="field">Situação<select id="finStatus"><option value="pago">Pago</option><option value="pendente">Pendente</option></select></label>
                 <label class="field">Vencimento (opcional)<input id="finVenc" type="date"></label>
                 <label class="field" id="finPagoBox">Data do pagamento<input id="finPago" type="date"></label>
@@ -662,6 +663,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=16"></script>
   <script src="modulos.js?v=11"></script>
-  <script src="despesas.js?v=1"></script>
+  <script src="despesas.js?v=2"></script>
 </body>
 </html>
