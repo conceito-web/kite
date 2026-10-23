@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -106,6 +106,7 @@
         <button class="nav-link" data-panel="promissorias"><span class="nav-icon">◔</span> Promissórias <span class="nav-count" id="menuPromissorias">0</span></button>
         <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
         <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
+        <button class="nav-link" data-panel="financeiro"><span class="nav-icon">$</span> Despesas e lucro <span class="nav-count" id="menuDespesasPend">0</span></button>
         <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
         <button class="nav-link" data-panel="pedidos"><span class="nav-icon">⊕</span> Pedidos à fábrica <span class="nav-count" id="menuPedidos">0</span></button>
         <button class="nav-link" data-panel="contador"><span class="nav-icon">✉</span> Exportar p/ contador</button>
@@ -136,6 +137,7 @@
 
           <div id="promAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="promAlertaTexto"></p><button class="text-button" data-go="promissorias">Ver promissórias</button></div>
           <div id="pedAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="pedAlertaTexto"></p><button class="text-button" data-go="pedidos">Ver pedidos à fábrica</button></div>
+          <div id="despAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="despAlertaTexto"></p><button class="text-button" data-go="financeiro">Ver despesas</button></div>
 
           <div class="stats-grid">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">▤</span><span class="stat-label">Produtos cadastrados</span></div><strong id="totalProdutos">0</strong><div class="stat-foot"><span class="tiny-dot blue"></span> Itens diferentes no catálogo</div></article>
@@ -347,6 +349,97 @@
             <div class="surface-heading responsive-heading"><div><h2>Resultado do período</h2><p id="relatorioDescricao">Selecione as datas e gere o relatório.</p></div><div class="report-actions"><button id="exportarRelatorioCsv" class="button button-light button-small" type="button">Exportar CSV</button><button id="imprimirRelatorio" class="button button-light button-small" type="button">Imprimir / PDF</button></div></div>
             <div class="table-wrap"><table><thead><tr><th>DATA E HORA</th><th>TIPO</th><th>PRODUTO</th><th>QTD.</th><th>VALOR</th><th>CLIENTE / DETALHES</th></tr></thead><tbody id="relatorioRows"></tbody></table></div>
             <div id="relatorioVazio" class="empty-state"><div class="empty-symbol">▥</div><b>Nenhuma movimentação encontrada</b><p>Altere o período ou o tipo de movimentação.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-financeiro">
+          <div class="page-heading fin-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Despesas e lucro líquido</h1><p class="subtitle">Lance os gastos da loja e veja quanto realmente sobrou: o sistema desconta as despesas do lucro bruto das vendas.</p></div><button class="button button-primary" id="finNovo" type="button"><span>＋</span> Nova despesa</button></div>
+
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Período da análise</h2><p id="finPeriodoDesc"></p></div></div>
+            <div class="report-filters fin-filters">
+              <label class="field">Período<select id="finPreset"><option value="mes" selected>Este mês</option><option value="anterior">Mês anterior</option><option value="3m">Últimos 3 meses</option><option value="ano">Este ano</option><option value="tudo">Tudo</option><option value="custom">Personalizado</option></select></label>
+              <label class="field">Data inicial<input type="date" id="finDe"></label>
+              <label class="field">Data final<input type="date" id="finAte"></label>
+            </div>
+          </section>
+
+          <div class="stats-grid fin-stats">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">R$</span><span class="stat-label">Faturamento</span></div><strong id="finVendas">R$ 0,00</strong><div class="stat-foot" id="finVendasNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Lucro bruto</span></div><strong id="finBruto">R$ 0,00</strong><div class="stat-foot" id="finBrutoNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">↘</span><span class="stat-label">Despesas</span></div><strong id="finDesp">R$ 0,00</strong><div class="stat-foot" id="finDespNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">=</span><span class="stat-label">Lucro líquido</span></div><strong id="finLiquido">R$ 0,00</strong><div class="stat-foot" id="finLiquidoNota"></div></article>
+          </div>
+          <div class="stats-grid fin-stats">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">✓</span><span class="stat-label">Despesas pagas</span></div><strong id="finPagas">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">◔</span><span class="stat-label">Despesas pendentes</span></div><strong id="finPend">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="stat-label">Vencidas</span></div><strong id="finVenc2">R$ 0,00</strong><div class="stat-foot" id="finVencNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">%</span><span class="stat-label">Margem líquida</span></div><strong id="finMargem">—</strong><div class="stat-foot">Lucro líquido ÷ faturamento</div></article>
+          </div>
+
+          <div class="notice"><span class="notice-icon">i</span><p><b>Como o lucro é calculado:</b> o lucro bruto das vendas já desconta o custo dos produtos (PEPS) e as taxas de cartão/crédito. Por isso <b>não lance taxa de maquininha como despesa</b>, para não descontar duas vezes. Impostos e devoluções também: lance aqui só o que ainda não foi descontado.</p></div>
+
+          <div class="fin-grid-2">
+            <section class="surface fin-card">
+              <div class="surface-heading"><div><h2>Resultado do período</h2><p>Vendas, lucro bruto, despesas e lucro líquido</p></div></div>
+              <div id="finChartResultado"></div>
+            </section>
+            <section class="surface fin-card">
+              <div class="surface-heading"><div><h2>Composição das despesas</h2><p>Para onde o dinheiro está indo</p></div></div>
+              <div class="fin-donut-wrap"><div class="fin-donut" id="finDonut" role="img" aria-label="Gráfico de rosca das despesas por categoria"><div class="fin-donut-center"><strong id="finDonutTotal">R$ 0,00</strong><span>em despesas</span></div></div><ul class="fin-legend" id="finLegenda"></ul></div>
+            </section>
+          </div>
+
+          <section class="surface fin-card" style="margin-bottom:17px">
+            <div class="surface-heading"><div><h2>Evolução do lucro líquido</h2><p>Últimos 12 meses</p></div><span class="report-total" id="finAnoTotal"></span></div>
+            <div id="finChartAno"></div>
+          </section>
+
+          <div class="fin-grid-2 fin-grid-even">
+            <section class="surface fin-card">
+              <div class="surface-heading"><div><h2>Meta de lucro mensal</h2><p>Lucro líquido do mês atual</p></div></div>
+              <label class="field">Meta do mês (R$)<input id="finMeta" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label>
+              <div class="fin-progress" aria-hidden="true"><i id="finMetaBarra"></i></div>
+              <p class="fin-meta-text" id="finMetaTexto"></p>
+            </section>
+            <section class="surface fin-card">
+              <div class="surface-heading"><div><h2>Este mês × mês anterior</h2><p>Comparativo e previsão de gastos</p></div></div>
+              <div class="table-wrap"><table class="fin-cmp"><thead><tr><th></th><th>ESTE MÊS</th><th>MÊS ANTERIOR</th><th>VARIAÇÃO</th></tr></thead><tbody id="finComparativo"></tbody></table></div>
+              <div class="fin-forecast" id="finPrevisao"></div>
+            </section>
+          </div>
+
+          <section class="surface form-surface fin-form" id="finFormCard" style="display:none">
+            <div class="surface-heading"><div><h2 id="finFormTitulo">Nova despesa</h2><p>Registre qualquer gasto da loja. Despesas recorrentes podem ser repetidas nos próximos meses.</p></div><span class="form-badge" id="finFormBadge">LANÇAMENTO</span></div>
+            <form id="finForm" autocomplete="off">
+              <div class="form-grid">
+                <label class="field">Data da despesa<input id="finData" type="date" required></label>
+                <label class="field">Categoria<div class="cep-row"><select id="finCat"></select><button class="button button-light" id="finNovaCat" type="button" title="Criar nova categoria">＋ Nova</button></div></label>
+                <label class="field field-wide">Descrição<input id="finDesc" required maxlength="120" placeholder="Ex.: Aluguel da loja, conta de energia..."></label>
+                <p class="fin-hint field-wide" id="finCatHint"></p>
+                <label class="field">Valor (R$)<input id="finValor" type="text" inputmode="numeric" placeholder="0,00"></label>
+                <label class="field">Forma de pagamento<select id="finForma"></select></label>
+                <label class="field">Situação<select id="finStatus"><option value="pago">Pago</option><option value="pendente">Pendente</option></select></label>
+                <label class="field">Vencimento (opcional)<input id="finVenc" type="date"></label>
+                <label class="field" id="finPagoBox">Data do pagamento<input id="finPago" type="date"></label>
+                <label class="field">Tipo<select id="finTipo"><option value="avulsa">Avulsa</option><option value="rec">Recorrente (todo mês)</option></select></label>
+                <label class="field" id="finRepeteBox" hidden>Repetir por mais (meses)<input id="finRepete" type="number" min="0" max="24" step="1" value="0"></label>
+                <label class="field field-wide">Observação (opcional)<input id="finObs" maxlength="180" placeholder="Ex.: contrato até dez/2026"></label>
+                <div class="form-actions field-wide"><button class="button button-primary" id="finSalvar" type="submit">Salvar despesa</button><button class="button button-light" id="finCancelar" type="button">Fechar</button></div>
+              </div>
+            </form>
+          </section>
+
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Despesas lançadas</h2><p id="finListaTotal">Dentro do período escolhido acima</p></div><div class="search-tools"><button class="button button-light button-small" id="finCsv" type="button">⬇ Exportar CSV</button></div></div>
+            <div class="fin-list-filters">
+              <label class="field">Buscar<input id="finBusca" type="search" placeholder="Descrição, categoria..."></label>
+              <label class="field">Categoria<select id="finFiltroCat"></select></label>
+              <label class="field">Pagamento<select id="finFiltroForma"></select></label>
+              <label class="field">Situação<select id="finFiltroStatus"><option value="">Todas</option><option value="pago">Pagas</option><option value="pendente">Pendentes</option><option value="vencida">Vencidas</option></select></label>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>CATEGORIA</th><th>DESCRIÇÃO</th><th>PAGAMENTO</th><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>AÇÕES</th></tr></thead><tbody id="finLista"></tbody></table></div>
+            <div id="finVazio" class="empty-state"><div class="empty-symbol">$</div><b>Nenhuma despesa encontrada</b><p>Use “Nova despesa” para lançar o primeiro gasto ou altere os filtros.</p></div>
           </section>
         </section>
 
@@ -567,7 +660,8 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
   <script src="modulos.js?v=11"></script>
+  <script src="despesas.js?v=1"></script>
 </body>
 </html>
