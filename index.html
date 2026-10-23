@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -396,11 +396,11 @@
           </section>
 
           <div class="fin-grid-2 fin-grid-even">
-            <section class="surface fin-card">
-              <div class="surface-heading"><div><h2>Meta de lucro mensal</h2><p>Lucro líquido do mês atual</p></div></div>
-              <label class="field">Meta do mês (R$)<input id="finMeta" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label>
-              <div class="fin-progress" aria-hidden="true"><i id="finMetaBarra"></i></div>
-              <p class="fin-meta-text" id="finMetaTexto"></p>
+            <section class="surface fin-card" id="cxCard">
+              <div class="surface-heading"><div><h2>Conceito caixa</h2><p>Para onde foi o dinheiro das vendas</p></div><button class="button button-light button-small" id="cxNovo" type="button">⇄ Movimentar</button></div>
+              <div class="cx-total"><span>Saldo total</span><strong id="cxTotal">R$ 0,00</strong></div>
+              <div class="cx-list" id="cxContas"></div>
+              <p class="fin-meta-text" id="cxNota"></p>
             </section>
             <section class="surface fin-card">
               <div class="surface-heading"><div><h2>Este mês × mês anterior</h2><p>Comparativo e previsão de gastos</p></div></div>
@@ -408,6 +408,28 @@
               <div class="fin-forecast" id="finPrevisao"></div>
             </section>
           </div>
+
+          <section class="surface form-surface fin-form" id="cxFormCard" style="display:none">
+            <div class="surface-heading"><div><h2 id="cxFormTitulo">Movimentar caixa</h2><p>Transfira entre as contas, lance entradas e saídas ou corrija o saldo de uma conta.</p></div><span class="form-badge">CAIXA</span></div>
+            <form id="cxForm" autocomplete="off">
+              <div class="form-grid">
+                <label class="field">Operação<select id="cxOp"><option value="transf">Transferir entre contas</option><option value="entrada">Entrada manual</option><option value="saida">Saída manual</option><option value="ajuste">Editar saldo da conta</option></select></label>
+                <label class="field" id="cxDeBox"><span id="cxDeLbl">De</span><select id="cxDe"></select></label>
+                <label class="field" id="cxParaBox"><span id="cxParaLbl">Para</span><select id="cxPara"></select></label>
+                <label class="field"><span id="cxValorLbl">Valor (R$)</span><input id="cxValor" type="text" inputmode="numeric" placeholder="0,00"></label>
+                <label class="field">Data<input id="cxData" type="date"></label>
+                <label class="field field-wide">Descrição (opcional)<input id="cxDesc" maxlength="120" placeholder="Ex.: transferência semanal, saldo inicial..."></label>
+                <p class="fin-hint field-wide" id="cxHint"></p>
+                <div class="form-actions field-wide"><button class="button button-primary" type="submit">Salvar</button><button class="button button-light" id="cxCancelar" type="button">Fechar</button></div>
+              </div>
+            </form>
+          </section>
+
+          <section class="surface list-surface" id="cxExtrato" style="margin-bottom:17px">
+            <div class="surface-heading responsive-heading"><div><h2>Extrato do caixa</h2><p id="cxExtratoResumo"></p></div><div class="search-tools"><select id="cxFiltro" aria-label="Filtrar por conta"></select></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>CONTA</th><th>DESCRIÇÃO</th><th>ORIGEM</th><th>VALOR</th><th>AÇÕES</th></tr></thead><tbody id="cxLinhas"></tbody></table></div>
+            <div id="cxVazio" class="empty-state"><div class="empty-symbol">$</div><b>Nada no extrato ainda</b><p>As vendas no cartão entram sozinhas no Caixa BLU. Use “Movimentar” para o resto.</p></div>
+          </section>
 
           <section class="surface form-surface fin-form" id="finFormCard" style="display:none">
             <div class="surface-heading"><div><h2 id="finFormTitulo">Nova despesa</h2><p>Registre qualquer gasto da loja. Despesas recorrentes podem ser repetidas nos próximos meses.</p></div><span class="form-badge" id="finFormBadge">LANÇAMENTO</span></div>
@@ -661,8 +683,9 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
   <script src="modulos.js?v=11"></script>
-  <script src="despesas.js?v=2"></script>
+  <script src="despesas.js?v=3"></script>
+  <script src="caixa.js?v=1"></script>
 </body>
 </html>
