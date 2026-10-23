@@ -4,7 +4,8 @@
 // Regras automáticas (por venda não cancelada):
 //   • Cartão FÁBRICA (crédito ou link Blu): entra o que NÃO vira crédito com a fábrica (hoje 100% − % de crédito = 40%).
 //   • Cartão LOJA (crédito, link Blu) e débito: entra o valor pago já descontada a taxa do cartão.
-// Dinheiro CAIXA: recebe sozinho o valor das vendas pagas em DINHEIRO (Pix continua sem entrar em conta automática).
+// Dinheiro CAIXA: recebe sozinho o valor das vendas pagas em DINHEIRO.
+// Pix: entra sozinho, valor cheio (sem taxa), na conta escolhida em "Pix entra em qual conta?" (padrão: Caixa NUBANK).
 // Despesas PAGAS com a conta de origem = uma conta do caixa saem do saldo dessa conta (data = data do pagamento).
 // Usa funções do app.js (data, money, saveData, id, esc, dayText, todayISO, localDateKey, parseMoneyInput, bindMoneyMask, toast, hasFullAccess, PM, getSettings).
 (function(){
@@ -19,7 +20,8 @@ const ledger=()=>data.cashLedger||(data.cashLedger=[]);
 const conf=()=>data.cashConfig||(data.cashConfig={});
 const signed=v=>(v<0?'−':'')+money(Math.abs(v));
 const isCard=m=>m===PM.CREDIT||m===PM.BLU||m===PM.DEBIT;
-const CASH='Dinheiro';
+const CASH='Dinheiro',PIX='Pix';
+const pixAcc=()=>{const k=conf().pixAccount;return ACCS.some(a=>a.k===k)?k:'nubank';};
 const monthStart=()=>{const n=new Date();return localDateKey(new Date(n.getFullYear(),n.getMonth(),1));};
 const fmtIn=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const KIND={transf:'Transferência',entrada:'Entrada',saida:'Saída',ajuste:'Ajuste de saldo'};
@@ -43,17 +45,18 @@ function autoEntries(){
  const out=[];
  first.forEach((m,k)=>{
   const day=localDateKey(m.date);if(!day||(start&&day<start))return;
-  let fab=0,loja=0,cash=0;
+  let fab=0,loja=0,cash=0,pix=0;
   (m.payments||[]).forEach(p=>{
    if(p&&p.method===CASH){cash+=Number(p.amount||0);return;}
+   if(p&&p.method===PIX){pix+=Number(p.amount||0);return;}
    if(!p||!isCard(p.method))return;
    const amt=Number(p.amount||0);
    if((p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica')fab+=amt-Number(p.factoryCredit||0);
    else loja+=amt-Number(p.fee||0);
   });
-  fab=r2(fab);loja=r2(loja);cash=r2(cash);
-  if(fab+loja+cash<=0.004)return;
-  out.push({key:k,date:day,ts:String(m.date||''),client:m.client||'',fab,loja,cash,blu:r2(fab+loja)});
+  fab=r2(fab);loja=r2(loja);cash=r2(cash);pix=r2(pix);
+  if(fab+loja+cash+pix<=0.004)return;
+  out.push({key:k,date:day,ts:String(m.date||''),client:m.client||'',fab,loja,cash,pix,blu:r2(fab+loja)});
  });
  return out;
 }
@@ -70,12 +73,12 @@ function expenseEntries(){
  return out;
 }
 function balances(){
- const b={blu:0,nubank:0,dinheiro:0},auto=autoEntries(),exp=expenseEntries();let fab=0,loja=0,cash=0;
- auto.forEach(a=>{b.blu+=a.blu;b.dinheiro+=a.cash;fab+=a.fab;loja+=a.loja;cash+=a.cash;});
+ const b={blu:0,nubank:0,dinheiro:0},auto=autoEntries(),exp=expenseEntries(),pa=pixAcc();let fab=0,loja=0,cash=0,pix=0;
+ auto.forEach(a=>{b.blu+=a.blu;b.dinheiro+=a.cash;b[pa]+=a.pix;fab+=a.fab;loja+=a.loja;cash+=a.cash;pix+=a.pix;});
  exp.forEach(x=>{b[x.acc]+=x.amount;});
  ledger().forEach(e=>{if(e.account in b)b[e.account]+=Number(e.amount||0);});
  Object.keys(b).forEach(k=>b[k]=r2(b[k]));
- return {b,auto,exp,fab:r2(fab),loja:r2(loja),cash:r2(cash),total:r2(b.blu+b.nubank+b.dinheiro)};
+ return {b,auto,exp,fab:r2(fab),loja:r2(loja),cash:r2(cash),pix:r2(pix),pa,total:r2(b.blu+b.nubank+b.dinheiro)};
 }
 
 // ---------- tela ----------
@@ -83,10 +86,11 @@ function renderCard(S){
  $('cxTotal').textContent=signed(S.total);
  $('cxContas').innerHTML=ACCS.map(a=>{
   const sub=a.k==='blu'?`${a.sub} · fábrica ${money(S.fab)} + loja ${money(S.loja)}`:a.k==='dinheiro'?`${a.sub} · vendas em dinheiro ${money(S.cash)}`:a.sub;
-  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button></div></div>`;
+  const sub2=a.k===S.pa?`${sub} · Pix ${money(S.pix)}`:sub;
+  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub2)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button></div></div>`;
  }).join('');
  const fabPct=100-getSettings().factoryCreditPct;
- $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja e débito entram já sem a taxa. <b>Dinheiro CAIXA:</b> recebe as vendas pagas em dinheiro. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". Pix não entra em conta automática. <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
+ $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja e débito entram já sem a taxa. <b>Dinheiro CAIXA:</b> recebe as vendas pagas em dinheiro. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <b>Pix:</b> entra com o valor cheio (sem taxa) na conta escolhida abaixo. <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
 }
 function rowsAll(S){
  const rows=[];
@@ -95,6 +99,7 @@ function rowsAll(S){
   if(a.blu>0)rows.push({acc:'blu',date:a.date,ts:a.ts,amount:a.blu,auto:true,desc,
    sub:[a.fab>0?`cartão fábrica ${money(a.fab)}`:'',a.loja>0?`cartão loja/débito líquido ${money(a.loja)}`:''].filter(Boolean).join(' + ')});
   if(a.cash>0)rows.push({acc:'dinheiro',date:a.date,ts:a.ts,amount:a.cash,auto:true,desc,sub:'pago em dinheiro'});
+  if(a.pix>0)rows.push({acc:S.pa,date:a.date,ts:a.ts,amount:a.pix,auto:true,desc,sub:'pago em Pix'});
  });
  S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,desc:x.desc,sub:x.sub}));
  ledger().forEach(e=>{
@@ -206,6 +211,11 @@ function init(){
  $('cxCard').addEventListener('click',onCardClick);
  $('cxExtrato').addEventListener('click',onListClick);
  $('cxCard').addEventListener('change',ev=>{
+  if(ev.target.id==='cxPixAcc'){
+   if(denied()){render();return;}
+   if(!confirm(`Passar a contar os Pix das vendas em ${accName(ev.target.value)}? O saldo das contas será recalculado, inclusive os Pix já recebidos.`)){render();return;}
+   conf().pixAccount=ev.target.value;saveData();return;
+  }
   if(ev.target.id!=='cxStart')return;
   if(denied()){render();return;}
   const v=ev.target.value||monthStart();
