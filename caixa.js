@@ -1,332 +1,432 @@
-'use strict';
-// REGRAS: Dinheiro → "Dinheiro CAIXA" · Pix → "Caixa NUBANK" · Cartão FÁBRICA → 40% (100% − crédito) no "Caixa BLU" na hora ·
-// Cartão LOJA (crédito, link Blu e débito) → valor líquido (já sem taxa) dividido nas parcelas; cada parcela fica na "Caixa AGENDA BLU"
-// e entra no "Caixa BLU" na data de entrada (padrão: 30 dias por parcela; débito 1 dia). Dia, data e valor de cada parcela podem ser editados.
-// Conceito: CAIXA (DFC) — substitui a antiga "Meta de lucro mensal".
-// Contas: Caixa BLU (recebe sozinho das vendas no cartão), Caixa NUBANK e Dinheiro CAIXA (movimentos manuais/transferências).
-// Regras automáticas (por venda não cancelada):
-//   • Cartão FÁBRICA (crédito ou link Blu): entra o que NÃO vira crédito com a fábrica (hoje 100% − % de crédito = 40%).
-//   • Cartão LOJA (crédito, link Blu) e débito: entra o valor pago já descontada a taxa do cartão.
-// Dinheiro CAIXA: recebe sozinho o valor das vendas pagas em DINHEIRO.
-// Pix: entra sozinho, valor cheio (sem taxa), na conta escolhida em "Pix entra em qual conta?" (padrão: Caixa NUBANK).
-// Despesas PAGAS com a conta de origem = uma conta do caixa saem do saldo dessa conta (data = data do pagamento).
-// Usa funções do app.js (data, money, saveData, id, esc, dayText, todayISO, localDateKey, parseMoneyInput, bindMoneyMask, toast, hasFullAccess, PM, getSettings).
-(function(){
-const $=x=>document.getElementById(x), r2=n=>Math.round(Number(n||0)*100)/100;
-const ACCS=[
- {k:'blu',name:'Caixa BLU',sub:'Cartão fábrica e parcelas da loja que já venceram'},
- {k:'nubank',name:'Caixa NUBANK',sub:'Recebe os Pix das vendas e transferências'},
- {k:'dinheiro',name:'Dinheiro CAIXA',sub:'Dinheiro físico da loja'},
- {k:'agenda',name:'Caixa AGENDA BLU',sub:'Parcelas do cartão loja que ainda vão entrar no Caixa BLU'}
-];
-const accName=k=>(ACCS.find(a=>a.k===k)||{}).name||k;
-const ledger=()=>data.cashLedger||(data.cashLedger=[]);
-const conf=()=>data.cashConfig||(data.cashConfig={});
-const signed=v=>(v<0?'−':'')+money(Math.abs(v));
-const isCard=m=>m===PM.CREDIT||m===PM.BLU||m===PM.DEBIT;
-const CASH='Dinheiro',PIX='Pix';
-const addDays=(day,n)=>{const p=String(day).split('-').map(Number);return localDateKey(new Date(p[0],p[1]-1,p[2]+n));};
-const dias=deb=>{const v=Number(conf()[deb?'debitDays':'creditDays']);return Number.isFinite(v)&&v>=0?Math.floor(v):(deb?1:30);};
-const pixAcc=()=>{const k=conf().pixAccount;return ACCS.some(a=>a.k===k)?k:'nubank';};
-const monthStart=()=>{const n=new Date();return localDateKey(new Date(n.getFullYear(),n.getMonth(),1));};
-const fmtIn=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-const KIND={transf:'Transferência',entrada:'Entrada',saida:'Saída',ajuste:'Ajuste de saldo'};
-let shown=[];
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+:root{--navy:#101a2c;--navy2:#17253d;--blue:#3468f5;--blue-dark:#2454dd;--ink:#182235;--muted:#8490a3;--line:#e7ebf2;--bg:#f5f7fb;--white:#fff;--green:#1b9b6b;--orange:#e89b3b;--violet:#8c6be8;--red:#d74b55;--shadow:0 8px 28px rgba(28,44,75,.045)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',Arial,sans-serif;font-size:14px}.app-shell{min-height:100vh}.sidebar{width:248px;background:var(--navy);color:#d3dced;position:fixed;inset:0 auto 0 0;display:flex;flex-direction:column;padding:27px 16px 17px;z-index:20}.brand{display:flex;align-items:center;gap:11px;padding:0 10px 35px}.brand-mark{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#5e88ff,#2e5be9);display:grid;place-items:center;font:800 25px Manrope;color:white;box-shadow:0 6px 20px #3468f555}.brand strong{display:block;color:#fff;font:800 23px Manrope;letter-spacing:-1px}.brand strong span{color:#6890ff}.brand small{display:block;color:#8492aa;font-size:9px;letter-spacing:1.6px;margin-top:1px}.side-caption{font-size:10px;letter-spacing:1.5px;color:#72819b;padding:0 12px 12px;font-weight:700}.navigation{display:grid;gap:6px}.nav-link{border:0;background:transparent;color:#a9b5c9;display:flex;align-items:center;gap:13px;padding:12px 13px;border-radius:10px;text-align:left;font:500 13px 'DM Sans';cursor:pointer;transition:.15s}.nav-link:hover{background:#ffffff0b;color:#fff}.nav-link.active{background:linear-gradient(100deg,#3265f1,#3b6ef6);color:#fff;box-shadow:0 7px 20px #1b4bdc33}.nav-icon{font-size:18px;width:21px;text-align:center}.nav-count{margin-left:auto;font-size:11px;background:#ffffff1a;padding:3px 7px;border-radius:6px}.sidebar-bottom{margin-top:auto}.local-status{display:flex;align-items:center;gap:10px;border:1px solid #ffffff12;background:#ffffff08;border-radius:11px;padding:12px}.local-status b,.local-status small{display:block}.local-status b{font-size:12px;color:#e8eef8}.local-status small{font-size:10px;color:#8493aa;margin-top:3px}.status-dot{display:inline-block;width:7px;height:7px;background:#32c98a;border-radius:50%;box-shadow:0 0 0 4px #32c98a1c}.sidebar-version{font-size:9px;letter-spacing:1.2px;color:#65748c;text-align:center;padding-top:17px}
+.main{margin-left:248px;min-height:100vh}.topbar{height:72px;background:#ffffffed;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 36px;position:sticky;top:0;z-index:10;backdrop-filter:blur(14px)}.breadcrumb{display:flex;align-items:center;gap:12px;font-size:12px;color:#9aa4b4}.breadcrumb i{font-style:normal;color:#d0d6e0}.breadcrumb b{font-weight:700;color:#29364b}.topbar-right{display:flex;align-items:center;gap:18px}.today{font-size:12px;color:#8792a4}.avatar{width:35px;height:35px;border-radius:11px;background:#e9efff;color:#3468f5;display:grid;place-items:center;font-weight:800;font-size:11px}.mobile-menu{display:none}.content{max-width:1500px;margin:auto;padding:31px 36px 20px}.panel{display:none;animation:fade .2s ease}.panel.active{display:block}@keyframes fade{from{opacity:.5;transform:translateY(3px)}to{opacity:1;transform:none}}.welcome-row,.page-heading{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:23px}.eyebrow{font-size:10px;letter-spacing:1.6px;color:#8a96a9;font-weight:700;margin:0 0 8px}.welcome-row h1,.page-heading h1{font:800 30px Manrope;letter-spacing:-1.1px;margin:0;color:#18253b}.wave{font-size:19px;color:#f0ad4e;vertical-align:middle}.subtitle{margin:7px 0 0;color:#8a95a6;font-size:13px}.button{border:0;border-radius:9px;padding:11px 15px;font:700 12px 'DM Sans';display:inline-flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;transition:transform .15s,box-shadow .15s;white-space:nowrap}.button:hover{transform:translateY(-1px)}.button-primary{background:var(--blue);color:#fff;box-shadow:0 5px 13px #3468f52c}.button-primary:hover{background:var(--blue-dark)}.button-light{background:#f2f5fa;color:#56657b;border:1px solid #e8edf5}.button-success{background:#159568;color:#fff}.button-danger-light{background:#fff1f1;border:1px solid #f8dada;color:#c3444b}.button-small{padding:9px 11px;font-size:11px}.notice{display:flex;align-items:center;gap:12px;background:#eef4ff;border:1px solid #dfe9ff;border-radius:11px;padding:12px 15px;margin-bottom:22px;color:#536b99}.notice-icon{flex:0 0 22px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#dbe7ff;color:#3567e9;font-size:12px;font-weight:800}.notice p{margin:0;font-size:11px;line-height:1.6;flex:1}.notice p b{color:#294b91}.text-button{border:0;background:none;color:#3468f5;font:700 11px 'DM Sans';padding:0;cursor:pointer;text-decoration:underline}.notice-close{border:0;background:transparent;color:#8b9fc8;font-size:20px;cursor:pointer}
+.stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:22px}.stat-card{background:#fff;border:1px solid #edf0f5;border-radius:13px;padding:18px 18px 15px;box-shadow:var(--shadow);min-width:0}.stat-top{display:flex;align-items:center;gap:10px}.stat-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:800;font-size:16px}.icon-blue{background:#eaf0ff;color:#4775f5}.icon-violet{background:#f0ebff;color:#8c6be8}.icon-green{background:#e5f8f0;color:#159568}.icon-orange{background:#fff2e2;color:#db8a27;font-size:11px}.stat-label{font-size:11px;color:#8792a3;font-weight:600}.stat-card>strong{display:block;font:800 27px Manrope;letter-spacing:-.8px;margin:13px 0 11px;color:#1d2b42;overflow-wrap:anywhere}.stat-foot{display:flex;align-items:center;gap:7px;color:#9aa4b2;font-size:10px}.tiny-dot{width:6px;height:6px;border-radius:50%}.tiny-dot.blue{background:#4775f5}.tiny-dot.violet{background:#8c6be8}.tiny-dot.green{background:#159568}.tiny-dot.orange{background:#e89b3b}
+.dashboard-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(280px,.9fr);gap:17px}.surface{background:#fff;border:1px solid #edf0f5;border-radius:13px;box-shadow:var(--shadow);min-width:0}.recent-surface,.quick-surface,.list-surface,.form-surface{padding:20px}.surface-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:19px}.surface-heading h2,.operation-card h2,.danger-zone h2{margin:0;font:800 15px Manrope;color:#253249}.surface-heading p{margin:5px 0 0;color:#9aa3b1;font-size:11px}.table-wrap{width:100%;overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:600px}th{font-size:9px;letter-spacing:.8px;font-weight:700;color:#9ba5b4;text-align:left;padding:12px 10px;background:#fafbfd;border-bottom:1px solid #edf0f5;white-space:nowrap}td{padding:13px 10px;border-bottom:1px solid #f0f2f6;font-size:11px;color:#637087;vertical-align:middle}tbody tr:last-child td{border-bottom:0}.product-name{color:#2a3850;font-weight:700}.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:6px;font-size:9px;font-weight:700;white-space:nowrap}.pill:before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}.pill.venda{background:#fff0f0;color:#ce5158}.pill.entrada{background:#e8f8f0;color:#1b9869}.empty-state{text-align:center;padding:30px 15px;color:#9aa4b2}.empty-state b{display:block;color:#65738a;font-size:12px;margin:8px 0 4px}.empty-state p{font-size:11px;margin:0}.empty-symbol{width:37px;height:37px;border-radius:12px;background:#f2f5fa;color:#9ca8bb;display:grid;place-items:center;margin:auto;font-size:20px}.quick-surface{padding:20px 18px}.quick-action{display:flex;align-items:center;gap:11px;width:100%;border:1px solid #eef1f6;background:#fff;border-radius:10px;padding:12px 10px;text-align:left;margin-bottom:9px;cursor:pointer}.quick-action:hover{background:#fafcff;border-color:#dce5f6}.quick-icon,.backup-icon{flex:0 0 34px;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;font-weight:800}.blue-bg{background:#eaf0ff;color:#4775f5}.green-bg{background:#e5f8f0;color:#159568}.orange-bg{background:#fff2e2;color:#db8a27}.violet-bg{background:#f0ebff;color:#8c6be8}.quick-action b,.quick-action small{display:block}.quick-action b{font-size:11px;color:#334057}.quick-action small{font-size:10px;color:#9aa4b2;margin-top:4px}.quick-action i{font-style:normal;color:#9aa6b9;margin-left:auto}
+.page-heading{margin-bottom:23px}.form-surface{padding:21px;margin-bottom:17px}.form-badge{font-size:9px;letter-spacing:1px;font-weight:800;color:#3468f5;background:#edf2ff;padding:7px 9px;border-radius:6px}.form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}.field{display:grid;gap:7px;font-size:11px;font-weight:700;color:#536178;min-width:0}.field input,.field select,.history-controls select{width:100%;min-width:0;height:42px;padding:0 12px;border:1px solid #e0e6ef;border-radius:8px;background:#fff;font:500 12px 'DM Sans';color:#26364e;outline:none}.field input:focus,.field select:focus,.history-controls select:focus{border-color:#9db7ff;box-shadow:0 0 0 3px #3468f511}.field input::placeholder{color:#b3bbc7}.field-wide{grid-column:1/-1}.form-actions{display:flex;gap:9px}.search-box{display:flex;align-items:center;gap:8px;border:1px solid #e2e7ef;border-radius:8px;padding:0 11px;height:38px;min-width:220px;color:#9aa4b2}.search-box span{font-size:20px}.search-box input{border:0;outline:0;font:500 11px 'DM Sans';width:100%;min-width:0}.search-box input:focus{box-shadow:none}.responsive-heading{flex-wrap:wrap}.row-action{padding:6px 8px;border:1px solid #e4eaf3;background:#f8faff;border-radius:6px;color:#4e6ca8;font:700 10px 'DM Sans';cursor:pointer;margin:2px}.row-action.delete{color:#c34a52;background:#fff7f7;border-color:#f6e0e0}.stock-low{color:#d57b24;font-weight:800}.operation-card{max-width:620px;margin:0 auto;padding:27px 30px}.operation-art{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;font-size:23px;font-weight:800;margin-bottom:17px}.green-art{background:#e4f8ef;color:#159568}.orange-art{background:#fff0dd;color:#d58a2d}.operation-intro{font-size:12px;color:#9aa3b1;margin:7px 0 23px}.form-stack{display:grid;gap:15px}.form-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full-button{width:100%;height:44px}.full-button span{margin-left:auto}.sale-total{background:#f6f8fc;border:1px solid #edf0f5;border-radius:9px;padding:13px 15px;display:flex;align-items:center;justify-content:space-between;color:#8290a4;font-size:12px}.sale-total strong{font:800 20px Manrope;color:#23334d}.history-controls{display:flex;gap:9px;align-items:center}.history-controls select{width:auto;min-width:150px}.backup-grid{display:grid;grid-template-columns:1fr 1fr;gap:17px;margin-bottom:17px}.backup-card{padding:24px}.backup-icon{width:44px;height:44px;margin-bottom:20px;font-size:20px}.backup-card .eyebrow{margin-bottom:8px}.backup-card h2{font:800 17px Manrope;margin:0 0 9px}.backup-card>p:not(.eyebrow){font-size:12px;color:#8994a6;line-height:1.7;min-height:42px;margin-bottom:19px}.file-field{margin:12px 0 15px}.file-field input{padding:9px;font-size:10px}.danger-zone{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:20px;margin-bottom:17px}.danger-zone h2{font-size:13px}.danger-zone p{font-size:11px;color:#929cab;max-width:600px;line-height:1.6;margin:6px 0 0}.warning-notice{background:#fff8e9;border-color:#f6e7c3;color:#8e7649}.warning-notice .notice-icon{background:#ffedc4;color:#a97a1e}.warning-notice p b{color:#8e691c}.footer{display:flex;justify-content:space-between;gap:12px;color:#a1aaba;font-size:10px;padding:23px 3px 5px}.footer>span:last-child{display:flex;align-items:center;gap:8px}.footer .status-dot{width:6px;height:6px}.toast{position:fixed;bottom:22px;right:22px;max-width:calc(100% - 44px);background:#182b48;color:#fff;padding:13px 17px;border-radius:10px;box-shadow:0 12px 30px #182b4833;transform:translateY(150%);opacity:0;transition:.25s;z-index:100;font-size:12px}.toast.show{transform:translateY(0);opacity:1}.toast.error{background:#b93842}
+@media(min-width:1500px){.content{padding-top:38px}.stats-grid{gap:18px}.stat-card{padding:22px}.stat-card>strong{font-size:30px}}
+@media(max-width:1150px){.sidebar{width:220px}.main{margin-left:220px}.content{padding:26px 22px}.topbar{padding:0 22px}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-grid{grid-template-columns:1fr}.quick-surface{display:grid;grid-template-columns:1fr 1fr;gap:9px}.quick-surface .surface-heading{grid-column:1/-1}.quick-action{margin:0}}
+@media(max-width:760px){.sidebar{transform:translateX(-100%);transition:transform .22s;width:260px;box-shadow:12px 0 35px #0d172333}.sidebar.open{transform:translateX(0)}.main{margin-left:0}.topbar{height:61px;padding:0 15px;gap:12px}.mobile-menu{display:block;border:0;background:#f0f3f9;border-radius:8px;width:34px;height:34px;color:#33435b;font-size:17px}.breadcrumb{margin-right:auto;gap:7px}.topbar-right{gap:9px}.today{display:none}.content{padding:23px 14px}.welcome-row h1,.page-heading h1{font-size:26px}.welcome-row{align-items:flex-start}.welcome-row>.button{font-size:0;padding:12px}.welcome-row>.button span{font-size:18px}.stats-grid{gap:10px}.stat-card{padding:13px}.stat-top{align-items:flex-start;gap:7px;flex-direction:column}.stat-icon{width:30px;height:30px}.stat-card>strong{font-size:23px;margin:10px 0}.stat-label{font-size:10px}.stat-foot{font-size:9px;line-height:1.4}.notice{align-items:flex-start;padding:11px;gap:9px}.notice-close{font-size:18px}.recent-surface,.quick-surface,.list-surface,.form-surface{padding:14px}.surface-heading{align-items:flex-start}.surface-heading h2{font-size:14px}.surface-heading p{line-height:1.5}.surface-heading>.button{font-size:10px;padding:8px}.quick-surface{grid-template-columns:1fr}.quick-surface .surface-heading{grid-column:auto}.quick-action{padding:11px 9px}.form-grid{grid-template-columns:1fr 1fr;gap:12px}.form-grid .field-wide{grid-column:1/-1}.search-box{width:100%;min-width:0}.responsive-heading{display:grid}.operation-card{padding:21px 16px}.form-two{grid-template-columns:1fr 1fr}.backup-grid{grid-template-columns:1fr}.backup-card{padding:20px}.backup-card>p:not(.eyebrow){min-height:0}.danger-zone{align-items:flex-start;flex-direction:column}.history-controls{width:100%;flex-wrap:wrap}.history-controls select{flex:1}.footer{flex-direction:column}.form-actions .button{flex:1}}
+@media(max-width:380px){.form-grid,.form-two{grid-template-columns:1fr}.form-grid .field-wide{grid-column:auto}.stats-grid{grid-template-columns:1fr 1fr}.welcome-row h1{font-size:23px}.topbar-right{display:none}}
 
-function denied(){if(hasFullAccess())return false;toast('Seu perfil não tem permissão para alterar o caixa.',true);return true;}
-// Data de corte: vendas anteriores a ela não entram no Caixa BLU (evita puxar todo o histórico antigo).
-function ensureStart(){
- if(conf().start)return;
- conf().start=monthStart();
- try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(_){}
+/* Cadastro de clientes */
+.cep-row{display:flex;gap:8px;align-items:center}
+.cep-row input{flex:1;min-width:0}
+.cep-row .button{height:42px;padding:0 12px;flex:0 0 auto}
+#panel-clientes .form-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#panel-clientes .field-wide{grid-column:1/-1}
+#panel-clientes .form-actions{margin-top:2px}
+#listaClientes .row-action{white-space:nowrap}
+@media(max-width:760px){
+ #panel-clientes .form-grid{grid-template-columns:1fr 1fr}
+ #panel-clientes .field-wide{grid-column:1/-1}
+ .cep-row{align-items:stretch}
+ .cep-row .button{white-space:normal}
+}
+@media(max-width:380px){
+ #panel-clientes .form-grid{grid-template-columns:1fr}
+ #panel-clientes .field-wide{grid-column:auto}
+ .cep-row{flex-direction:column}
+ .cep-row .button{width:100%}
 }
 
-// ---------- entradas automáticas (vendas no cartão e em dinheiro) ----------
-function autoEntries(){
- const start=conf().start||'',first=new Map(),ov=conf().parcelas||{};
- data.movements.forEach(m=>{
-  if(m.type!=='venda'||m.canceled)return;
-  const k=m.saleId||m.id;if(!first.has(k))first.set(k,m);   // os pagamentos ficam repetidos em cada item da venda: conta uma vez só
- });
- const out=[];
- first.forEach((m,k)=>{
-  const day=localDateKey(m.date);if(!day||(start&&day<start))return;
-  let fab=0,cash=0,pix=0;const parcs=[];
-  (m.payments||[]).forEach((p,pi)=>{
-   if(!p)return;
-   const amt=Number(p.amount||0);
-   if(p.method===CASH){cash+=amt;return;}
-   if(p.method===PIX){pix+=amt;return;}
-   if(!isCard(p.method))return;
-   if((p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica'){fab+=amt-Number(p.factoryCredit||0);return;}
-   // cartão loja / débito: valor líquido (sem taxa) dividido em parcelas, cada uma com sua data de entrada
-   const deb=p.method===PM.DEBIT,n=deb?1:Math.max(1,Math.min(60,Math.floor(Number(p.installments)||1))),net=r2(amt-Number(p.fee||0));
-   if(!(net>0))return;
-   const cents=Math.round(net*100),q=Math.floor(cents/n);
-   for(let i=1;i<=n;i++){
-    const pkey=k+':'+pi+':'+i,o=ov[pkey]||null,defDate=addDays(day,deb?dias(true):dias(false)*i),defAmt=r2((i<n?q:cents-q*(n-1))/100);
-    const date=(o&&o.date)||defDate,amount=(o&&o.amount!=null)?r2(o.amount):defAmt;
-    if(!(amount>0))continue;
-    parcs.push({pkey,saleKey:k,client:m.client||'',saleDay:day,method:p.method,i,n,date,amount,defDate,defAmt,edited:!!o});
-   }
-  });
-  fab=r2(fab);cash=r2(cash);pix=r2(pix);
-  if(fab+cash+pix<=0.004&&!parcs.length)return;
-  out.push({key:k,date:day,ts:String(m.date||''),client:m.client||'',fab,cash,pix,blu:fab,parcs});
- });
- return out;
-}
-// Despesas pagas que saem de uma conta do caixa (conta de origem 'caixa:blu' etc.)
-function expenseEntries(){
- const start=conf().start||'',out=[];
- (data.expenses||[]).forEach(x=>{
-  if(!x||x.status!=='pago'||String(x.account||'').indexOf('caixa:')!==0)return;
-  const acc=x.account.slice(6);if(!ACCS.some(a=>a.k===acc))return;
-  const day=x.paidDate||x.date||'',amt=r2(x.amount);
-  if(!day||(start&&day<start)||!(amt>0))return;
-  out.push({key:x.id,date:day,ts:String(x.updatedAt||x.createdAt||''),acc,amount:-amt,desc:'Despesa: '+(x.description||'sem descrição'),sub:x.category||''});
- });
- return out;
-}
-function balances(){
- const b={blu:0,nubank:0,dinheiro:0,agenda:0},auto=autoEntries(),exp=expenseEntries(),pa=pixAcc(),hoje=todayISO(),parcs=[];
- let fab=0,cash=0,pix=0,lojaRec=0,lojaPend=0;
- auto.forEach(a=>{
-  b.blu+=a.fab;b.dinheiro+=a.cash;b[pa]+=a.pix;fab+=a.fab;cash+=a.cash;pix+=a.pix;
-  a.parcs.forEach(p=>{
-   p.due=p.date<=hoje;   // venceu: já está no Caixa BLU; senão fica na Caixa AGENDA BLU
-   if(p.due){b.blu+=p.amount;lojaRec+=p.amount;}else{b.agenda+=p.amount;lojaPend+=p.amount;}
-   parcs.push(p);
-  });
- });
- exp.forEach(x=>{b[x.acc]+=x.amount;});
- ledger().forEach(e=>{if(e.account in b)b[e.account]+=Number(e.amount||0);});
- Object.keys(b).forEach(k=>b[k]=r2(b[k]));
- return {b,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda)};
-}
 
-// ---------- tela ----------
-function renderCard(S){
- $('cxTotal').textContent=signed(S.total);
- const tl=document.querySelector('#cxCard .cx-total span');if(tl)tl.textContent='Saldo total (com o que está a receber)';
- $('cxContas').innerHTML=ACCS.map(a=>{
-  let sub=a.sub;
-  if(a.k==='blu')sub+=` · fábrica ${money(S.fab)} + loja ${money(S.lojaRec)}`;
-  if(a.k==='dinheiro')sub+=` · vendas em dinheiro ${money(S.cash)}`;
-  if(a.k==='agenda')sub+=` · a receber ${money(S.lojaPend)}`;
-  if(a.k===S.pa)sub+=` · Pix ${money(S.pix)}`;
-  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button></div></div>`;
- }).join('');
- const fabPct=100-getSettings().factoryCreditPct;
- $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
-}
-function rowsAll(S){
- const rows=[];
- S.auto.forEach(a=>{
-  const desc=`Venda #${String(a.key).slice(-6)}${a.client?' · '+a.client:''}`;
-  if(a.fab>0)rows.push({acc:'blu',date:a.date,ts:a.ts,amount:a.fab,auto:true,desc,sub:`cartão fábrica ${money(a.fab)}`});
-  if(a.cash>0)rows.push({acc:'dinheiro',date:a.date,ts:a.ts,amount:a.cash,auto:true,desc,sub:'pago em dinheiro'});
-  if(a.pix>0)rows.push({acc:S.pa,date:a.date,ts:a.ts,amount:a.pix,auto:true,desc,sub:'pago em Pix'});
-  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,desc,
-   sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}`}));
- });
- S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,desc:x.desc,sub:x.sub}));
- ledger().forEach(e=>{
-  let desc=KIND[e.kind]||'Lançamento',sub=e.note||'';
-  if(e.kind==='transf'){
-   const o=ledger().find(x=>x.pair===e.pair&&x.id!==e.id);
-   desc=Number(e.amount)<0?`Transferência para ${accName(o?o.account:'')}`:`Transferência de ${accName(o?o.account:'')}`;
-  }
-  rows.push({acc:e.account,date:e.date,ts:e.createdAt||'',amount:Number(e.amount||0),auto:false,id:e.id,desc,sub});
- });
- return rows.sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.ts).localeCompare(String(a.ts)));
-}
-function renderList(S){
- const f=$('cxFiltro').value;
- const rows=rowsAll(S).filter(r=>!f||r.acc===f);
- const ent=r2(rows.filter(r=>r.amount>0).reduce((n,r)=>n+r.amount,0)),sai=r2(rows.filter(r=>r.amount<0).reduce((n,r)=>n+r.amount,0));
- $('cxExtratoResumo').textContent=`${rows.length} lançamento(s) · entrou ${money(ent)} · saiu ${money(Math.abs(sai))}`;
- shown=rows.slice(0,300);
- $('cxLinhas').innerHTML=shown.map(r=>`<tr><td>${dayText(r.date)}</td><td>${esc(accName(r.acc))}</td><td><span class="product-name">${esc(r.desc)}</span>${r.sub?`<small class="fin-sub">${esc(r.sub)}</small>`:''}</td><td>${r.auto?'<span class="pill cxauto">Automático</span>':'<span class="pill cxman">Manual</span>'}</td><td><b class="${r.amount<0?'cx-neg':'cx-pos'}">${signed(r.amount)}</b></td><td class="fin-actions">${r.auto?'':`<button type="button" class="row-action delete" data-cx-del="${esc(r.id)}">Excluir</button>`}</td></tr>`).join('');
- $('cxVazio').style.display=rows.length?'none':'block';
-}
-// ---------- Agenda BLU: parcelas do cartão loja ----------
-const INP='style="padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px;max-width:100%"';
-function buildAgenda(){
- if($('cxAgenda')||!$('cxExtrato'))return;
- const sec=document.createElement('section');
- sec.className='surface list-surface';sec.id='cxAgenda';sec.style.marginBottom='17px';
- sec.innerHTML=`<div class="surface-heading responsive-heading"><div><h2>Agenda BLU · parcelas do cartão loja</h2><p id="cxAgResumo"></p></div><div class="search-tools"><select id="cxAgFiltro" aria-label="Filtrar parcelas"><option value="pend">A receber</option><option value="rec">Já entraram no Caixa BLU</option><option value="">Todas</option></select></div></div>
- <div style="display:flex;gap:14px;flex-wrap:wrap;padding:0 16px 8px">
-  <label class="field" style="min-width:170px">Dias entre parcelas (crédito / link Blu)<input type="number" id="cxDiasCred" min="0" max="365" step="1" ${INP}></label>
-  <label class="field" style="min-width:170px">Dias para entrar (débito)<input type="number" id="cxDiasDeb" min="0" max="365" step="1" ${INP}></label>
- </div>
- <p class="fin-meta-text" style="padding:0 16px">Cada parcela mostra de qual venda veio. Padrão: a parcela 1 entra X dias após a venda, a 2 entra 2×X dias, e assim por diante. Você pode digitar a <b>data</b> e o <b>valor</b> de qualquer parcela; ao chegar a data, ela sai da Caixa AGENDA BLU e entra no Caixa BLU.</p>
- <div class="table-wrap"><table><thead><tr><th>ENTRA EM</th><th>DE QUAL VENDA</th><th>PARCELA</th><th>VALOR (R$)</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="cxAgLinhas"></tbody></table></div>
- <div id="cxAgVazio" class="empty-state" style="display:none"><div class="empty-symbol">$</div><b>Nenhuma parcela aqui</b><p>As vendas no cartão loja (crédito, link Blu ou débito) aparecem aqui, parcela por parcela.</p></div>`;
- $('cxExtrato').parentNode.insertBefore(sec,$('cxExtrato'));
- $('cxAgFiltro').addEventListener('change',()=>renderAgenda(balances()));
- sec.addEventListener('change',onAgendaChange);
- sec.addEventListener('click',onAgendaClick);
-}
-function renderAgenda(S){
- if(!$('cxAgenda'))return;
- const f=$('cxAgFiltro').value,pend=S.parcs.filter(p=>!p.due),rec=S.parcs.filter(p=>p.due);
- $('cxAgResumo').textContent=`A receber: ${money(S.lojaPend)} em ${pend.length} parcela(s) · já entraram no Caixa BLU: ${money(S.lojaRec)} em ${rec.length} parcela(s)`;
- const a=$('cxDiasCred'),d=$('cxDiasDeb');
- if(document.activeElement!==a)a.value=dias(false);
- if(document.activeElement!==d)d.value=dias(true);
- const list=(f==='pend'?pend:f==='rec'?rec:S.parcs.slice()).sort((x,y)=>f==='rec'?String(y.date).localeCompare(String(x.date)):String(x.date).localeCompare(String(y.date))).slice(0,300);
- $('cxAgLinhas').innerHTML=list.map(p=>`<tr>
-  <td><input type="date" value="${esc(p.date)}" data-pdate="${esc(p.pkey)}" ${INP}></td>
-  <td><span class="product-name">Venda #${esc(String(p.saleKey).slice(-6))}${p.client?' · '+esc(p.client):''}</span><small class="fin-sub">vendida em ${dayText(p.saleDay)} · ${esc(p.method)}</small></td>
-  <td>${p.i}/${p.n}</td>
-  <td><input type="text" inputmode="decimal" value="${fmtIn(p.amount)}" data-pamt="${esc(p.pkey)}" style="width:110px;padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px"></td>
-  <td>${p.due?'<span class="pill" style="background:#e8f7f0;color:#1b9869">Entrou no Caixa BLU</span>':'<span class="pill cxauto">A receber</span>'}${p.edited?'<small class="fin-sub">editada por você</small>':''}</td>
-  <td class="fin-actions">${p.edited?`<button type="button" class="row-action" data-prest="${esc(p.pkey)}">Restaurar padrão</button>`:''}</td></tr>`).join('');
- $('cxAgVazio').style.display=list.length?'none':'block';
-}
-function setOv(key,o){
- const m=conf().parcelas||(conf().parcelas={});
- if(o.date==null&&o.amount==null)delete m[key];else m[key]=o;
-}
-function onAgendaChange(ev){
- const el=ev.target;
- if(el.id==='cxDiasCred'||el.id==='cxDiasDeb'){
-  if(denied()){render();return;}
-  const v=Math.floor(Number(el.value));
-  if(!(el.value!==''&&v>=0&&v<=365)){toast('Informe de 0 a 365 dias.',true);render();return;}
-  conf()[el.id==='cxDiasCred'?'creditDays':'debitDays']=v;
-  if(saveData())toast('Prazos atualizados. As parcelas que você não editou foram recalculadas.');
-  return;
+/* Venda: descontos e pagamentos combinados */
+.sale-discounts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.sale-total-discount{border:1px solid #dbeafe;background:#f5f9ff}
+.payment-box{border:1px solid var(--border,#e3e8f0);border-radius:14px;padding:16px;display:grid;gap:14px;background:var(--surface,#fff)}
+.payment-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.payment-heading h3{margin:0;font-size:1rem}
+.payment-heading p{margin:4px 0 0;color:var(--muted,#667085);font-size:.85rem}
+.payment-lines{display:grid;gap:12px}
+.payment-row{padding:12px;border:1px solid var(--border,#e3e8f0);border-radius:12px;background:#fbfcfe;display:grid;gap:10px}
+.payment-row-main{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(120px,.8fr) 34px;gap:10px;align-items:end}
+.payment-card-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.payment-card-options[hidden]{display:none}
+.payment-remove{height:40px;width:34px;border:1px solid #f1c6c6;background:#fff5f5;color:#b42318;border-radius:9px;font-size:1.25rem;cursor:pointer}
+.payment-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.payment-summary>div{padding:12px;border-radius:10px;background:#f5f7fb;display:grid;gap:5px}
+.payment-summary span{font-size:.8rem;color:var(--muted,#667085)}
+.payment-summary strong{font-size:1rem}
+.payment-notice{margin:0;padding:10px 12px;border-radius:9px;background:#fff7e8;color:#8a4b08;font-size:.88rem}
+.payment-notice.payment-ok{background:#ecfdf3;color:#027a48}
+.payment-notice.payment-error{background:#fef3f2;color:#b42318}
+@media(max-width:520px){.sale-discounts,.payment-card-options,.payment-summary{grid-template-columns:1fr}.payment-row-main{grid-template-columns:1fr 1fr 32px}.payment-heading{align-items:flex-start;flex-direction:column}}
+
+/* Dashboard aprimorado e relatório por período */
+.dashboard-insights{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,1fr);gap:17px;margin:0 0 17px}
+.insight-card{padding:20px;min-width:0}.report-total{font-weight:800;color:#3468f5;background:#edf2ff;border-radius:20px;padding:8px 12px;font-size:12px;white-space:nowrap}
+.sales-chart{height:190px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;padding-top:12px}
+.sales-bar-wrap{display:grid;grid-template-rows:20px 1fr 20px;gap:6px;min-width:0;text-align:center;align-items:end}
+.sales-bar-value{font-size:9px;color:#7d8ba1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sales-bar-track{height:130px;background:#f3f6fc;border-radius:7px 7px 3px 3px;display:flex;align-items:flex-end;overflow:hidden}
+.sales-bar{width:100%;min-height:3px;border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,#4d7dff,#2858e8)}
+.sales-bar-label{font-size:10px;color:#738198}
+.stock-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:20px}
+.stock-status-grid>div{border:1px solid #edf0f6;background:#fbfcff;border-radius:11px;padding:17px 10px;display:grid;gap:8px;text-align:center}
+.stock-status-grid strong{font:800 25px Manrope;color:#20324d}.stock-status-grid span{font-size:10px;color:#8490a2}
+.report-filter-surface{padding:21px;margin-bottom:17px}.report-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;align-items:end;gap:13px}.report-filters .button{height:42px;white-space:nowrap}
+.report-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-bottom:17px}.report-summary-grid .stat-card{min-width:0}.report-summary-grid .stat-card>strong{font-size:24px;overflow-wrap:anywhere}
+.report-results{padding:20px}.report-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:1050px){.dashboard-insights{grid-template-columns:1fr}.report-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.report-filters .button{width:100%}}
+@media(max-width:600px){.report-filters,.report-summary-grid{grid-template-columns:1fr}.stock-status-grid{grid-template-columns:1fr 1fr 1fr}.sales-chart{gap:5px}.sales-bar-value{font-size:8px}.report-actions{width:100%}.report-actions .button{flex:1}}
+@media print{.sidebar,.topbar,.footer,.report-filter-surface,.report-actions,.page-heading{display:none!important}.main{margin:0!important}.content{padding:0!important}.panel{display:none!important}#panel-relatorios{display:block!important}.report-summary-grid{grid-template-columns:repeat(3,1fr)}body{background:#fff}.surface,.stat-card{box-shadow:none;border:1px solid #ddd;break-inside:avoid}#relatorioRows{font-size:10px}}
+
+
+/* Gráficos do dashboard — layout reforçado para evitar quebra de estilos */
+#panel-dashboard .dashboard-insights{display:grid!important;grid-template-columns:minmax(0,1.55fr) minmax(300px,1fr)!important;gap:18px!important;align-items:stretch!important;margin:0 0 18px!important}
+#panel-dashboard .insight-card{padding:22px!important;min-width:0!important;overflow:hidden!important;background:#fff!important;border:1px solid #e9eef6!important;border-radius:16px!important;box-shadow:0 8px 28px rgba(28,44,75,.055)!important}
+#panel-dashboard .sales-chart{display:block!important;width:100%!important;height:265px!important;min-height:265px!important;padding:0!important;margin:5px 0 0!important;overflow:hidden!important}
+#panel-dashboard .sales-line-svg{display:block!important;width:100%!important;height:100%!important;overflow:visible!important}
+#panel-dashboard .stock-chart-layout{display:flex!important;align-items:center!important;justify-content:center!important;gap:24px!important;min-height:265px!important;padding:8px 0!important}
+#panel-dashboard .stock-donut{width:172px!important;height:172px!important;flex:0 0 172px!important;border-radius:50%!important;display:grid!important;place-items:center!important;position:relative!important}
+#panel-dashboard .stock-donut:before{content:"";position:absolute;inset:18px;border-radius:50%;background:#fff!important}
+#panel-dashboard .stock-donut-center{position:relative!important;z-index:1!important;display:grid!important;gap:3px!important;text-align:center!important}
+#panel-dashboard .stock-donut-center strong{font:800 29px Manrope,Arial,sans-serif!important;color:#172b49!important}
+#panel-dashboard .stock-donut-center span{font-size:12px!important;color:#7c8ba2!important}
+#panel-dashboard .stock-legend{display:grid!important;gap:17px!important;min-width:130px!important;flex:1!important}
+#panel-dashboard .stock-legend>div{display:grid!important;grid-template-columns:10px 1fr auto!important;align-items:center!important;gap:9px!important;font-size:12px!important;color:#53647c!important}
+#panel-dashboard .stock-legend b{font-size:13px!important;color:#263954!important}
+#panel-dashboard .legend-dot{width:9px;height:9px;border-radius:50%;display:block}
+#panel-dashboard .dot-ok{background:#16a36a}.dot-low{background:#f59e0b}.dot-zero{background:#ef4444}
+@media(max-width:1100px){#panel-dashboard .dashboard-insights{grid-template-columns:1fr!important}#panel-dashboard .stock-chart-layout{min-height:220px!important}}
+@media(max-width:560px){#panel-dashboard .insight-card{padding:15px!important}#panel-dashboard .sales-chart{height:225px!important;min-height:225px!important}#panel-dashboard .stock-chart-layout{gap:16px!important;justify-content:space-around!important}#panel-dashboard .stock-donut{width:130px!important;height:130px!important;flex-basis:130px!important}#panel-dashboard .stock-donut:before{inset:14px!important}#panel-dashboard .stock-legend{min-width:115px!important;gap:13px!important}#panel-dashboard .stock-legend>div{font-size:10px!important}}
+
+/* Correção definitiva dos gráficos no desktop: dimensões explícitas e layout isolado */
+#panel-dashboard .dashboard-insights{display:grid!important;grid-template-columns:minmax(0,1.55fr) minmax(340px,1fr)!important;align-items:stretch!important}
+#panel-dashboard .insight-card{min-width:0!important;overflow:hidden!important}
+#panel-dashboard #dashboardSalesChart{display:block!important;width:100%!important;height:280px!important;min-height:280px!important;overflow-x:auto!important;overflow-y:hidden!important;position:relative!important}
+#panel-dashboard #dashboardSalesChart .sales-line-svg{display:block!important;width:100%!important;min-width:620px!important;height:265px!important;min-height:265px!important;max-width:none!important;overflow:visible!important}
+#panel-dashboard .stock-chart-layout{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:space-evenly!important;min-height:265px!important;width:100%!important;gap:22px!important}
+#panel-dashboard .stock-donut{position:relative!important;display:grid!important;place-items:center!important;flex:0 0 172px!important;width:172px!important;height:172px!important;min-width:172px!important;border-radius:50%!important}
+#panel-dashboard .stock-donut:before{content:""!important;position:absolute!important;inset:18px!important;border-radius:50%!important;background:#fff!important;z-index:0!important}
+#panel-dashboard .stock-donut-center{position:relative!important;z-index:2!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:3px!important;white-space:nowrap!important}
+#panel-dashboard .stock-donut-center strong{display:block!important;line-height:1.1!important;font-size:28px!important}
+#panel-dashboard .stock-donut-center span{display:block!important;line-height:1.3!important}
+#panel-dashboard .stock-legend{display:grid!important;flex:1 1 140px!important;min-width:130px!important;gap:16px!important}
+#panel-dashboard .stock-legend>div{display:grid!important;grid-template-columns:10px minmax(75px,1fr) auto!important;align-items:center!important;gap:8px!important;white-space:nowrap!important}
+@media(max-width:1100px){#panel-dashboard .dashboard-insights{grid-template-columns:1fr!important}}
+@media(max-width:600px){#panel-dashboard #dashboardSalesChart{height:235px!important;min-height:235px!important}#panel-dashboard #dashboardSalesChart .sales-line-svg{height:225px!important;min-height:225px!important;min-width:560px!important}#panel-dashboard .stock-chart-layout{gap:12px!important;justify-content:space-around!important}#panel-dashboard .stock-donut{flex-basis:130px!important;width:130px!important;height:130px!important;min-width:130px!important}#panel-dashboard .stock-donut:before{inset:14px!important}#panel-dashboard .stock-legend{min-width:115px!important;gap:12px!important}#panel-dashboard .stock-legend>div{grid-template-columns:8px minmax(65px,1fr) auto!important;font-size:10px!important}}
+
+
+/* Login local do Conceito */
+.auth-gate{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:22px;background:radial-gradient(ellipse at top left,#243c63 0%,#101a2c 55%,#0b1220 100%);overflow:auto}.auth-gate[hidden],.app-shell[hidden]{display:none!important}.auth-card{width:min(100%,430px);padding:34px;background:#fff;border:1px solid rgba(255,255,255,.2);border-radius:22px;box-shadow:0 24px 80px rgba(0,0,0,.32);color:#172033}.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:30px}.auth-brand-mark{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:#2563eb;color:white;font-size:25px;font-weight:800}.auth-brand strong{display:block;font-size:25px;letter-spacing:-1px}.auth-brand strong span{color:#2563eb}.auth-brand small{display:block;font-size:9px;letter-spacing:1.7px;color:#64748b;font-weight:800}.auth-eyebrow{margin:0 0 8px;color:#2563eb;font-size:11px;font-weight:800;letter-spacing:1.5px}.auth-card h1{margin:0 0 8px;font-size:28px;letter-spacing:-.8px;color:#111827}.auth-description{margin:0 0 24px;color:#64748b;font-size:14px}.auth-card label{display:block;margin:15px 0 7px;font-size:13px;font-weight:700;color:#344054}.auth-card input{width:100%;box-sizing:border-box;min-height:46px;border:1px solid #d0d5dd;border-radius:10px;padding:11px 13px;background:#fff;color:#101828;font:inherit;outline:none}.auth-card input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.13)}.auth-submit{width:100%;justify-content:center;margin-top:18px;min-height:46px}.auth-error{color:#b42318;font-size:13px;min-height:0;margin:9px 0 0}.auth-error:empty{display:none}.auth-local-note{margin:22px 0 0;padding-top:16px;border-top:1px solid #eaecf0;color:#667085;font-size:11px;line-height:1.5}.auth-logout{margin-left:12px;white-space:nowrap}.topbar-right{display:flex;align-items:center;gap:10px}@media(max-width:520px){.auth-card{padding:25px 21px;border-radius:18px}.auth-card h1{font-size:25px}.auth-logout{padding:8px 10px;font-size:12px}}
+
+.auth-create-link{display:block;width:100%;margin:14px 0 0;padding:10px 4px;border:0;background:transparent;color:#2563eb;font:inherit;font-size:13px;font-weight:700;text-align:center;cursor:pointer}.auth-create-link:hover{text-decoration:underline}
+
+/* Conceito Login Premium - identidade visual renovada */
+.auth-gate{padding:28px;background:radial-gradient(circle at 12% 15%,#263e70 0,#111b31 40%,#080f1d 100%);font-family:'DM Sans',Arial,sans-serif}
+.auth-card{position:relative;isolation:isolate;overflow:hidden;width:min(100%,960px);min-height:590px;padding:48px 58px 38px 52%;border:1px solid rgba(255,255,255,.48);border-radius:28px;background:rgba(255,255,255,.98);box-shadow:0 35px 100px rgba(0,0,0,.42);}
+.auth-card:before{content:"";position:absolute;z-index:-1;left:0;top:0;bottom:0;width:46.5%;background:linear-gradient(145deg,#2f65f5 0%,#244bc5 48%,#142d70 100%);}
+.auth-card:after{content:"GESTÃO SIMPLES.\A RESULTADOS REAIS.";white-space:pre;position:absolute;left:43px;top:45%;transform:translateY(-50%);width:39%;color:#fff;font:800 clamp(25px,3vw,36px)/1.2 Manrope,Arial,sans-serif;letter-spacing:-1.1px;text-shadow:0 3px 16px #102b7150;}
+.auth-brand{margin-bottom:27px;gap:12px}.auth-brand-mark{width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#4278ff,#234fe0);box-shadow:0 9px 22px #3468f53d;font-size:27px}.auth-brand strong{font:800 28px Manrope,sans-serif;color:#14213a}.auth-brand small{letter-spacing:1.6px;margin-top:3px}
+.auth-eyebrow{margin-top:4px;margin-bottom:9px;color:#3265e8;font-size:10px;letter-spacing:1.8px}.auth-card h1{font:800 32px/1.15 Manrope,sans-serif;letter-spacing:-1px;color:#17233b}.auth-description{font-size:13px;line-height:1.6;margin-bottom:22px;color:#748096}
+.auth-card label{margin:14px 0 7px;font-size:12px;color:#36445b}.auth-card input{min-height:48px;border-radius:12px;border-color:#dce3ef;background:#f9fbff;padding:12px 14px;font-size:13px;transition:border-color .18s,box-shadow .18s,background .18s}.auth-card input:focus{background:#fff;border-color:#4975f3;box-shadow:0 0 0 4px #4975f31a}
+.auth-submit{min-height:49px;margin-top:17px;border-radius:12px;background:linear-gradient(100deg,#3268f3,#2453d8);box-shadow:0 10px 22px #2857db2b;font-size:13px;letter-spacing:.1px}.auth-submit:hover{background:linear-gradient(100deg,#285be6,#1c46c2);box-shadow:0 12px 26px #2857db40}
+.auth-create-link{margin-top:14px;padding:12px 8px;border:1px solid #e1e8f5;border-radius:11px;background:#f5f8ff;color:#2859dc;font-size:12px;transition:background .15s,border-color .15s}.auth-create-link:hover{background:#edf3ff;border-color:#cbd9ff;text-decoration:none}
+.auth-local-note{margin-top:20px;padding-top:14px;font-size:10px;color:#8b95a7;line-height:1.65}.auth-error{border-radius:8px;line-height:1.5}.auth-error:not(:empty){background:#fff1f0;padding:9px 11px;border:1px solid #ffd7d4}
+#ckrSetupForm{margin-top:2px}#ckrSetupForm[hidden],#ckrLoginForm[hidden],#ckrShowSetup[hidden]{display:none!important}
+@media(max-width:760px){.auth-gate{padding:16px;align-items:center}.auth-card{width:min(100%,470px);min-height:0;padding:29px 25px 25px;border-radius:23px}.auth-card:before{left:0;right:0;top:0;bottom:auto;width:100%;height:8px;background:linear-gradient(90deg,#3268f3,#5b8bff,#244bc5)}.auth-card:after{display:none}.auth-brand{margin-bottom:25px}.auth-card h1{font-size:28px}.auth-description{margin-bottom:18px}.auth-local-note{margin-top:17px}}
+@media(max-width:380px){.auth-card{padding:24px 19px 21px}.auth-brand strong{font-size:25px}.auth-card h1{font-size:25px}.auth-card input{min-height:45px}}
+
+/* Gerenciamento local de usuários */
+.users-modal{position:fixed;inset:0;z-index:100000;background:rgba(10,18,32,.72);display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto}.users-modal[hidden]{display:none!important}.users-card{width:min(100%,540px);max-height:calc(100vh - 36px);overflow:auto;background:#fff;border-radius:20px;padding:27px;box-shadow:0 25px 80px #0004;color:#172033}.users-heading{display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.users-heading h2{font-size:25px;margin:0 0 6px}.users-heading p:not(.auth-eyebrow){margin:0;color:#667085;font-size:13px}.users-close{border:0;background:#f2f4f7;border-radius:10px;width:36px;height:36px;font-size:24px;cursor:pointer;color:#344054}.users-card label{display:block;margin:15px 0 7px;font-size:13px;font-weight:700;color:#344054}.users-card input{width:100%;box-sizing:border-box;min-height:44px;border:1px solid #d0d5dd;border-radius:10px;padding:10px 12px;font:inherit}.users-card input:focus{outline:2px solid #c7d7fe;border-color:#3468f5}.users-expiry-note{background:#eef4ff;color:#294b91;border-radius:10px;padding:12px;margin-top:15px;font-size:12px;line-height:1.5}.users-list-title{font-weight:800;margin:24px 0 10px}.users-list{display:grid;gap:9px}.users-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #eaecf0;border-radius:11px;padding:12px}.users-row strong{display:block;font-size:13px;overflow-wrap:anywhere}.users-row small{display:block;color:#667085;font-size:11px;margin-top:4px}.users-row .button{padding:7px 9px;font-size:11px}.users-empty{font-size:12px;color:#667085;padding:10px}.users-security-note{font-size:11px;line-height:1.5;color:#8a95a6;border-top:1px solid #eaecf0;padding-top:14px;margin:20px 0 0}@media(max-width:520px){.users-card{padding:21px 17px}.users-heading h2{font-size:22px}.topbar-right{gap:7px}.topbar-right #ckrManageUsers{font-size:10px;padding:8px}.users-row{align-items:flex-start}}
+
+
+/* Correção: opção de usuários visível no menu lateral para o ADMIN */
+.admin-users-link { margin-top: 8px; border: 1px solid rgba(255,255,255,.16); }
+.admin-users-link[hidden] { display: none !important; }
+#ckrManageUsers[hidden] { display: none !important; }
+#ckrUsersModal[hidden], #ckrAuthGate[hidden], #ckrAppShell[hidden] { display: none !important; }
+
+
+/* Prazo de acesso: exibido somente para usuários comuns */
+.expiry-status{margin:2px 12px 10px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.08);color:#dbeafe;font-size:12px;line-height:1.35;font-weight:600;}
+.expiry-status.expired{color:#fecaca;background:rgba(220,38,38,.14);}
+[hidden]{display:none!important;}
+
+
+/* Ajuste responsivo adicional: login em monitores e celulares */
+.auth-gate{box-sizing:border-box;width:100%;min-width:0;padding:clamp(12px,2.5vw,32px);}
+.auth-card{box-sizing:border-box;flex:0 1 1100px;width:min(100%,1100px);max-width:1100px;min-width:0;padding:clamp(28px,4.5vw,52px) clamp(24px,5vw,60px) clamp(26px,4vw,42px) calc(46.5% + clamp(24px,4.5vw,54px));}
+.auth-card form{display:block;width:100%;min-width:0;max-width:100%;}
+.auth-card label{display:block;width:100%;max-width:100%;overflow-wrap:anywhere;}
+.auth-card input,.auth-card .auth-submit,.auth-card .auth-create-link{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;}
+.auth-card h1,.auth-card p,.auth-card label{overflow-wrap:anywhere;}
+@media (min-width:761px){.auth-card{min-height:590px}.auth-card:before{width:46.5%}.auth-card:after{left:clamp(24px,4vw,44px);width:39%;font-size:clamp(24px,3vw,36px)}.auth-card form,.auth-card #ckrSetupForm{max-width:440px}}
+@media (max-width:900px) and (min-width:761px){.auth-card{padding-left:calc(46.5% + 24px);padding-right:24px}.auth-card:after{left:22px;font-size:clamp(21px,2.7vw,28px)}.auth-card h1{font-size:clamp(25px,3vw,32px)}}
+@media (max-width:760px){.auth-gate{padding:14px;align-items:center;justify-content:center}.auth-card{flex:0 1 470px;width:min(100%,470px);max-width:470px;min-height:0;padding:29px 25px 25px}.auth-card:before{left:0;right:0;top:0;bottom:auto;width:100%;height:8px}.auth-card:after{display:none}.auth-card form,.auth-card #ckrSetupForm{max-width:none}.auth-card h1{font-size:28px}}
+@media (max-width:380px){.auth-card{padding:24px 19px 21px}.auth-card h1{font-size:25px}}
+
+/* Indicador de lucro e margem no dashboard */
+.profit-stat>strong{color:#159568!important}
+.profit-bottom{display:grid;gap:7px;margin-top:2px}
+.profit-margin{font-size:11px;color:#6b7890}
+.profit-margin b{font-size:13px;color:#159568}
+.profit-note{font-size:9px;line-height:1.45;color:#9aa4b2}
+@media(min-width:1500px){.profit-note{font-size:10px}}
+
+
+/* Carrinho de venda e ações do recibo */
+.cart-box{border:1px solid #e7ebf3;border-radius:12px;padding:14px;background:#fbfcff;margin:2px 0 16px;min-width:0}.cart-count{font-size:10px;font-weight:800;color:#345ee8;background:#eaf0ff;padding:6px 9px;border-radius:20px;white-space:nowrap}.cart-table{min-width:520px}.cart-table th,.cart-table td{padding:9px 8px}.cart-empty{text-align:center!important;color:#9aa4b2!important;padding:18px!important}.cart-remove{border:0;border-radius:7px;width:27px;height:27px;background:#fff0f0;color:#ce5158;font-size:19px;cursor:pointer}.receipt-actions{border:1px solid #cfe9dc;background:#f4fbf7;border-radius:12px;padding:15px;margin-top:14px;display:grid;gap:9px}.receipt-actions[hidden]{display:none}.receipt-actions p{margin:0;color:#245c42;font-weight:700;font-size:12px}.receipt-actions small{font-size:10px;line-height:1.5;color:#65738a}.cart-box .payment-heading{margin-bottom:12px}
+
+/* ===== Responsividade universal (celular, tablet, notebook, monitores grandes e ultrawide) ===== */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden}
+body{overflow-x:hidden;min-height:100dvh}
+img,svg,canvas,video{max-width:100%}
+.main,.content,.panel,.surface,.field,.form-grid>*,.form-two>*,.stat-card{min-width:0}
+input,select,textarea,button{max-width:100%;font-size:16px} /* 16px evita zoom automático no iPhone */
+.field input,.field select,.field textarea{width:100%;min-height:44px}
+input[inputmode="numeric"]{font-variant-numeric:tabular-nums}
+/* tabelas largas rolam dentro do próprio bloco, nunca a página inteira */
+.table-wrap,.table-scroll,.list-surface,.recent-surface{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{max-width:100%}
+/* área segura de celulares com notch */
+.topbar{padding-left:max(15px,env(safe-area-inset-left));padding-right:max(15px,env(safe-area-inset-right))}
+.sidebar{padding-bottom:max(17px,env(safe-area-inset-bottom));overflow-y:auto}
+/* conteúdo fluido: acompanha a largura da tela */
+.content{width:100%;max-width:min(1500px,100%)}
+.stats-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}
+.form-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+.form-grid .field-wide{grid-column:1/-1}
+/* notebooks e tablets */
+@media(min-width:761px) and (max-width:1150px){.content{padding:24px 20px}}
+/* monitores Full HD / 2K: usa mais espaço e escala o tamanho */
+@media(min-width:1700px){html{font-size:17px}.content{max-width:min(1800px,100%);padding-left:48px;padding-right:48px}.sidebar{width:272px}.main{margin-left:272px}}
+/* monitores 2K/4K e ultrawide */
+@media(min-width:2200px){html{font-size:19px}.content{max-width:min(2200px,100%)}.sidebar{width:300px}.main{margin-left:300px}}
+@media(min-width:3000px){html{font-size:24px}.content{max-width:min(2800px,100%)}.sidebar{width:340px}.main{margin-left:340px}}
+/* celulares pequenos */
+@media(max-width:760px){.main{margin-left:0!important}.content{padding:18px 12px}.button{min-height:42px}}
+@media(max-width:380px){.content{padding:14px 10px}.stats-grid{grid-template-columns:1fr 1fr}}
+/* celular deitado (altura curta) */
+@media(max-height:480px) and (orientation:landscape){.topbar{height:52px}.auth-gate,.users-modal{align-items:flex-start}}
+
+/* Gerenciar usuários: select, edição e renovação */
+.users-card select{width:100%;box-sizing:border-box;min-height:44px;border:1px solid #d0d5dd;border-radius:10px;padding:10px 12px;font:inherit;background:#fff}
+.users-card form[id="ckrEditUserForm"],.users-card form[id="ckrChangePasswordForm"]{margin-top:18px;padding-top:6px;border-top:1px solid #eaecf0}
+.users-renew{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#667085}
+.users-row{flex-wrap:wrap}.users-row>div:last-child{display:flex;flex-wrap:wrap;gap:6px}
+
+/* garante que itens escondidos por perfil realmente sumam */
+[hidden]{display:none!important}
+
+
+/* Movimentações: busca de vendas, edição e cancelamento */
+.sales-search-surface{margin-bottom:17px}
+.sales-search-filters{display:grid;grid-template-columns:minmax(0,2.2fr) repeat(3,minmax(0,1fr)) auto;gap:13px;align-items:end;margin-bottom:14px}
+.sales-search-filters .button{height:42px}
+.sales-search-summary{display:flex;flex-wrap:wrap;gap:6px 20px;padding:11px 14px;background:#f6f8fc;border:1px solid #edf0f5;border-radius:9px;color:#6b7a90;font-size:11px;margin-bottom:12px}
+.sales-search-summary b{color:#23334d}
+.sale-items{list-style:none;margin:0;padding:0;display:grid;gap:3px;min-width:150px}
+.sale-items li{color:#2a3850;font-weight:600}
+td small{color:#9aa4b2;font-size:10px}
+.pill.ativa{background:#e8f8f0;color:#1b9869}
+.pill.cancelada{background:#f1f3f7;color:#667085}
+tr.row-canceled td:not(.sale-status){opacity:.6}
+.sale-money-canceled{text-decoration:line-through}
+#listaVendasBusca .row-action{white-space:nowrap}
+.sale-edit-banner{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 15px;border-radius:11px;background:#fff8e9;border:1px solid #f6e7c3;color:#8e7649}
+.sale-edit-banner b{display:block;color:#7a5a12;font-size:13px}
+.sale-edit-banner p{margin:4px 0 0;font-size:11px;line-height:1.5}
+@media(max-width:1050px){.sales-search-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.sales-search-filters .button{width:100%}}
+@media(max-width:600px){.sales-search-filters{grid-template-columns:1fr}.sale-edit-banner{flex-direction:column;align-items:stretch}}
+@media print{#panel-historico{display:none!important}}
+
+
+/* ===== Login responsivo definitivo =====
+   Corrige o formulário esmagado em telas grandes: o recuo em % do cartão era calculado sobre a
+   largura da TELA (não do cartão). Agora o cartão é uma grade de colunas e a % vale para o próprio cartão. */
+.auth-gate{align-items:flex-start;justify-content:flex-start;overflow:auto}
+.auth-card{margin:auto;flex:0 1 auto}
+@media (min-width:761px){
+ .auth-card{
+  --auth-pad-l:clamp(24px,4.5vw,54px);--auth-pad-r:clamp(24px,5vw,60px);
+  display:grid;grid-template-columns:46.5% var(--auth-pad-l) minmax(0,1fr) var(--auth-pad-r);
+  align-content:center;
+  width:min(100%,1120px);max-width:1120px;
+  min-height:clamp(560px,76vh,700px);
+  padding:clamp(28px,4.5vw,52px) 0 clamp(26px,4vw,42px);
  }
- const kd=el.dataset.pdate,ka=el.dataset.pamt,key=kd||ka;if(!key)return;
- if(denied()){render();return;}
- const p=balances().parcs.find(x=>x.pkey===key);if(!p){render();return;}
- const o=Object.assign({},(conf().parcelas||{})[key]);
- if(kd){
-  if(!el.value||el.value===p.defDate)delete o.date;else o.date=el.value;
- }else{
-  const v=r2(parseMoneyInput(el.value));
-  if(!(v>0)){toast('Informe um valor maior que zero.',true);render();return;}
-  if(Math.abs(v-p.defAmt)<0.005)delete o.amount;else o.amount=v;
- }
- setOv(key,o);
- if(saveData())toast('Parcela atualizada.');
+ .auth-card>*{grid-column:3;min-width:0}
+ .auth-card form,.auth-card #ckrSetupForm{max-width:none}
 }
-function onAgendaClick(ev){
- const b=ev.target.closest('[data-prest]');if(!b||denied())return;
- setOv(b.dataset.prest,{});
- if(saveData())toast('Parcela voltou ao padrão.');
+@media (min-width:1600px){
+ .auth-card{width:min(100%,1240px);max-width:1240px;min-height:clamp(600px,72vh,760px)}
+ .auth-card:after{font-size:clamp(34px,2.4vw,46px)}
 }
+@media (min-width:2200px){
+ .auth-card{width:min(100%,1480px);max-width:1480px;min-height:clamp(680px,70vh,860px)}
+ .auth-card:after{font-size:clamp(42px,2.4vw,56px)}
+}
+@media (max-width:760px){
+ .auth-card{display:block;width:min(100%,470px);max-width:470px}
+}
+@media (min-width:761px) and (max-height:620px){
+ .auth-card{min-height:0;padding-top:22px;padding-bottom:20px}
+ .auth-brand{margin-bottom:14px}
+ .auth-description{margin-bottom:10px}
+ .auth-card label{margin-top:8px}
+ .auth-card input{min-height:42px}
+ .auth-submit{margin-top:12px;min-height:42px}
+ .auth-local-note{margin-top:12px;padding-top:10px}
+}
+/* Sugestões de produto na venda */
+.product-search-box{position:relative}
+.product-suggest{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #e0e6ef;border-radius:8px;box-shadow:0 12px 30px #182b4822;max-height:260px;overflow-y:auto;z-index:30}
+.product-suggest[hidden]{display:none}
+.product-suggest button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:9px 12px;border:0;border-bottom:1px solid #f0f3f8;background:#fff;text-align:left;font:600 13px 'DM Sans',sans-serif;color:#26364e;cursor:pointer}
+.product-suggest button:last-child{border-bottom:0}
+.product-suggest button:hover,.product-suggest button.active{background:#eef3ff}
+.product-suggest button span{min-width:0;overflow-wrap:anywhere}
+.product-suggest small{flex:none;font-weight:500;font-size:11px;color:#8290a4;white-space:nowrap}
+.product-suggest .empty{padding:12px;font-size:12px;color:#8290a4}
+@media(max-width:600px){.product-suggest button{flex-direction:column;align-items:flex-start;gap:2px}}
 
-function render(){
- ensureStart();
- const panel=$('panel-financeiro');if(!panel||!panel.classList.contains('active'))return;
- const S=balances();renderCard(S);renderAgenda(S);renderList(S);
- if(!$('cxFormCard').style.display)syncForm();
-}
+/* Captcha do login (aparece após 3 erros de senha) */
+.captcha-box{margin-top:14px}
+.captcha-box[hidden]{display:none}
+.captcha-row{display:flex;align-items:center;gap:8px;margin:6px 0 8px}
+.captcha-row canvas{flex:1 1 auto;min-width:0;max-width:190px;height:auto;border:1px solid #e0e6ef;border-radius:8px;background:#f1f5fb}
+.captcha-refresh{flex:none;width:44px;height:44px;border:1px solid #e0e6ef;border-radius:8px;background:#fff;color:#3468f5;font-size:20px;line-height:1;cursor:pointer}
+.captcha-refresh:hover{background:#eef3ff}
+.captcha-hint{display:block;margin-top:6px;font-size:10px;color:#8b95a7}
 
-// ---------- formulário ----------
-function fillSelects(){
- const o=ACCS.map(a=>`<option value="${a.k}">${esc(a.name)}</option>`).join('');
- $('cxDe').innerHTML=o;$('cxPara').innerHTML=o;$('cxPara').value='nubank';
- $('cxFiltro').innerHTML='<option value="">Todas as contas</option>'+o;
-}
-function syncForm(){
- const op=$('cxOp').value,S=balances().b;
- $('cxDeBox').hidden=!(op==='transf'||op==='saida');
- $('cxParaBox').hidden=!(op==='transf'||op==='entrada'||op==='ajuste');
- $('cxDeLbl').textContent=op==='saida'?'Saiu de qual conta?':'De';
- $('cxParaLbl').textContent=op==='transf'?'Para':op==='entrada'?'Entrou em qual conta?':'Conta';
- $('cxValorLbl').textContent=op==='ajuste'?'Saldo correto da conta (R$)':'Valor (R$)';
- $('cxHint').textContent=op==='ajuste'?`Saldo atual no sistema: ${signed(S[$('cxPara').value]||0)}. Digite quanto realmente tem na conta; o sistema lança só a diferença.`
-  :op==='transf'?`Saldo disponível em ${accName($('cxDe').value)}: ${signed(S[$('cxDe').value]||0)}.`:'';
-}
-function openForm(op,from,to){
- if(denied())return;
- $('cxForm').reset();fillSelects();
- $('cxOp').value=op||'transf';
- if(from)$('cxDe').value=from;if(to)$('cxPara').value=to;
- $('cxData').value=todayISO();
- if(op==='ajuste'){const v=balances().b[to];$('cxValor').value=v>0?fmtIn(v):'';}
- $('cxFormTitulo').textContent=op==='ajuste'?'Editar saldo da conta':'Movimentar caixa';
- syncForm();
- const c=$('cxFormCard');c.style.display='';c.scrollIntoView({behavior:'smooth',block:'start'});
- setTimeout(()=>$('cxValor').focus({preventScroll:true}),250);
-}
-function closeForm(){$('cxFormCard').style.display='none';}
-function push(account,amount,kind,date,note,pair){
- ledger().push({id:id(),date,account,amount:r2(amount),kind,pair:pair||'',note,by:(typeof currentUserName==='function'?currentUserName():''),createdAt:new Date().toISOString()});
-}
-function save(ev){
- ev.preventDefault();if(denied())return;
- const op=$('cxOp').value,de=$('cxDe').value,para=$('cxPara').value,raw=$('cxValor').value.trim(),v=r2(parseMoneyInput(raw)),
-  date=$('cxData').value||todayISO(),note=$('cxDesc').value.trim(),bal=balances().b;
- if(op==='ajuste'){
-  if(!raw){toast('Informe o saldo correto da conta.',true);$('cxValor').focus();return;}
-  const diff=r2(v-bal[para]);
-  if(Math.abs(diff)<0.005){toast('O saldo já está com esse valor.');return;}
-  push(para,diff,'ajuste',date,note||`Ajuste de saldo: de ${signed(bal[para])} para ${signed(v)}`);
- }else{
-  if(!(v>0)){toast('Informe um valor maior que zero.',true);$('cxValor').focus();return;}
-  if(op==='transf'){
-   if(de===para){toast('Escolha contas diferentes para transferir.',true);return;}
-   if(v>bal[de]+0.009&&!confirm(`${accName(de)} tem só ${signed(bal[de])}. Transferir ${money(v)} mesmo assim? A conta ficará negativa.`))return;
-   const pair=id();push(de,-v,'transf',date,note,pair);push(para,v,'transf',date,note,pair);
-  }else if(op==='entrada')push(para,v,'entrada',date,note);
-  else{
-   if(v>bal[de]+0.009&&!confirm(`${accName(de)} tem só ${signed(bal[de])}. Lançar saída de ${money(v)} mesmo assim?`))return;
-   push(de,-v,'saida',date,note);
-  }
- }
- if(saveData()){closeForm();toast('Caixa atualizado.');}
-}
-function onCardClick(ev){
- const b=ev.target.closest('[data-cx]');if(!b)return;
- const k=b.dataset.acc;
- if(b.dataset.cx==='transf')openForm('transf',k,k==='blu'?'nubank':k==='nubank'?'blu':'nubank');
- else openForm('ajuste',null,k);
-}
-function onListClick(ev){
- const b=ev.target.closest('[data-cx-del]');if(!b||denied())return;
- const e=ledger().find(x=>x.id===b.dataset.cxDel);if(!e)return;
- const par=e.pair?ledger().filter(x=>x.pair===e.pair):[e];
- if(!confirm(e.pair?'Excluir esta transferência? Os dois lados (saída e entrada) serão desfeitos.':`Excluir este lançamento de ${signed(e.amount)} em ${accName(e.account)}?`))return;
- const ids=new Set(par.map(x=>x.id));
- data.cashLedger=ledger().filter(x=>!ids.has(x.id));
- if(saveData())toast('Lançamento excluído.');
-}
+/* Botão mostrar/ocultar senha */
+.pw-wrap{position:relative;display:block;width:100%}
+.pw-wrap input{padding-right:84px!important}
+.pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);height:36px;min-width:68px;padding:0 10px;border:0;border-radius:8px;background:#eef3ff;color:#3468f5;font:700 11px 'DM Sans',sans-serif;cursor:pointer}
+.pw-toggle:hover{background:#e0e9ff}
 
-// ---------- ligações ----------
-function init(){
- if(!$('cxCard'))return;
- buildAgenda();fillSelects();bindMoneyMask($('cxValor'));$('cxData').value=todayISO();
- $('cxNovo').addEventListener('click',()=>openForm('transf','blu','nubank'));
- $('cxCancelar').addEventListener('click',closeForm);
- $('cxForm').addEventListener('submit',save);
- ['cxOp','cxDe','cxPara'].forEach(k=>$(k).addEventListener('change',syncForm));
- $('cxFiltro').addEventListener('change',()=>renderList(balances()));
- $('cxCard').addEventListener('click',onCardClick);
- $('cxExtrato').addEventListener('click',onListClick);
- $('cxCard').addEventListener('change',ev=>{
-  if(ev.target.id==='cxPixAcc'){
-   if(denied()){render();return;}
-   if(!confirm(`Passar a contar os Pix das vendas em ${accName(ev.target.value)}? O saldo das contas será recalculado, inclusive os Pix já recebidos.`)){render();return;}
-   conf().pixAccount=ev.target.value;saveData();return;
-  }
-  if(ev.target.id!=='cxStart')return;
-  if(denied()){render();return;}
-  const v=ev.target.value||monthStart();
-  if(!confirm(`Contar as vendas no Caixa BLU a partir de ${dayText(v)}? Vendas anteriores a essa data saem do saldo automático.`)){render();return;}
-  conf().start=v;saveData();
- });
-}
-init();
+.search-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.check-filter{display:flex;align-items:center;gap:7px;font:700 11px 'DM Sans';color:#536178;cursor:pointer;white-space:nowrap;user-select:none}.check-filter input{width:16px;height:16px;margin:0;accent-color:#3468f5;cursor:pointer}@media(max-width:760px){.search-tools{display:grid;gap:10px;width:100%}}
 
-const baseRender=window.renderAll;
-window.renderAll=function(){baseRender();render();};
-const baseGoTo=window.goTo;
-window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='financeiro')render();};
-render();
-})();
+/* PDV, importação de XML e contador */
+.pdv-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px;margin-bottom:14px;font-weight:600}
+.pdv-bar-actions{display:flex;flex-wrap:wrap;gap:8px}
+.pdv-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(300px,.9fr);gap:17px;align-items:start}
+.pdv-grid>.surface{display:grid;gap:12px;align-content:start}
+.pdv-search{position:relative}
+.pdv-search input{width:100%;min-height:52px;font-size:16px;padding:0 14px;border:1.5px solid var(--line);border-radius:11px;font-family:inherit}
+.pdv-sug{position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);margin-top:4px;overflow:hidden}
+.pdv-sug button{display:flex;justify-content:space-between;gap:10px;width:100%;padding:11px 14px;border:0;background:#fff;text-align:left;font:inherit;cursor:pointer}
+.pdv-sug button:hover,.pdv-sug button:focus{background:#f3f6ff}
+.pdv-sug button[disabled]{opacity:.45;cursor:not-allowed}
+.pdv-qty{display:inline-flex;align-items:center;gap:8px}
+.pdv-qty button{width:28px;height:28px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer;font-weight:700}
+.pdv-total{display:flex;justify-content:space-between;align-items:baseline;font-size:15px}
+.pdv-total.big strong{font-size:28px}
+.pdv-pay{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+.pdv-pay .button{min-height:44px}
+.pdv-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pdv-chip{background:#edf2ff;color:var(--blue-dark);border-radius:20px;padding:5px 6px 5px 11px;font-weight:700;font-size:12px;display:inline-flex;gap:6px;align-items:center}
+.pdv-chip button{border:0;background:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer}
+@media(max-width:900px){.pdv-grid{grid-template-columns:1fr}}
+@media(max-width:520px){.pdv-pay{grid-template-columns:1fr}}
+.xml-note{margin-bottom:16px}.xml-note h3{margin:0 0 4px}
+.xml-table select,.xml-table input{width:100%;min-width:110px;max-width:220px;min-height:38px}
+@media print{#panel-pdv,#panel-xml,#panel-contador{display:none!important}}
+
+/* ===== Pagamentos (taxas, fábrica, promissória) ===== */
+.payment-card-options{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.payment-card-options [hidden]{display:none!important}
+.pay-hint{grid-column:1/-1;margin:0;padding:8px 11px;border-radius:9px;background:#f1f5ff;color:#2454dd;font-size:12.5px;font-weight:600;line-height:1.45}
+.pay-hint[hidden]{display:none}
+.pdv-pag-extra{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fbfcfe}
+.pill.vencida{background:#fdecec;color:#c0343e}.pill.avencer{background:#fff4e0;color:#b36a05}.pill.recebida{background:#e8f8f0;color:#1b9869}.pill.aberta{background:#edf2ff;color:#2454dd}
+.nav-count.alert{background:#e0414b;color:#fff}
+.prom-alert{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;margin-bottom:18px;border-radius:12px;background:#fff4e0;border:1px solid #f6d9a8;color:#8a4b08;font-weight:600}
+.prom-alert[hidden]{display:none}
+.prom-alert p{margin:0;flex:1 1 220px}
+.prom-alert-icon{width:24px;height:24px;border-radius:50%;background:#e89b3b;color:#fff;display:grid;place-items:center;font-weight:800}
+.pf-ext{grid-column:1/-1;white-space:normal;line-height:1.35}
+.xml-linked{color:#1b9869;font-weight:700}
+.xml-share{color:#2454dd;font-weight:700}
+.rate-table td:first-child{font-weight:600}
+.rate-input{width:100%;max-width:140px;min-height:40px;padding:0 10px;border:1.5px solid var(--line);border-radius:9px;font-family:inherit}
+.row-action{white-space:nowrap}
+@media print{#panel-promissorias,#panel-taxas{display:none!important}}
+
+.ped-table{min-width:560px}.ped-table td{padding:6px}.ped-table input{width:100%;min-width:0;height:38px;padding:0 10px;border:1px solid #e0e6ef;border-radius:8px;background:#fff;font:500 12px 'DM Sans';color:#26364e;outline:none}.ped-table input:focus{border-color:#9db7ff;box-shadow:0 0 0 3px #3468f511}.ped-sub td{background:#fafbfd}.ped-parc{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.ped-parc span.p{display:inline-flex;gap:8px;align-items:center;padding:5px 9px;border:1px solid #e8edf5;border-radius:8px;background:#fff;font-size:11px;color:#56657b}
+#panel-pedidos .stats-grid{margin-bottom:17px}#panel-taxas .check-filter.field-wide{grid-column:1/-1}
+body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
+.ped-picker{margin-top:12px;border:1px solid #e0e6ef;border-radius:12px;background:#fff;padding:12px}.ped-pick-head{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.ped-pick-head .search-box{flex:1 1 220px}.ped-pick-dica{margin:10px 2px;font-size:11px;color:#8a95a6;line-height:1.5}.ped-pick-lista{display:flex;flex-direction:column;max-height:340px;overflow-y:auto;border-top:1px solid #edf0f5}.ped-pick-row{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid #f0f2f6;cursor:pointer;font-size:12px;color:#2a3850}.ped-pick-row:hover{background:#fafcff}.ped-pick-row input{width:18px;height:18px;margin:0;accent-color:#3468f5;flex:0 0 18px}.ped-pick-row .nm{flex:1;min-width:0;font-weight:700}.ped-pick-row .nm small{font-weight:500;color:#9aa4b2}.ped-pick-row .est{font-size:11px;color:#637087;white-space:nowrap}.ped-pick-row .est.low{color:#d57b24}.ped-pick-row .est.zero{color:#c3444b}.ped-pick-empty{padding:16px;text-align:center;color:#9aa4b2;font-size:12px;margin:0}.ped-est{display:block;margin:4px 2px 0;font-size:10px;color:#8a95a6}.ped-table input[readonly]{background:#f6f8fc}@media(max-width:760px){.ped-pick-row{flex-wrap:wrap}.ped-pick-row .est{flex-basis:100%;padding-left:30px}}
+
+.total-row td{border-top:2px solid #d5dbe5;background:#f6f8fb;font-size:14px;padding-top:12px;padding-bottom:12px}
+.report-summary-grid.com-lucro{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1000px){.report-summary-grid.com-lucro{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.report-summary-grid.com-lucro{grid-template-columns:1fr}}
+.report-summary-grid .stat-card[hidden]{display:none}
+
+/* Número da nota / cadastro em lote / consulta por nota */
+.lote-head{margin-bottom:15px}
+.lote-table{min-width:820px}
+.lote-table td{padding:6px 5px;vertical-align:middle}
+.lote-table input{width:100%;min-width:0;height:38px;padding:0 9px;border:1px solid #e0e6ef;border-radius:8px;background:#fff;font:500 12px 'DM Sans';color:#26364e;outline:none}
+.lote-table input:focus{border-color:#9db7ff;box-shadow:0 0 0 3px #3468f511}
+.lote-table .lt-qtd{max-width:90px}
+.lote-table .lt-total{font-weight:700;color:#2a3850;white-space:nowrap}
+.lote-table tfoot td{font-size:12px}
+.lote-hint{font-size:11px;color:#9aa3b1;margin:12px 0 14px}
+.nota-table{min-width:640px}
+.nota-table .nota-sub td{background:#f6f8fc;font-weight:800;color:#2a3850;border-bottom:2px solid #e3e8f0}
+.nota-table .nota-num{font-weight:800;color:#2a3850;white-space:nowrap}
+
+/* ===== Despesas e lucro líquido ===== */
+.fin-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.report-filters.fin-filters{grid-template-columns:repeat(3,minmax(0,1fr))}
+.fin-stats{margin-bottom:15px}
+.fin-stats .stat-card>strong.fin-pos,.fin-pos{color:#159568}
+.fin-stats .stat-card>strong.fin-neg,.fin-neg{color:#c0343e}
+.fin-muted{color:#8490a3;font-weight:600}
+.fin-grid-2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:17px;margin:17px 0}
+.fin-grid-2.fin-grid-even{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0}
+.fin-card{padding:20px;min-width:0}
+.fin-svg{display:block;width:100%;height:auto}
+.fin-donut-wrap{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.fin-donut{position:relative;width:160px;height:160px;flex:0 0 160px;border-radius:50%;display:grid;place-items:center;background:#e8edf5}
+.fin-donut:before{content:"";position:absolute;inset:22px;border-radius:50%;background:#fff}
+.fin-donut-center{position:relative;text-align:center;line-height:1.25;max-width:100px}
+.fin-donut-center strong{display:block;font:800 14px Manrope,Arial,sans-serif;color:#172b49}
+.fin-donut-center span{font-size:11px;color:#7c8ba2}
+.fin-legend{flex:1;min-width:170px;display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.fin-legend li{display:flex;align-items:center;gap:8px;font-size:12px;color:#34445c}
+.fin-legend .fin-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fin-legend small{color:#8490a3;min-width:30px;text-align:right}
+.fin-legend .fin-empty{color:#9aa4b2}
+.fin-dot{display:inline-block;width:10px;height:10px;border-radius:3px;flex:0 0 10px;margin-right:7px;vertical-align:middle}
+.fin-legend .fin-dot{margin-right:0}
+.fin-progress{height:12px;border-radius:99px;background:#edf1f7;overflow:hidden;margin:16px 0 10px}
+.fin-progress i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#3468f5,#1b9b6b);transition:width .4s}
+.fin-meta-text{margin:0;font-size:12px;line-height:1.6;color:#536178}
+.fin-cmp td,.fin-cmp th{white-space:nowrap}
+.fin-cmp td:first-child{font-weight:700;color:#253249}
+.fin-forecast{display:grid;gap:8px;margin-top:14px}
+.fin-forecast div{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#f6f8fc;border-radius:10px;padding:10px 12px;font-size:12px;color:#536178}
+.fin-forecast strong{font:800 13px Manrope,Arial,sans-serif;color:#253249;white-space:nowrap}
+.fin-form [hidden]{display:none!important}
+.fin-hint{margin:-4px 0 0;font-size:11px;color:#8490a3}
+.fin-list-filters{display:grid;grid-template-columns:2fr repeat(3,minmax(0,1fr));gap:12px;padding:0 20px 16px}
+.fin-sub{display:block;color:#8490a3;font-size:10px;margin-top:2px}
+.fin-actions{white-space:nowrap}
+.pill.pago{background:#e8f8f0;color:#1b9869}.pill.pendente{background:#fff4e0;color:#b36a05}
+@media(max-width:1000px){.fin-grid-2,.fin-grid-2.fin-grid-even{grid-template-columns:1fr}.fin-list-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.report-filters.fin-filters{grid-template-columns:1fr}.fin-list-filters{grid-template-columns:1fr;padding:0 12px 14px}.fin-card{padding:15px}.fin-heading .button{width:100%}}
+@media print{#panel-financeiro .fin-heading .button,#panel-financeiro .fin-form,#panel-financeiro .fin-list-filters{display:none!important}}
+
+/* ===== Conceito caixa ===== */
+.cx-total{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#f6f8fc;border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.cx-total span{font-size:12px;color:#536178;font-weight:700}
+.cx-total strong{font:800 20px Manrope,Arial,sans-serif;color:#253249}
+.cx-list{display:grid;gap:10px;margin-bottom:12px}
+.cx-acc{border:1px solid #e6ebf3;border-radius:12px;padding:12px 14px;display:grid;gap:8px}
+.cx-acc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.cx-acc-top b{font-size:13px;color:#253249}
+.cx-acc-top small{display:block;color:#8490a3;font-size:11px;margin-top:2px;line-height:1.4}
+.cx-acc-top strong{font:800 16px Manrope,Arial,sans-serif;color:#253249;white-space:nowrap}
+.cx-acc-btns{display:flex;gap:8px;flex-wrap:wrap}
+.cx-neg{color:#c0343e!important}
+.cx-pos{color:#1b9869}
+.pill.cxauto{background:#edf2ff;color:#2454dd}.pill.cxman{background:#f1f3f7;color:#667085}
+#cxFormCard [hidden]{display:none!important}
+@media print{#panel-financeiro #cxFormCard,#panel-financeiro .cx-acc-btns,#cxNovo{display:none!important}}
