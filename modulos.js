@@ -434,7 +434,7 @@ function creditRows(){
  });
  const rows=[];
  sales.forEach(x=>{
-  const card=x.payments.some(p=>p.method===PM.CREDIT||p.method===PM.BLU);
+  const card=x.payments.some(p=>p.method===PM.DEBIT||p.method===PM.CREDIT||p.method===PM.BLU);
   const base={...x,credit:r2(x.credit),total:r2(x.total),text:`Venda ${x.key} · ${x.client||'sem cliente'} · total ${money(x.total)} · ${x.payments.map(payLabel).join(' | ')}`};
   if(base.credit>0.004)rows.push(base);else if(card)rows.push({...base,noCredit:true});
  });
