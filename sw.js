@@ -1,4 +1,4 @@
-const CACHE = 'conceito-v20';
+const CACHE = 'conceito-v21';
 const CORE = ['./', 'index.html', 'app.js', 'modulos.js', 'despesas.js?v=4', 'caixa.js?v=4', 'style.css?v=20', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
