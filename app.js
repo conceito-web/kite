@@ -590,7 +590,9 @@ function saleProfitPct(lines,total,payments,restoreMovs){
   const r=n=>Math.round(Number(n||0)*100)/100,sub=r(lines.reduce((s,i)=>s+i.quantity*i.price,0));
   const plan=planFifo(lines,restoreMovs||[]);let alloc=0;
   const items=lines.map((it,i)=>{let lt;if(i===lines.length-1)lt=r(total-alloc);else{lt=sub?r(r(it.quantity*it.price)*(total/sub)):0;alloc+=lt;}return {lineTotal:lt,quantity:it.quantity,unitCost:plan[i].unitCost};});
-  const fin=calcSaleFinance(items,total,(payments||[]).filter(x=>x.method&&x.amount>0));
+  // Só exibição: pagamento pela fábrica conta como "dinheiro" na label (sem separar os 60% de crédito). Os cálculos reais do sistema não mudam.
+  const payDisp=(payments||[]).filter(x=>x.method&&x.amount>0).map(x=>((x.method===PM.CREDIT||x.method===PM.BLU)&&x.responsible==='fabrica')?{method:'Dinheiro',amount:x.amount}:x);
+  const fin=calcSaleFinance(items,total,payDisp);
   return fin.items.reduce((s,x)=>s+x.profit,0)/total*100;
  }catch(_){return null;}
 }
