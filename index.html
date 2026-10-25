@@ -280,9 +280,10 @@
                 <div class="table-wrap"><table class="cart-table"><thead><tr><th>PRODUTO</th><th>QTD.</th><th>UNITÁRIO</th><th>TOTAL</th><th></th></tr></thead><tbody id="carrinhoLinhas"><tr><td colspan="5" class="cart-empty">O carrinho está vazio.</td></tr></tbody></table></div>
               </section>
               <label class="field">Cliente (opcional)<input id="vendaCliente" maxlength="150" list="clientesSugestoes" placeholder="Digite as primeiras letras e selecione"><datalist id="clientesSugestoes"></datalist></label>
-              <div class="sale-discounts">
+              <div class="sale-discounts" style="grid-template-columns:repeat(3,minmax(0,1fr))">
                 <label class="field">Desconto em reais (R$)<input id="vendaDescontoReais" type="text" inputmode="numeric" autocomplete="off" value="" placeholder="0,00"></label>
                 <label class="field">Desconto (%)<input id="vendaDescontoPercentual" type="text" inputmode="decimal" autocomplete="off" value="" placeholder="0,00"></label>
+                <div class="field"><span>Lucro (%)</span><strong id="vendaLucroPct" style="min-height:44px;display:flex;align-items:center;font-size:15px;color:#1f2a44">—</strong></div>
               </div>
               <div class="sale-total"><span>Subtotal</span><strong id="subtotalVendaPreview">R$ 0,00</strong></div>
               <div class="sale-total sale-total-discount"><span>Total com desconto</span><strong id="totalVendaPreview">R$ 0,00</strong></div>
@@ -493,7 +494,7 @@
               </section>
               <section class="surface form-surface">
                 <label class="field">Cliente (opcional)<input id="pdvCliente" maxlength="150" list="clientesSugestoes" placeholder="Digite as primeiras letras"></label>
-                <div class="sale-discounts"><label class="field">Desconto (R$)<input id="pdvDescReais" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><label class="field">Desconto (%)<input id="pdvDescPct" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"></label></div>
+                <div class="sale-discounts" style="grid-template-columns:repeat(3,minmax(0,1fr))"><label class="field">Desconto (R$)<input id="pdvDescReais" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><label class="field">Desconto (%)<input id="pdvDescPct" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"></label><div class="field"><span>Lucro (%)</span><strong id="pdvLucroPct" style="min-height:44px;display:flex;align-items:center;font-size:15px;color:#1f2a44">—</strong></div></div>
                 <div class="pdv-total"><span>Subtotal</span><strong id="pdvSub">R$ 0,00</strong></div>
                 <div class="pdv-total big"><span>Total</span><strong id="pdvTotal">R$ 0,00</strong></div>
                 <div class="pdv-pay"><label class="field">Pagamento<select id="pdvPagMetodo"><option value="">Selecione...</option><option>Dinheiro</option><option>Pix</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Link de pagamento (Blu)</option><option>Promissória</option></select></label><label class="field">Valor (R$)<input id="pdvPagValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><button class="button button-light" id="pdvPagAdd" type="button">Adicionar</button></div>
