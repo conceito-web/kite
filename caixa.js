@@ -105,6 +105,13 @@ function balances(){
  return {b,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda)};
 }
 
+// Saldo disponivel do credito com a fabrica (leitura; nao entra no saldo total)
+function fabSaldo(){
+ const sales=r2((data.movements||[]).filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0));
+ const man=r2((data.factoryCreditsManual||[]).reduce((x,e)=>x+Number(e.amount||0),0));
+ const used=r2((data.factoryLedger||[]).reduce((x,e)=>x+Number(e.amount||0),0));
+ return r2(sales+man-used);
+}
 // ---------- tela ----------
 function renderCard(S){
  $('cxTotal').textContent=signed(S.total);
@@ -116,7 +123,7 @@ function renderCard(S){
   if(a.k==='agenda')sub+=` · a receber ${money(S.lojaPend)}`;
   if(a.k===S.pa)sub+=` · Pix ${money(S.pix)}`;
   return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button></div></div>`;
- }).join('');
+ }).join('')+(()=>{const fs=fabSaldo();return `<div class="cx-acc"><div class="cx-acc-top"><div><b>Crédito com a fábrica</b><small>Saldo disponível · não entra no saldo total</small></div><strong class="${fs<0?'cx-neg':''}">${signed(fs)}</strong></div></div>`;})();
  const fabPct=100-getSettings().factoryCreditPct;
  $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
 }
