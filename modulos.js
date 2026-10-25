@@ -38,6 +38,7 @@ function render(){
  $('pdvLinhas').innerHTML=cart.length?cart.map((it,i)=>`<tr><td>${esc(it.name)}</td><td><span class="pdv-qty"><button type="button" data-q="${i}" data-d="-1" aria-label="Diminuir">−</button>${it.quantity}<button type="button" data-q="${i}" data-d="1" aria-label="Aumentar">+</button></span></td><td>${money(it.price)}</td><td>${money(it.quantity*it.price)}</td><td><button type="button" class="cart-remove" data-x="${i}" aria-label="Remover ${esc(it.name)}">×</button></td></tr>`).join(''):'<tr><td colspan="5" class="cart-empty">Bipe ou busque um produto para começar.</td></tr>';
  const t=totals();
  $('pdvSub').textContent=money(t.sub);$('pdvTotal').textContent=money(t.total);
+ try{showProfitPct('pdvLucroPct',saleProfitPct(cart.map(i=>({productId:i.productId,quantity:i.quantity,price:i.price})),t.total,pays));}catch(_){}
  $('pdvChips').innerHTML=pays.map((p,i)=>`<span class="pdv-chip">${esc(p.method)}${p.installments>1?' '+p.installments+'x':''}${p.responsible==='fabrica'?' (fábrica)':''} ${money(p.amount)}<button type="button" data-px="${i}" aria-label="Remover pagamento">×</button></span>`).join('');
  $('pdvRestoLabel').textContent=t.change>0.009?'Troco':'Falta receber';
  $('pdvResto').textContent=money(t.change>0.009?t.change:Math.max(0,t.rest));
