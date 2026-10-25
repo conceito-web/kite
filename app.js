@@ -583,6 +583,24 @@ function addPaymentRow(){
 function readPayments(){
  return [...document.querySelectorAll('.payment-row')].map(row=>{const method=row.querySelector('.pagamentoMetodo').value,amount=round2(parseMoneyInput(row.querySelector('.pagamentoValor').value));return readPayExtra(row.querySelector('.payment-card-options'),method,amount);}).filter(x=>x.method||x.amount>0);
 }
+// Lucro % da venda (só exibição): mesmo cálculo do lucro gravado (custo PEPS + taxas), dividido pelo total com desconto.
+function saleProfitPct(lines,total,payments,restoreMovs){
+ try{
+  if(!lines.length||!(total>0))return null;
+  const r=n=>Math.round(Number(n||0)*100)/100,sub=r(lines.reduce((s,i)=>s+i.quantity*i.price,0));
+  const plan=planFifo(lines,restoreMovs||[]);let alloc=0;
+  const items=lines.map((it,i)=>{let lt;if(i===lines.length-1)lt=r(total-alloc);else{lt=sub?r(r(it.quantity*it.price)*(total/sub)):0;alloc+=lt;}return {lineTotal:lt,quantity:it.quantity,unitCost:plan[i].unitCost};});
+  const fin=calcSaleFinance(items,total,(payments||[]).filter(x=>x.method&&x.amount>0));
+  return fin.items.reduce((s,x)=>s+x.profit,0)/total*100;
+ }catch(_){return null;}
+}
+function showProfitPct(id,v){const el=document.getElementById(id);if(el)el.textContent=v===null||!Number.isFinite(v)?'—':v.toFixed(1).replace('.',',')+'%';}
+function updateSaleProfitLabel(){
+ let lines=saleCart.map(i=>({productId:i.productId,quantity:i.quantity,price:i.price}));
+ if(!lines.length){const p=productById(document.getElementById('vendaProduto').value),q=Number(document.getElementById('vendaQuantidade').value),pr=parseMoneyInput(document.getElementById('vendaPreco').value);if(p&&q>0&&Number.isFinite(pr))lines=[{productId:p.id,quantity:q,price:pr}];}
+ let old=[];if(editingSale)old=data.movements.filter(m=>m.type==='venda'&&(m.saleId||m.id)===editingSale.saleId&&!m.canceled);
+ showProfitPct('vendaLucroPct',saleProfitPct(lines,saleTotals().total,readPayments(),old));
+}
 function updatePaymentSummary(){
  const total=saleTotals().total,payments=readPayments(),received=Math.round(payments.reduce((s,x)=>s+x.amount,0)*100)/100,remaining=Math.round((total-received)*100)/100;
  document.getElementById('totalRecebido').textContent=money(received);document.getElementById('saldoRestante').textContent=money(Math.max(0,remaining));
@@ -596,6 +614,7 @@ function updatePaymentSummary(){
   const parts=[fee>0?`Taxas descontadas do lucro: ${money(fee)}`:'',fab>0?`Crédito com a fábrica: ${money(fab)}`:'',prom>0?`A receber em promissória: ${money(prom)}`:''].filter(Boolean);
   fin.textContent=parts.join(' · ');fin.hidden=!parts.length;
  }
+ updateSaleProfitLabel();
 }
 function updateSalePreview(){
  const p=productById(document.getElementById('vendaProduto').value);if(p&&document.activeElement!==document.getElementById('vendaPreco'))document.getElementById('vendaPreco').value=Number(p.price).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
