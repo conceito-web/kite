@@ -594,7 +594,7 @@ function saleProfitPct(lines,total,payments,restoreMovs){
   return fin.items.reduce((s,x)=>s+x.profit,0)/total*100;
  }catch(_){return null;}
 }
-function showProfitPct(id,v){const el=document.getElementById(id);if(el)el.textContent=v===null||!Number.isFinite(v)?'—':v.toFixed(1).replace('.',',')+'%';}
+function showProfitPct(id,v){const el=document.getElementById(id);if(!el)return;const ok=v!==null&&Number.isFinite(v);el.textContent=ok?v.toFixed(1).replace('.',',')+'%':'—';el.style.color=(ok&&Math.round(v*10)/10<=39)?'#dc2626':'#1f2a44';}
 function updateSaleProfitLabel(){
  let lines=saleCart.map(i=>({productId:i.productId,quantity:i.quantity,price:i.price}));
  if(!lines.length){const p=productById(document.getElementById('vendaProduto').value),q=Number(document.getElementById('vendaQuantidade').value),pr=parseMoneyInput(document.getElementById('vendaPreco').value);if(p&&q>0&&Number.isFinite(pr))lines=[{productId:p.id,quantity:q,price:pr}];}
