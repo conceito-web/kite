@@ -56,6 +56,19 @@
     </div>
   </div>
 
+  <div id="vincNotaModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="vincTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">IMPOSTOS</p><h2 id="vincTitulo">Vincular nota à venda</h2><p id="vincVenda"></p></div><button type="button" id="vincFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="vincForm" autocomplete="off">
+        <label for="vincSelect">NOTA JÁ REGISTRADA</label><select id="vincSelect"></select>
+        <p id="vincErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Vincular nota</button>
+        <button class="button button-light vinc-btn" type="button" id="vincNova">Registrar nova nota para esta venda</button>
+        <button class="button button-danger-light vinc-btn" type="button" id="vincRemover" hidden>Remover vínculo</button>
+      </form>
+    </div>
+  </div>
+
   <div id="recModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="recTitulo">
     <div class="users-card">
       <div class="users-heading"><div><p class="auth-eyebrow">PROMISSÓRIAS</p><h2 id="recTitulo">Receber pagamento</h2><p id="recCliente"></p></div><button type="button" id="recFechar" class="users-close" aria-label="Fechar">×</button></div>
@@ -748,9 +761,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=25"></script>
-  <script src="modulos.js?v=14"></script>
+  <script src="modulos.js?v=15"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
-  <script src="impostos.js?v=6"></script>
+  <script src="impostos.js?v=7"></script>
 </body>
 </html>
