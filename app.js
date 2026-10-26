@@ -488,7 +488,10 @@ function payRules(method,responsible){
 function addMonthsKey(key,k){const [y,m,d]=String(key).split('-').map(Number),t=new Date(y,m-1+k,1),last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(Math.min(d,last)).padStart(2,'0')}`;}
 function brDate(key){const [y,m,d]=String(key||'').split('-');return d?`${d}/${m}/${y}`:'—';}
 function splitInstallments(amount,n){const cents=Math.round(amount*100),base=Math.floor(cents/n),out=Array(n).fill(base);out[n-1]+=cents-base*n;return out.map(c=>c/100);}
-function promissorySchedule(p){const n=Math.max(1,Math.min(12,Number(p.installments)||1));return splitInstallments(p.amount,n).map((amount,i)=>({n:i+1,of:n,amount,dueDate:addMonthsKey(p.dueDate,i)}));}
+function promissorySchedule(p){const n=Math.max(1,Math.min(12,Number(p.installments)||1));return splitInstallments(p.amount,n).map((amount,i)=>({n:i+1,of:n,amount,dueDate:(Array.isArray(p.dueDates)&&p.dueDates[i])||addMonthsKey(p.dueDate,i)}));}
+// Data da venda editável: o campo vem com a data de hoje; se mudar, usa a data escolhida (mantendo a hora atual).
+function saleDateISO(inputId,keepISO){const v=(document.getElementById(inputId)||{}).value||'';if(!/^\d{4}-\d{2}-\d{2}$/.test(v))return keepISO||new Date().toISOString();if(keepISO&&localDateKey(keepISO)===v)return keepISO;const [y,m,d]=v.split('-').map(Number),n=new Date();return new Date(y,m-1,d,n.getHours(),n.getMinutes(),n.getSeconds()).toISOString();}
+function setSaleDateToday(){['vendaData','pdvData'].forEach(k=>{const el=document.getElementById(k);if(el)el.value=todayISO();});}
 function buildReceivables(saleId,client,customer,payments,date){
  const out=[];
  payments.filter(p=>p.method===PM.PROM).forEach(p=>promissorySchedule(p).forEach(x=>out.push({id:id(),saleId,client,customerId:customer?customer.id:'',n:x.n,of:x.of,amount:x.amount,dueDate:x.dueDate,saleDate:date,paid:false})));
@@ -690,7 +693,7 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
  const fin=calcSaleFinance(receiptItems.map((it,i)=>({lineTotal:it.lineTotal,quantity:it.quantity,unitCost:plan[i].unitCost})),totals.total,payments);
  const wasEditing=!!editingSale;
  const saleId=wasEditing?editingSale.saleId:Date.now().toString(36).toUpperCase();
- const date=wasEditing?editingSale.date:new Date().toISOString();
+ const date=saleDateISO('vendaData',wasEditing?editingSale.date:null);
  const customer=findCustomerForSale(client,'');
  const detailPrefix=[client?`Cliente: ${client}`:'',`Venda ${saleId}`,wasEditing?'Venda editada':'',`Subtotal: ${money(totals.subtotal)}`,discount?`Desconto total: ${money(discount)}`:'',`Pagamentos: ${paymentDetails}`,note].filter(Boolean).join(' · ');
  const snapshot={id:saleId,date,client,note,items:receiptItems,subtotal:totals.subtotal,discount,total:totals.total,payments:fin.payments};
@@ -715,7 +718,7 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
  data.receivables=receivables().filter(r=>r.saleId!==saleId);
  receivables().push(...buildReceivables(saleId,client,customer,fin.payments,date));if(window.markQuoteSold)window.markQuoteSold(saleId,'venda');
  if(saveData()){
-  lastReceipt=snapshot;saleCart=[];exitSaleEdit();e.target.reset();document.getElementById('linhasPagamento').innerHTML='';addPaymentRow();document.getElementById('reciboAcoes').hidden=false;
+  lastReceipt=snapshot;saleCart=[];exitSaleEdit();e.target.reset();setSaleDateToday();document.getElementById('linhasPagamento').innerHTML='';addPaymentRow();document.getElementById('reciboAcoes').hidden=false;
   document.getElementById('reciboStatus').textContent=wasEditing?`Venda ${saleId} atualizada. Baixe o PDF atualizado e envie ao cliente.`:`Venda ${saleId} registrada. Baixe o PDF e envie ao cliente.`;
   renderCart();updateSalePreview();toast(wasEditing?'Venda atualizada. Estoque, valores e lucro foram recalculados.':'Venda registrada, estoque atualizado e recibo disponível.');
  }
@@ -796,7 +799,7 @@ function exitSaleEdit(){
 }
 function cancelSaleEdit(){
  exitSaleEdit();saleCart=[];
- document.getElementById('formVenda').reset();renderVendaProdutoSelect(false);document.getElementById('linhasPagamento').innerHTML='';addPaymentRow();
+ document.getElementById('formVenda').reset();setSaleDateToday();renderVendaProdutoSelect(false);document.getElementById('linhasPagamento').innerHTML='';addPaymentRow();
  renderCart();updateSalePreview();
 }
 function startSaleEdit(saleId){
@@ -813,7 +816,7 @@ function startSaleEdit(saleId){
  document.getElementById('vendaCliente').value=s.client;
  document.getElementById('vendaObs').value=note||'';
  document.getElementById('vendaBuscaProduto').value='';renderVendaProdutoSelect(false);document.getElementById('vendaProduto').value='';document.getElementById('vendaQuantidade').value='';document.getElementById('vendaPreco').value='';
- document.getElementById('vendaDescontoReais').value=Number(ref.discountCash)>0?fmt(ref.discountCash):'';
+ document.getElementById('vendaData').value=localDateKey(s.date);document.getElementById('vendaDescontoReais').value=Number(ref.discountCash)>0?fmt(ref.discountCash):'';
  document.getElementById('vendaDescontoPercentual').value=Number(ref.discountPercent)>0?Number(ref.discountPercent).toLocaleString('pt-BR',{maximumFractionDigits:2}):'';
  document.getElementById('linhasPagamento').innerHTML='';
  (s.payments.length?s.payments:[null]).forEach(pm=>{
@@ -1198,3 +1201,4 @@ addPaymentRow();
  setInterval(()=>{checkExpiry();updateExpiryStatus();},60000);
  document.getElementById('ckrLogout').addEventListener('click',doLogout);
 })();
+setSaleDateToday();
