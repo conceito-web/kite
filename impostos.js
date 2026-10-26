@@ -12,10 +12,15 @@ const ORIGENS={venda:'Registrar venda',pdv:'PDV',painel:'Painel Impostos'};
 const dateBR=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?`${m[3]}/${m[2]}/${m[1]}`:'—';};
 let origem='painel';        // de onde o formulário foi aberto
 let editandoId=null;        // id da nota em edição (null = nota nova)
+let pendente=null;        // venda (antiga) que vai receber a nota nova que está sendo digitada
 const atual={venda:null,pdv:null}; // nota já registrada para a venda em andamento em cada tela
 
+// Usado por Registrar venda / PDV / edição de venda para ligar a nota à venda gravada.
+window.ckrTaxNoteAtual=o=>{const id=atual[o];return id&&notes().some(x=>x.id===id)?id:'';};
+window.ckrTaxNoteSet=(o,id)=>{atual[o]=id||null;};
+
 function abrir(o,id){
-  origem=o;editandoId=id||null;
+  origem=o;editandoId=id||null;pendente=null;
   const n=id?notes().find(x=>x.id===id):null;
   $('impTitulo').textContent=n?'Modificar informações de imposto':'Informações de imposto';
   $('impData').value=n?n.date:todayISO();
@@ -25,7 +30,7 @@ function abrir(o,id){
   $('impostoModal').hidden=false;
   setTimeout(()=>$('impValor').focus(),50);
 }
-function fechar(){$('impostoModal').hidden=true;editandoId=null;}
+function fechar(){$('impostoModal').hidden=true;editandoId=null;pendente=null;}
 
 // Pergunta antes de modificar uma nota que já foi registrada.
 function confirmarModificar(n){
@@ -47,15 +52,38 @@ function salvar(e){
   if(!(value>0)){$('impErro').textContent='Informe o valor da nota.';return;}
   if(!number){$('impErro').textContent='Informe o número da nota.';return;}
   const old=editandoId&&notes().find(x=>x.id===editandoId);
+  const pend=!old?pendente:null;
   if(old){
     Object.assign(old,{date,value:Math.round(value*100)/100,number,updatedAt:new Date().toISOString()});
   }else{
     const id='imp_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     notes().push({id,date,value:Math.round(value*100)/100,number,origin:origem,createdAt:new Date().toISOString()});
     if(origem==='venda'||origem==='pdv')atual[origem]=id;
+    if(pend)ligar(pend,id);
   }
-  if(saveData()){fechar();toast(old?'Informações de imposto atualizadas.':'Informações de imposto salvas no painel Impostos.');}
+  if(saveData()){fechar();toast(old?'Informações de imposto atualizadas.':pend?`Nota salva e vinculada à venda ${pend}.`:'Informações de imposto salvas no painel Impostos.');}
 }
+
+// ===== Vincular nota a uma venda já existente (Movimentações) =====
+function ligar(saleId,noteId){
+  data.movements.forEach(m=>{if(m.type==='venda'&&(m.saleId||m.id)===saleId){if(noteId)m.taxNoteId=noteId;else delete m.taxNoteId;}});
+}
+let vincVenda=null;
+function abrirVinculo(saleId){
+  const s=getSales().find(x=>x.id===saleId);if(!s||s.canceled)return;
+  vincVenda=saleId;
+  // notas que já estão ligadas a OUTRA venda ativa não aparecem
+  const usadas=new Set();
+  data.movements.forEach(m=>{if(m.type==='venda'&&!m.canceled&&m.taxNoteId&&(m.saleId||m.id)!==saleId)usadas.add(m.taxNoteId);});
+  const livres=notes().filter(n=>!usadas.has(n.id)).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt).localeCompare(String(a.createdAt)));
+  $('vincVenda').textContent=`Venda ${s.id}${s.client?' — '+s.client:''} · ${money(s.total)}`;
+  $('vincSelect').innerHTML='<option value="">— Escolha uma nota já registrada —</option>'+livres.map(n=>`<option value="${esc(n.id)}"${n.id===s.taxNoteId?' selected':''}>Nota ${esc(n.number)} · ${esc(dateBR(n.date))} · ${esc(money(n.value))}</option>`).join('');
+  $('vincRemover').hidden=!s.taxNote;
+  $('vincErro').textContent=livres.length?'':'Não há notas livres. Use "Registrar nova nota para esta venda".';
+  $('vincNotaModal').hidden=false;
+}
+function fecharVinculo(){$('vincNotaModal').hidden=true;vincVenda=null;}
+window.ckrVincularNota=abrirVinculo;
 
 // ===== Cálculo do imposto (Simples Nacional) =====
 // Alíquota efetiva: AE = (RBT12 × alíquota nominal − PD) ÷ RBT12
@@ -179,6 +207,22 @@ function init(){
   $('impostoModal').addEventListener('click',e=>{if(e.target===$('impostoModal'))fechar();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('impostoModal').hidden)fechar();});
   $('impostoForm').addEventListener('submit',salvar);
+  $('vincFechar').addEventListener('click',fecharVinculo);
+  $('vincNotaModal').addEventListener('click',e=>{if(e.target===$('vincNotaModal'))fecharVinculo();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('vincNotaModal').hidden)fecharVinculo();});
+  $('vincForm').addEventListener('submit',e=>{
+    e.preventDefault();
+    const nid=$('vincSelect').value;
+    if(!nid){$('vincErro').textContent='Escolha uma nota.';return;}
+    const sid=vincVenda;ligar(sid,nid);fecharVinculo();
+    if(saveData())toast(`Nota vinculada à venda ${sid}.`);
+  });
+  $('vincRemover').addEventListener('click',()=>{
+    if(!confirm('Remover o vínculo desta nota com a venda? A nota continua registrada no painel Impostos.'))return;
+    const sid=vincVenda;ligar(sid,null);fecharVinculo();
+    if(saveData())toast(`Vínculo removido. A venda ${sid} está sem nota.`);
+  });
+  $('vincNova').addEventListener('click',()=>{const sid=vincVenda;fecharVinculo();abrir('painel');pendente=sid;});
   bindMoneyMask($('impRbt'));bindMoneyMask($('impAliq'),{percent:true});bindMoneyMask($('impPd'));bindMoneyMask($('impPagar'));
   mesAtual();
   const filtro=()=>{limparManual();render();};
