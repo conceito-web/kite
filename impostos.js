@@ -234,6 +234,52 @@ function aeDoMes(mes){
   return rbt>0?Math.max(0,(rbt*aliq/100-pd)/rbt)*100:aliq; // em %
 }
 const baseShowProfit=window.showProfitPct;
+// "?" ao lado do Lucro (%): mostra de onde vem o número (custo, imposto, taxa da maquininha).
+const detalhe={};            // por tela: última composição calculada {total,cost,fee,profit,ae}
+const botoes={};
+let ajudaId=null;            // tela cuja ajuda está aberta
+let pop=null;
+const pct1=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+function criarPop(){
+  if(pop)return pop;
+  const st=document.createElement('style');
+  st.textContent='.imp-q{width:20px;height:20px;margin-left:8px;border-radius:50%;border:1px solid #c9d3e6;background:#f3f6fd;color:#4a62a8;font:800 12px "DM Sans",sans-serif;line-height:1;padding:0;cursor:pointer;flex:none}.imp-q:hover{background:#e6edff}'
+   +'.imp-pop{position:fixed;z-index:200;width:290px;max-width:calc(100vw - 16px);background:#fff;border:1px solid #dde4f0;border-radius:12px;box-shadow:0 14px 34px #182b4833;padding:14px 15px;font:500 12px "DM Sans",sans-serif;color:#2b3a55}'
+   +'.imp-pop h4{margin:0 0 9px;font:800 13px Manrope,sans-serif;color:#1d2b42}.imp-pop .r{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #f0f3f8}.imp-pop .r span:last-child{text-align:right;white-space:nowrap}'
+   +'.imp-pop .r.t{border-bottom:0;border-top:2px solid #dde4f0;margin-top:3px;padding-top:8px;font-weight:800;color:#159568}.imp-pop small{display:block;margin-top:8px;color:#9aa4b2;font-size:10px;line-height:1.4}';
+  document.head.appendChild(st);
+  pop=document.createElement('div');pop.className='imp-pop';pop.hidden=true;document.body.appendChild(pop);
+  document.addEventListener('click',e=>{if(ajudaId&&!pop.contains(e.target)&&!e.target.closest('.imp-q'))fecharAjuda();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharAjuda();});
+  window.addEventListener('resize',fecharAjuda);
+  return pop;
+}
+function fecharAjuda(){ajudaId=null;if(pop)pop.hidden=true;}
+function linha(rot,val,total,cls){return `<div class="r${cls?' '+cls:''}"><span>${rot}</span><span>${money(val)} · ${pct1(total>0?val/total*100:0)}</span></div>`;}
+function montarAjuda(id){
+  const d=detalhe[id];
+  if(!d){fecharAjuda();return;}
+  const imposto=round2(d.total*d.ae/100);
+  const lucro=round2(d.profit-imposto);
+  pop.innerHTML=`<h4>De onde vem o lucro</h4>`
+    +`<div class="r"><span>Total da venda</span><span>${money(d.total)} · 100,0%</span></div>`
+    +linha('(−) Custo dos produtos (CMV)',d.cost,d.total)
+    +linha(`(−) Imposto (alíq. efetiva ${d.ae.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})}%)`,imposto,d.total)
+    +(d.fee>0.004?linha('(−) Taxa da maquininha',d.fee,d.total):'')
+    +linha('(=) Lucro',lucro,d.total,'t')
+    +`<small>A porcentagem de cada linha é sobre o total da venda (já com desconto).</small>`;
+}
+function abrirAjuda(id){
+  criarPop();
+  if(ajudaId===id){fecharAjuda();return;}
+  ajudaId=id;montarAjuda(id);
+  if(!ajudaId)return;
+  pop.hidden=false;
+  const b=botoes[id].getBoundingClientRect(),w=pop.offsetWidth,h=pop.offsetHeight;
+  const left=Math.max(8,Math.min(b.left,window.innerWidth-w-8));
+  let top=b.bottom+6;if(top+h>window.innerHeight-8)top=Math.max(8,b.top-h-6);
+  pop.style.left=left+'px';pop.style.top=top+'px';
+}
 if(typeof baseShowProfit==='function'){
   window.showProfitPct=function(id,v){
     const ok=v!==null&&Number.isFinite(v);
@@ -241,7 +287,21 @@ if(typeof baseShowProfit==='function'){
     if(ok){const df=$(id==='pdvLucroPct'?'pdvData':'vendaData');ae=aeDoMes(df&&df.value?df.value.slice(0,7):'');}
     baseShowProfit(id,ok?v-ae:v);
     const el=$(id);
-    if(el)el.title=ok?`Lucro já descontando o imposto (alíquota efetiva ${ae.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})}%)`:'';
+    if(!el)return;
+    const sd=window.saleProfitDetail;
+    detalhe[id]=ok&&sd?{total:sd.total,cost:sd.cost,fee:sd.fee,profit:sd.profit,ae}:null;
+    el.title='';
+    if(detalhe[id]){
+      if(!botoes[id]){
+        const b=document.createElement('button');
+        b.type='button';b.className='imp-q';b.textContent='?';
+        b.setAttribute('aria-label','Ver de onde vem o lucro');b.title='De onde vem o lucro';
+        b.addEventListener('click',e=>{e.preventDefault();abrirAjuda(id);});
+        botoes[id]=b;
+      }
+      el.appendChild(botoes[id]);
+      if(ajudaId===id&&pop&&!pop.hidden)montarAjuda(id);
+    }else if(ajudaId===id)fecharAjuda();
   };
 }
 render();
