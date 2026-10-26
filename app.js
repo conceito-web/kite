@@ -563,7 +563,6 @@ function validatePayments(payments,client){
   if(x.method===PM.PROM){
    if(!client)return 'Para vender na promissória, informe o cliente.';
    if(!/^\d{4}-\d{2}-\d{2}$/.test(x.dueDate||''))return 'Informe o 1º vencimento da promissória.';
-   if(x.dueDate<localDateKey(new Date()))return 'O 1º vencimento da promissória não pode ser anterior a hoje.';
   }
  }
  return '';
@@ -678,7 +677,7 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
   oldMovements=data.movements.filter(m=>m.type==='venda'&&(m.saleId||m.id)===editingSale.saleId&&!m.canceled);
   if(!oldMovements.length){toast('A venda original não está mais disponível para edição.',true);cancelSaleEdit();return;}
  }
- if(editingSale&&receivables().some(r=>r.saleId===editingSale.saleId&&r.paid&&!r.canceled)){toast('Esta venda tem parcelas de promissória já recebidas e não pode ser editada. Cancele a venda ou desfaça os recebimentos no painel Promissórias.',true);return;}
+ if(editingSale&&receivables().some(r=>r.saleId===editingSale.saleId&&(r.paid||r.received>0)&&!r.canceled)){toast('Esta venda tem parcelas de promissória já recebidas e não pode ser editada. Cancele a venda ou desfaça os recebimentos no painel Promissórias.',true);return;}
  const oldQty={};oldMovements.forEach(m=>{oldQty[m.productId]=(oldQty[m.productId]||0)+Number(m.quantity||0);});
  const need={};saleCart.forEach(item=>{need[item.productId]=(need[item.productId]||0)+item.quantity;});
  for(const item of saleCart){const p=productById(item.productId);if(!p||need[item.productId]>Number(p.stock)+(oldQty[item.productId]||0)){toast(`Estoque insuficiente ou produto removido: ${item.name}.`,true);return;}}
@@ -838,7 +837,7 @@ function startSaleEdit(saleId){
 function cancelSale(saleId){
  if(!hasFullAccess()){toast('Seu perfil não tem permissão para cancelar vendas.',true);return;}
  const s=getSales().find(x=>x.id===saleId);if(!s||s.canceled)return;
- const paidProm=receivables().filter(r=>r.saleId===s.id&&r.paid&&!r.canceled),promWarn=paidProm.length?`\n\nAtenção: ${paidProm.length} parcela(s) de promissória já recebida(s) (${money(paidProm.reduce((n,r)=>n+r.amount,0))}). Devolva ao cliente, se for o caso.`:'';
+ const paidProm=receivables().filter(r=>r.saleId===s.id&&(r.paid||r.received>0)&&!r.canceled),promWarn=paidProm.length?`\n\nAtenção: ${paidProm.length} parcela(s) de promissória já recebida(s) (${money(paidProm.reduce((n,r)=>n+(r.received!=null?Number(r.received):Number(r.amount)),0))}). Devolva ao cliente, se for o caso.`:'';
  const lines=s.items.map(i=>`• ${i.quantity}× ${i.name}`).join('\n');
  if(!confirm(`Cancelar a venda ${s.id}${s.client?' de '+s.client:''}?\n\n${lines}\n\nOs produtos voltarão ao estoque e ${money(s.total)} será retirado do total de vendas e do lucro.${promWarn}`))return;
  const when=new Date().toISOString(),missing=[];
