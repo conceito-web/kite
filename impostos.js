@@ -59,8 +59,8 @@ function salvar(e){
 
 // ===== Cálculo do imposto (Simples Nacional) =====
 // Alíquota efetiva: AE = (RBT12 × alíquota nominal − PD) ÷ RBT12
-// Imposto = valor das notas do período × AE. Vencimento: dia 20 do mês seguinte ao do período.
-// RBT12 = notas dos 12 meses ANTES do mês inicial do período (ex.: período em 10/2026 → 01/10/2025 a 30/09/2026).
+// Imposto = valor das notas do período × AE. Vencimento: dia 20 do 2º mês após o fim do período (ex.: 01/10/2025 a 30/09/2026 → 20/11/2026).
+// RBT12 = valor total das notas do período filtrado.
 const ANEXO1=[[180000,4,0],[360000,7.3,5940],[720000,9.5,13860],[1800000,10.7,22500],[3600000,14.3,87300],[4800000,19,378000]]; // [limite RBT12, alíq. %, PD]
 const faixa=r=>ANEXO1.find(f=>r<=f[0])||ANEXO1[ANEXO1.length-1];
 const DIAS=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
@@ -83,16 +83,10 @@ function calcular(list){
   const pDe=pdate(de),pAte=pdate(ate);
   const key=de+'_'+ate;
   const info=[];
-  // RBT12 automático
-  let rbtAuto=0;
-  if(pDe){
-    const t=pDe.y*12+(pDe.m-1);
-    const s=t-12,e=t-1;
-    const ini=iso(Math.floor(s/12),s%12+1,1);
-    const fim=iso(Math.floor(e/12),e%12+1,new Date(Math.floor(e/12),e%12+1,0).getDate());
-    rbtAuto=round2(notes().filter(n=>n.date>=ini&&n.date<=fim).reduce((x,n)=>x+Number(n.value||0),0));
-    $('impRbtInfo').textContent=`Notas de ${dateBR(ini)} a ${dateBR(fim)}`;
-  }else{$('impRbtInfo').textContent='Informe a data inicial.';}
+  // RBT12 automático = valor total das notas do período filtrado
+  const total=list.reduce((t,n)=>t+Number(n.value||0),0);
+  const rbtAuto=round2(total);
+  $('impRbtInfo').textContent=pDe&&pAte?`Notas de ${dateBR(de)} a ${dateBR(ate)}`:'Informe as duas datas.';
   if(!man.rbt)$('impRbt').value=fmt2(rbtAuto);
   const rbt=parseMoneyInput($('impRbt').value);
   // alíquota e PD
@@ -103,7 +97,6 @@ function calcular(list){
   }
   const aliq=parseMoneyInput($('impAliq').value),pd=parseMoneyInput($('impPd').value);
   const ef=rbt>0?Math.max(0,(rbt*aliq/100-pd)/rbt):aliq/100;
-  const total=list.reduce((t,n)=>t+Number(n.value||0),0);
   const calc=round2(total*ef);
   $('impAE').textContent=(ef*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})+'%';
   // imposto a pagar: automático, ou o valor ajustado salvo para este período
@@ -114,14 +107,13 @@ function calcular(list){
   dicas();
   // vencimento: dia 20 do mês seguinte ao fim do período
   if(pAte){
-    const t=pAte.y*12+(pAte.m-1)+1;
+    const t=pAte.y*12+(pAte.m-1)+2;
     if(!man.venc)$('impVenc').value=iso(Math.floor(t/12),t%12+1,20);
   }else if(!man.venc)$('impVenc').value='';
   vencDica();
   if(!pDe||!pAte)info.push('Informe as duas datas para o cálculo e o vencimento.');
-  if(pDe&&pAte&&pDe.y*12+pDe.m!==pAte.y*12+pAte.m)info.push('O período abrange mais de um mês. O cálculo oficial é mensal: use um mês por vez para o valor do DAS.');
   if(rbt>4800000)info.push('RBT12 acima de R$ 4.800.000,00 (limite do Simples Nacional).');
-  info.push('O RBT12 soma só as notas registradas aqui. Se houve faturamento antes de usar o sistema, digite o RBT12 correto. Confirme valores com seu contador.');
+  info.push('O RBT12 é o valor total das notas do período filtrado (use 12 meses). Se houve faturamento fora do sistema, digite o RBT12 correto. Confirme valores com seu contador.');
   $('impInfo').innerHTML=info.map(esc).join('<br>');
 }
 function dicas(){
