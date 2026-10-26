@@ -698,9 +698,10 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
  const detailPrefix=[client?`Cliente: ${client}`:'',`Venda ${saleId}`,wasEditing?'Venda editada':'',`Subtotal: ${money(totals.subtotal)}`,discount?`Desconto total: ${money(discount)}`:'',`Pagamentos: ${paymentDetails}`,note].filter(Boolean).join(' · ');
  const snapshot={id:saleId,date,client,note,items:receiptItems,subtotal:totals.subtotal,discount,total:totals.total,payments:fin.payments};
  // A partir daqui os dados são alterados (todas as validações já passaram).
- let insertAt=0;
+ let insertAt=0,keepInvoice=null;
  if(wasEditing){
   insertAt=Math.max(0,data.movements.findIndex(m=>oldMovements.includes(m)));
+  keepInvoice=oldMovements.length&&oldMovements.every(m=>m.invoiced)?{at:(oldMovements.find(m=>m.invoicedAt)||{}).invoicedAt||'',by:(oldMovements.find(m=>m.invoicedBy)||{}).invoicedBy||''}:null;
   oldMovements.forEach(m=>{const p=productById(m.productId);if(p)stockBack(p,m);}); // devolve o estoque da versão antiga aos lotes de origem
   data.movements=data.movements.filter(m=>!oldMovements.includes(m));
  }
@@ -710,7 +711,7 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
   stockOut(p,item.quantity,plan[index].allocs);
   const detail=[detailPrefix,`Item ${index+1}/${saleCart.length}`].filter(Boolean).join(' · ');
   const extra={client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note,payments:fin.payments,subtotal:totals.subtotal,discountCash:totals.discountCash,discountPercent:totals.discountPercent,unitPrice:item.price,unitCost,costTotal,profit:fin.items[index].profit,fee:fin.items[index].fee,factoryCredit:fin.items[index].factoryCredit,saleId,date,fifo:plan[index].allocs};
-  if(wasEditing){extra.editedAt=new Date().toISOString();extra.editedBy=currentUserName();}
+  if(wasEditing){extra.editedAt=new Date().toISOString();extra.editedBy=currentUserName();if(keepInvoice){extra.invoiced=true;extra.invoicedAt=keepInvoice.at;extra.invoicedBy=keepInvoice.by;}}
   recordMovement('venda',p,item.quantity,receiptItems[index].lineTotal,detail,extra);
  });
  // Edição: os lançamentos novos voltam para a posição da venda original no histórico.
@@ -754,6 +755,7 @@ function getSales(){
   s.canceled=s.movements.every(m=>m.canceled);
   s.canceledAt=s.canceled?((s.movements.find(m=>m.canceledAt)||{}).canceledAt||''):'';
   s.edited=s.movements.some(m=>m.editedAt);
+  s.invoiced=s.movements.every(m=>m.invoiced);s.invoicedAt=s.invoiced?((s.movements.find(m=>m.invoicedAt)||{}).invoicedAt||''):'';
   const cust=findCustomerForSale(s.client,s.customerId);
   s.cpf=s.clientCpf||(cust&&cust.cpf)||'';
   s.items=s.movements.slice().reverse().map(m=>{
@@ -788,7 +790,7 @@ function renderSaleSearch(){
   +`<td><ul class="sale-items">${s.items.map(i=>`<li>${i.quantity}× ${esc(i.name)}</li>`).join('')}</ul></td>`
   +`<td class="${s.canceled?'sale-money-canceled':''}">${esc(money(s.total))}</td>`
   +`<td>${s.canceled||!s.profitKnown?'—':esc(money(s.profit))}</td>`
-  +`<td class="sale-status">${s.canceled?`<span class="pill cancelada">Cancelada</span>${s.canceledAt?`<br><small>${esc(dateText(s.canceledAt))}</small>`:''}`:'<span class="pill ativa">Ativa</span>'}${s.edited?'<br><small>editada</small>':''}</td>`
+  +`<td class="sale-status">${s.canceled?`<span class="pill cancelada">Cancelada</span>${s.canceledAt?`<br><small>${esc(dateText(s.canceledAt))}</small>`:''}`:'<span class="pill ativa">Ativa</span>'}${s.canceled?'':`<br><button type="button" class="nota-toggle ${s.invoiced?'com':'sem'}" data-sale-nota="${esc(s.id)}" title="${s.invoiced?'Nota já emitida — clique para desmarcar':'Nota ainda não emitida — clique para marcar como emitida'}">${s.invoiced?'✓ Com nota':'✕ Sem nota'}</button>${s.invoiced&&s.invoicedAt?`<br><small>${esc(dateText(s.invoicedAt))}</small>`:''}`}${s.edited?'<br><small>editada</small>':''}</td>`
   +`<td>${s.canceled?'—':`<button type="button" class="row-action" data-sale-receipt="${esc(s.id)}">Recibo PDF</button><button type="button" class="row-action" data-sale-whatsapp="${esc(s.id)}">WhatsApp</button><button type="button" class="row-action" data-sale-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-sale-cancel="${esc(s.id)}">Cancelar venda</button>`}</td></tr>`).join('');
  document.getElementById('semVendasBusca').style.display=sales.length?'none':'block';
 }
@@ -837,6 +839,12 @@ function startSaleEdit(saleId){
  renderCart();goTo('venda');
  toast('Venda carregada. Altere o que precisar e salve.');
 }
+function toggleSaleInvoice(saleId){
+ const s=getSales().find(x=>x.id===saleId);if(!s||s.canceled)return;
+ const now=!s.invoiced,when=new Date().toISOString();
+ s.movements.forEach(m=>{if(m.canceled)return;if(now){m.invoiced=true;m.invoicedAt=when;m.invoicedBy=currentUserName();}else{delete m.invoiced;delete m.invoicedAt;delete m.invoicedBy;}});
+ if(saveData())toast(now?`Venda ${s.id}: marcada como COM nota.`:`Venda ${s.id}: marcada como SEM nota.`);
+}
 function cancelSale(saleId){
  if(!hasFullAccess()){toast('Seu perfil não tem permissão para cancelar vendas.',true);return;}
  const s=getSales().find(x=>x.id===saleId);if(!s||s.canceled)return;
@@ -855,6 +863,7 @@ function cancelSale(saleId){
  if(saveData())toast(missing.length?`Venda cancelada. Não foi possível devolver ao estoque (produto excluído): ${missing.join(', ')}.`:'Venda cancelada. Estoque e valores atualizados.',missing.length>0);
 }
 document.getElementById('listaVendasBusca').addEventListener('click',e=>{
+ const nota=e.target.closest('[data-sale-nota]');if(nota){toggleSaleInvoice(nota.dataset.saleNota);return;}
  const edit=e.target.closest('[data-sale-edit]'),cancel=e.target.closest('[data-sale-cancel]'),pdf=e.target.closest('[data-sale-receipt]'),wa=e.target.closest('[data-sale-whatsapp]');
  if(pdf||wa){
   const s=getSales().find(x=>x.id===(pdf||wa).dataset[pdf?'saleReceipt':'saleWhatsapp']);
