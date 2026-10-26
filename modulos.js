@@ -330,6 +330,12 @@ try{$('ctEmail').value=localStorage.getItem(EMAIL_KEY)||'';}catch(e){}
 // ================= PROMISSÓRIAS (a receber) =================
 const todayKey=()=>localDateKey(new Date());
 const daysBetween=(a,b)=>Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);
+const rr=n=>Math.round(Number(n||0)*100)/100;
+const recGot=r=>r.paid?(r.received!=null?Number(r.received):Number(r.amount)):Number(r.received||0);   // quanto já foi recebido da parcela
+const recRem=r=>Math.max(0,rr(Number(r.amount||0)-recGot(r)));                                         // quanto ainda falta
+const sumRem=a=>rr(a.reduce((x,r)=>x+recRem(r),0));
+const REC_DEST={blu:'Caixa BLU',nubank:'Caixa NUBANK',dinheiro:'Dinheiro CAIXA',particular:'Particular (não entra em nenhum caixa)'};
+const recPays=r=>Array.isArray(r.recPayments)&&r.recPayments.length?r.recPayments.map(p=>({at:p.at,amount:Number(p.amount)})):(r.paid?[{at:r.paidAt,amount:Number(r.amount)}]:[]);
 function recStatus(r){
  if(r.canceled)return {k:'cancelada',t:'Cancelada'};
  if(r.paid)return {k:'recebida',t:'Recebida'};
@@ -339,35 +345,115 @@ function recStatus(r){
  if(d<=lim)return {k:'avencer',t:`Vence em ${d} ${d===1?'dia':'dias'}`,urgent:true};
  return {k:'aberta',t:`Vence em ${d} dias`};
 }
-const sumAmt=a=>r2(a.reduce((x,r)=>x+Number(r.amount||0),0));
 function renderProm(){
  const lim=getSettings().promissory.remindDays,all=receivables().filter(r=>!r.canceled),open=all.filter(r=>!r.paid),late=open.filter(r=>recStatus(r).late),soon=open.filter(r=>recStatus(r).urgent&&!recStatus(r).late);
- const mk=todayKey().slice(0,7),recMonth=all.filter(r=>r.paid&&localDateKey(r.paidAt).slice(0,7)===mk);
- $('promAberto').textContent=money(sumAmt(open));$('promAbertoNota').textContent=`${open.length} parcela(s) em aberto`;
- $('promVencidas').textContent=money(sumAmt(late));$('promVencidasNota').textContent=`${late.length} parcela(s) vencida(s)`;
- $('promAvencer').textContent=money(sumAmt(soon));$('promAvencerNota').textContent=`${soon.length} parcela(s) em até ${lim} dia(s)`;
- $('promRecebido').textContent=money(sumAmt(recMonth));$('promRecebidoNota').textContent=`${recMonth.length} parcela(s) neste mês`;
+ const mk=todayKey().slice(0,7),recMonth=all.flatMap(recPays).filter(p=>p.at&&localDateKey(p.at).slice(0,7)===mk);
+ $('promAberto').textContent=money(sumRem(open));$('promAbertoNota').textContent=`${open.length} parcela(s) em aberto`;
+ $('promVencidas').textContent=money(sumRem(late));$('promVencidasNota').textContent=`${late.length} parcela(s) vencida(s)`;
+ $('promAvencer').textContent=money(sumRem(soon));$('promAvencerNota').textContent=`${soon.length} parcela(s) em até ${lim} dia(s)`;
+ $('promRecebido').textContent=money(rr(recMonth.reduce((n,p)=>n+p.amount,0)));$('promRecebidoNota').textContent=`${recMonth.length} recebimento(s) neste mês`;
  const urgent=late.length+soon.length,badge=$('menuPromissorias');badge.textContent=urgent;badge.classList.toggle('alert',urgent>0);
  const al=$('promAlerta');al.hidden=!urgent;
- if(urgent)$('promAlertaTexto').textContent=[late.length?`${late.length} parcela(s) de promissória vencida(s) (${money(sumAmt(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sumAmt(soon))})`:''].filter(Boolean).join(' · ');
+ if(urgent)$('promAlertaTexto').textContent=[late.length?`${late.length} parcela(s) de promissória vencida(s) (${money(sumRem(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sumRem(soon))})`:''].filter(Boolean).join(' · ');
  const q=fold($('promBusca').value).trim(),f=$('promStatus').value;
  const rows=receivables().filter(r=>{const st=recStatus(r);if(st.k==='cancelada')return false;if(q&&!fold(r.client+' '+r.saleId).includes(q))return false;return f==='todas'||(f==='abertas'&&!r.paid)||(f==='vencidas'&&st.late)||(f==='avencer'&&st.urgent&&!st.late)||(f==='recebidas'&&r.paid);}).sort((x,y)=>x.dueDate.localeCompare(y.dueDate)||String(x.client).localeCompare(String(y.client),'pt-BR'));
- $('promRows').innerHTML=rows.map(r=>{const st=recStatus(r);return `<tr><td>${esc(brDate(r.dueDate))}</td><td><span class="product-name">${esc(r.client||'—')}</span></td><td>Venda ${esc(r.saleId)}<br><small>${esc(dateText(r.saleDate))}</small></td><td>${r.n}/${r.of}</td><td>${money(r.amount)}</td><td><span class="pill ${st.k}">${esc(st.t)}</span>${r.paid?`<br><small>${esc(dateText(r.paidAt))}</small>`:''}</td><td>${r.paid?`<button type="button" class="row-action" data-rec-undo="${esc(r.id)}">Desfazer</button>`:`<button type="button" class="row-action" data-rec-pay="${esc(r.id)}">Receber</button><button type="button" class="row-action" data-rec-wa="${esc(r.id)}">Lembrar</button>`}</td></tr>`;}).join('');
+ $('promRows').innerHTML=rows.map(r=>{
+  const st=recStatus(r),got=recGot(r),part=!r.paid&&got>0.004,hasPay=Array.isArray(r.recPayments)&&r.recPayments.length>0;
+  const amountCell=money(r.amount)+(part?`<br><small>Recebido ${money(got)} · falta ${money(recRem(r))}</small>`:'');
+  const acts=r.paid?`<button type="button" class="row-action" data-rec-undo="${esc(r.id)}">Desfazer</button>`
+   :`<button type="button" class="row-action" data-rec-pay="${esc(r.id)}">Receber</button><button type="button" class="row-action" data-rec-wa="${esc(r.id)}">Lembrar</button>${hasPay?`<button type="button" class="row-action" data-rec-undo="${esc(r.id)}">Desfazer</button>`:''}`;
+  return `<tr><td>${esc(brDate(r.dueDate))}</td><td><span class="product-name">${esc(r.client||'—')}</span></td><td>Venda ${esc(r.saleId)}<br><small>${esc(dateText(r.saleDate))}</small></td><td>${r.n}/${r.of}</td><td>${amountCell}</td><td><span class="pill ${st.k}">${esc(st.t)}</span>${r.paid?`<br><small>${esc(dateText(r.paidAt))}</small>`:''}</td><td>${acts}</td></tr>`;
+ }).join('');
  $('promVazio').style.display=rows.length?'none':'block';
  $('promSubtitulo').textContent=`${rows.length} ${rows.length===1?'parcela':'parcelas'}`;
 }
+
+// ----- Receber: valor livre, abate do total do cliente e escolhe o destino -----
+let recAtual=null;
+const recGet=k=>receivables().find(r=>r.id===k);
+const recFmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const grpKey=r=>r.customerId?'c:'+r.customerId:'n:'+fold(r.client||'');
+// Parcelas em aberto do mesmo cliente (a parcela clicada vem primeiro, depois por vencimento).
+function clientOpen(r){
+ const same=x=>x.id===r.id||((r.customerId||fold(r.client||'')!=='')&&grpKey(x)===grpKey(r));
+ return receivables().filter(x=>!x.canceled&&!x.paid&&recRem(x)>0.004&&same(x))
+  .sort((a,b)=>(a.id===r.id?-1:b.id===r.id?1:0)||String(a.dueDate).localeCompare(String(b.dueDate))||a.n-b.n);
+}
+function recPlano(r,valor){
+ const lista=clientOpen(r),out=[];let resta=rr(valor);
+ for(const x of lista){if(resta<=0.004)break;const v=rr(Math.min(resta,recRem(x)));out.push({r:x,v});resta=rr(resta-v);}
+ return {lista,out,total:sumRem(lista)};
+}
+function recPreview(){
+ const r=recGet(recAtual);if(!r)return;
+ const v=rr(parseMoneyInput($('recValor').value)),p=recPlano(r,v);
+ let t=`Total em aberto de ${r.client||'cliente'}: ${money(p.total)}`;
+ if(v>0&&v<=p.total+0.009){
+  t+=` · depois deste recebimento: ${money(Math.max(0,rr(p.total-v)))}`;
+  t+=p.out.map(({r:x,v:val})=>`\n• Parcela ${x.n}/${x.of} (venc. ${brDate(x.dueDate)}): abate ${money(val)}${rr(recRem(x)-val)<=0.004?' — quitada':` — resta ${money(rr(recRem(x)-val))}`}`).join('');
+ }else if(v>p.total+0.009)t+=' · o valor é maior que o total em aberto';
+ $('recResumo').textContent=t;$('recResumo').style.whiteSpace='pre-line';
+}
+function recAbrir(r){
+ recAtual=r.id;
+ $('recCliente').textContent=`${r.client||'Cliente'} · parcela ${r.n}/${r.of} · venc. ${brDate(r.dueDate)} · falta ${money(recRem(r))}`;
+ $('recValor').value=recFmt(recRem(r));$('recDestino').value='';$('recErro').textContent='';
+ recPreview();$('recModal').hidden=false;setTimeout(()=>{$('recValor').focus();$('recValor').select();},50);
+}
+function recFechar(){$('recModal').hidden=true;recAtual=null;}
+// Recalcula o recebido/pago de uma parcela a partir dos recebimentos registrados nela.
+function recalc(x){
+ const ps=x.recPayments||[],got=rr(ps.reduce((n,p)=>n+Number(p.amount||0),0));
+ x.received=got;
+ if(ps.length&&got>=rr(x.amount)-0.004){const l=ps[ps.length-1];x.paid=true;x.paidAt=l.at;x.paidBy=l.by||'';}
+ else{x.paid=false;delete x.paidAt;delete x.paidBy;}
+}
+function recSalvar(e){
+ e.preventDefault();
+ const r=recGet(recAtual);if(!r){recFechar();return;}
+ const v=rr(parseMoneyInput($('recValor').value)),dest=$('recDestino').value,p=recPlano(r,v),err=t=>{$('recErro').textContent=t;};
+ if(!(v>0))return err('Informe o valor recebido.');
+ if(!REC_DEST[dest])return err('Escolha para onde vai o pagamento.');
+ if(v>p.total+0.009)return err(`O valor é maior que o total em aberto do cliente (${money(p.total)}).`);
+ const gid=id(),at=new Date().toISOString(),by=currentUserName();
+ p.out.forEach(({r:x,v:val})=>{(x.recPayments=x.recPayments||[]).push({gid,at,amount:val,dest,by});recalc(x);});
+ if(dest!=='particular'){
+  (data.cashLedger||(data.cashLedger=[])).push({id:id(),date:todayISO(),account:dest,amount:v,kind:'entrada',pair:'',note:`Promissória: ${r.client||'cliente'} (venda ${r.saleId})`,recGid:gid,by,createdAt:at});
+ }
+ if(saveData()){recFechar();toast(`Recebimento de ${money(v)} registrado${dest==='particular'?' (particular, fora do caixa)':' em '+REC_DEST[dest]}.`);}
+}
+function recDesfazer(r){
+ const ps=r.recPayments||[];
+ if(!ps.length){   // recebimento antigo (antes do valor livre)
+  if(!confirm('Desfazer o recebimento desta parcela?'))return;
+  r.paid=false;delete r.paidAt;delete r.paidBy;delete r.received;
+  if(saveData())toast('Recebimento desfeito.');return;
+ }
+ const last=ps[ps.length-1],gid=last.gid,afet=receivables().filter(x=>(x.recPayments||[]).some(q=>q.gid===gid));
+ const total=rr(afet.reduce((n,x)=>n+x.recPayments.filter(q=>q.gid===gid).reduce((s,q)=>s+Number(q.amount||0),0),0));
+ if(!confirm(`Desfazer o último recebimento de ${money(total)} (${REC_DEST[last.dest]||last.dest})${afet.length>1?`, abatido em ${afet.length} parcelas`:''}?${last.dest&&last.dest!=='particular'?'\n\nA entrada correspondente no caixa também será removida.':''}`))return;
+ afet.forEach(x=>{x.recPayments=x.recPayments.filter(q=>q.gid!==gid);recalc(x);});
+ data.cashLedger=(data.cashLedger||[]).filter(e=>e.recGid!==gid);
+ if(saveData())toast('Recebimento desfeito.');
+}
 $('promRows').addEventListener('click',e=>{
- const pay=e.target.closest('[data-rec-pay]'),undo=e.target.closest('[data-rec-undo]'),wa=e.target.closest('[data-rec-wa]'),get=k=>receivables().find(r=>r.id===k);
- if(pay){const r=get(pay.dataset.recPay);if(!r||!confirm(`Confirmar o recebimento de ${money(r.amount)} de ${r.client||'cliente'} (parcela ${r.n}/${r.of})?`))return;r.paid=true;r.paidAt=new Date().toISOString();r.paidBy=currentUserName();if(saveData())toast('Parcela recebida.');}
- else if(undo){const r=get(undo.dataset.recUndo);if(!r||!confirm('Desfazer o recebimento desta parcela?'))return;r.paid=false;delete r.paidAt;delete r.paidBy;if(saveData())toast('Recebimento desfeito.');}
+ const pay=e.target.closest('[data-rec-pay]'),undo=e.target.closest('[data-rec-undo]'),wa=e.target.closest('[data-rec-wa]');
+ if(pay){const r=recGet(pay.dataset.recPay);if(r)recAbrir(r);}
+ else if(undo){const r=recGet(undo.dataset.recUndo);if(r)recDesfazer(r);}
  else if(wa){
-  const r=get(wa.dataset.recWa);if(!r)return;
+  const r=recGet(wa.dataset.recWa);if(!r)return;
   const c=customerById(r.customerId)||findCustomerForSale(r.client,''),ph=c?digits(c.phone):'',num=ph&&ph.length<=11?'55'+ph:ph,late=recStatus(r).late;
-  const msg=`Olá${r.client?' '+r.client:''}! Passando para lembrar da parcela ${r.n}/${r.of} da sua compra na Conceito, no valor de ${money(r.amount)}, que ${late?'venceu':'vence'} em ${brDate(r.dueDate)}. Qualquer dúvida, é só chamar.`;
+  const msg=`Olá${r.client?' '+r.client:''}! Passando para lembrar da parcela ${r.n}/${r.of} da sua compra na Conceito, no valor de ${money(recRem(r))}, que ${late?'venceu':'vence'} em ${brDate(r.dueDate)}. Qualquer dúvida, é só chamar.`;
   window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,'_blank','noopener');
   if(!num)toast('Cliente sem telefone cadastrado: escolha a conversa no WhatsApp.');
  }
 });
+bindMoneyMask($('recValor'));
+$('recValor').addEventListener('input',recPreview);
+$('recForm').addEventListener('submit',recSalvar);
+$('recFechar').addEventListener('click',recFechar);
+$('recModal').addEventListener('click',e=>{if(e.target===$('recModal'))recFechar();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('recModal').hidden)recFechar();});
 ['promBusca'].forEach(k=>$(k).addEventListener('input',renderProm));$('promStatus').addEventListener('change',renderProm);
 setInterval(renderProm,600000);
 
