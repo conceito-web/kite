@@ -306,6 +306,7 @@
                 <div class="payment-heading"><div><h3 id="carrinhoTitulo">Carrinho da venda</h3><p>Adicione vários produtos antes de confirmar.</p></div><span id="carrinhoQuantidade" class="cart-count">0 itens</span></div>
                 <div class="table-wrap"><table class="cart-table"><thead><tr><th>PRODUTO</th><th>QTD.</th><th>UNITÁRIO</th><th>TOTAL</th><th></th></tr></thead><tbody id="carrinhoLinhas"><tr><td colspan="5" class="cart-empty">O carrinho está vazio.</td></tr></tbody></table></div>
               </section>
+              <label class="field">Data da venda<input id="vendaData" type="date"></label>
               <label class="field">Cliente (opcional)<input id="vendaCliente" maxlength="150" list="clientesSugestoes" placeholder="Digite as primeiras letras e selecione"><datalist id="clientesSugestoes"></datalist></label>
               <div class="sale-discounts" style="grid-template-columns:repeat(3,minmax(0,1fr))">
                 <label class="field">Desconto em reais (R$)<input id="vendaDescontoReais" type="text" inputmode="numeric" autocomplete="off" value="" placeholder="0,00"></label>
@@ -521,6 +522,7 @@
                 <div class="table-wrap"><table class="cart-table"><thead><tr><th>PRODUTO</th><th>QTD.</th><th>UNIT.</th><th>TOTAL</th><th></th></tr></thead><tbody id="pdvLinhas"></tbody></table></div>
               </section>
               <section class="surface form-surface">
+                <label class="field">Data da venda<input id="pdvData" type="date"></label>
                 <label class="field">Cliente (opcional)<input id="pdvCliente" maxlength="150" list="clientesSugestoes" placeholder="Digite as primeiras letras"></label>
                 <div class="sale-discounts" style="grid-template-columns:repeat(3,minmax(0,1fr))"><label class="field">Desconto (R$)<input id="pdvDescReais" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><label class="field">Desconto (%)<input id="pdvDescPct" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"></label><div class="field"><span>Lucro (%)</span><strong id="pdvLucroPct" style="min-height:44px;display:flex;align-items:center;font-size:15px;color:#1f2a44">—</strong></div></div>
                 <div class="pdv-total"><span>Subtotal</span><strong id="pdvSub">R$ 0,00</strong></div>
@@ -729,8 +731,8 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=22"></script>
-  <script src="modulos.js?v=13"></script>
+  <script src="app.js?v=23"></script>
+  <script src="modulos.js?v=14"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
   <script src="impostos.js?v=2"></script>
