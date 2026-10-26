@@ -430,3 +430,7 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 .pill.cxauto{background:#edf2ff;color:#2454dd}.pill.cxman{background:#f1f3f7;color:#667085}
 #cxFormCard [hidden]{display:none!important}
 @media print{#panel-financeiro #cxFormCard,#panel-financeiro .cx-acc-btns,#cxNovo{display:none!important}}
+.imp-hint{font-size:10px;font-weight:500;color:#9aa4b2;line-height:1.4;min-height:14px}
+#panel-impostos .surface-heading{gap:10px;flex-wrap:wrap}
+@media(max-width:760px){#panel-impostos .form-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:380px){#panel-impostos .form-grid{grid-template-columns:1fr}}
