@@ -214,5 +214,35 @@ const baseRender=window.renderAll;
 window.renderAll=function(){baseRender();render();};
 const baseGoTo=window.goTo;
 window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='impostos')render();};
+
+// ===== Lucro (%) das telas de venda, já descontando o imposto =====
+// Só muda o que aparece no rótulo "Lucro (%)" de Registrar venda e PDV.
+// Lucro após imposto (%) = lucro (%) − alíquota efetiva (%). Equivale a descontar (preço × AE) de cada produto.
+// Não altera preço de produto, venda gravada, histórico, relatórios nem financeiro.
+// A AE usa o mês da "Data da venda" (RBT12 = notas dos 12 meses anteriores) e o Anexo escolhido no painel Impostos.
+function aeDoMes(mes){
+  const m=/^(\d{4})-(\d{2})$/.exec(mes||'');
+  const d=new Date();
+  const t=(m?+m[1]:d.getFullYear())*12+((m?+m[2]:d.getMonth()+1)-1);
+  const s=t-12,e=t-1;
+  const ini=iso(Math.floor(s/12),s%12+1,1);
+  const fim=iso(Math.floor(e/12),e%12+1,new Date(Math.floor(e/12),e%12+1,0).getDate());
+  const rbt=notes().filter(n=>n.date>=ini&&n.date<=fim).reduce((x,n)=>x+Number(n.value||0),0);
+  let aliq,pd;
+  if((data.taxCfg&&data.taxCfg.anexo)==='m'){aliq=parseMoneyInput($('impAliq').value);pd=parseMoneyInput($('impPd').value);}
+  else{const f=faixa(rbt);aliq=f[1];pd=f[2];}
+  return rbt>0?Math.max(0,(rbt*aliq/100-pd)/rbt)*100:aliq; // em %
+}
+const baseShowProfit=window.showProfitPct;
+if(typeof baseShowProfit==='function'){
+  window.showProfitPct=function(id,v){
+    const ok=v!==null&&Number.isFinite(v);
+    let ae=0;
+    if(ok){const df=$(id==='pdvLucroPct'?'pdvData':'vendaData');ae=aeDoMes(df&&df.value?df.value.slice(0,7):'');}
+    baseShowProfit(id,ok?v-ae:v);
+    const el=$(id);
+    if(el)el.title=ok?`Lucro já descontando o imposto (alíquota efetiva ${ae.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})}%)`:'';
+  };
+}
 render();
 })();
