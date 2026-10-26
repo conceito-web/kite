@@ -434,4 +434,5 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 #panel-impostos .surface-heading{gap:10px;flex-wrap:wrap}
 @media(max-width:760px){#panel-impostos .form-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:380px){#panel-impostos .form-grid{grid-template-columns:1fr}}
-.nota-toggle{margin-top:5px;padding:5px 9px;border-radius:6px;font:700 10px 'DM Sans';cursor:pointer;white-space:nowrap;border:1px solid}.nota-toggle.sem{background:#fdecec;color:#c0343e;border-color:#f5c9cc}.nota-toggle.sem:hover{background:#fbd9dc}.nota-toggle.com{background:#e8f8f0;color:#1b9869;border-color:#bfe9d5}.nota-toggle.com:hover{background:#d5f2e4}
+.nota-badge{display:inline-flex;align-items:center;margin-top:5px;padding:5px 9px;border-radius:6px;font:700 10px 'DM Sans';white-space:nowrap}.nota-badge.sem{background:#fdecec;color:#c0343e}.nota-badge.com{background:#e8f8f0;color:#1b9869}
+.nota-badge{border:0;cursor:pointer}.nota-badge.sem:hover{background:#fbd9dc}.nota-badge.com:hover{background:#d5f2e4}.vinc-btn{display:block;width:100%;min-height:44px;margin-top:10px}.vinc-btn[hidden]{display:none}
