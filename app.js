@@ -586,14 +586,14 @@ function readPayments(){
  return [...document.querySelectorAll('.payment-row')].map(row=>{const method=row.querySelector('.pagamentoMetodo').value,amount=round2(parseMoneyInput(row.querySelector('.pagamentoValor').value));return readPayExtra(row.querySelector('.payment-card-options'),method,amount);}).filter(x=>x.method||x.amount>0);
 }
 // Lucro % da venda (só exibição): mesmo cálculo do lucro gravado (custo PEPS + taxas), dividido pelo total com desconto.
-function saleProfitPct(lines,total,payments,restoreMovs){
+function saleProfitPct(lines,total,payments,restoreMovs){ window.saleProfitDetail=null;
  try{
   if(!lines.length||!(total>0))return null;
   const r=n=>Math.round(Number(n||0)*100)/100,sub=r(lines.reduce((s,i)=>s+i.quantity*i.price,0));
   const plan=planFifo(lines,restoreMovs||[]);let alloc=0;
   const items=lines.map((it,i)=>{let lt;if(i===lines.length-1)lt=r(total-alloc);else{lt=sub?r(r(it.quantity*it.price)*(total/sub)):0;alloc+=lt;}return {lineTotal:lt,quantity:it.quantity,unitCost:plan[i].unitCost};});
   const payDisp=(payments||[]).filter(x=>x.method&&x.amount>0).map(x=>((x.method===PM.CREDIT||x.method===PM.BLU)&&x.responsible==='fabrica')?{method:'Dinheiro',amount:x.amount}:x);const fin=calcSaleFinance(items,total,payDisp);
-  return fin.items.reduce((s,x)=>s+x.profit,0)/total*100;
+  const profitSum=fin.items.reduce((s,x)=>s+x.profit,0);window.saleProfitDetail={total,cost:r(fin.items.reduce((s,x)=>s+x.costTotal,0)),fee:Number(fin.totalFee||0),profit:profitSum};return profitSum/total*100; // saleProfitDetail: só para o "?" do rótulo Lucro (%)
  }catch(_){return null;}
 }
 function showProfitPct(id,v){const el=document.getElementById(id);if(!el)return;const ok=v!==null&&Number.isFinite(v);el.textContent=ok?v.toFixed(1).replace('.',',')+'%':'—';el.style.color=(ok&&Math.round(v*10)/10<=39)?'#dc2626':'#1f2a44';}
