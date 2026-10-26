@@ -2,7 +2,7 @@
 // Conceito: Impostos — registro solto de notas (DATA, VALOR DA NOTA, N° DA NOTA).
 // Os botões "Informações de imposto" em Registrar venda e PDV abrem o formulário.
 // Se a venda atual já tem informações registradas, o sistema avisa e pergunta se quer modificar.
-// O painel filtra por período (De/Até; padrão = mês atual) e calcula o imposto (Simples Nacional, alíquota efetiva).
+// O painel filtra por mês (padrão = mês atual): RBT12 = 12 meses anteriores; imposto = faturamento do mês × alíquota efetiva.
 // Por enquanto a nota NÃO é vinculada à venda no recibo/histórico; fica no painel Impostos (somente admin/master).
 // Usa as funções e dados do app.js (data, money, saveData, toast, esc, parseMoneyInput, bindMoneyMask, todayISO).
 (function(){
@@ -59,8 +59,7 @@ function salvar(e){
 
 // ===== Cálculo do imposto (Simples Nacional) =====
 // Alíquota efetiva: AE = (RBT12 × alíquota nominal − PD) ÷ RBT12
-// Imposto = valor das notas do período × AE. Vencimento: dia 20 do 2º mês após o fim do período (ex.: 01/10/2025 a 30/09/2026 → 20/11/2026).
-// RBT12 = valor total das notas do período filtrado.
+// Imposto = faturamento do mês × AE. Vencimento: dia 20 do mês seguinte (ex.: mês 10/2026, RBT12 01/10/2025 a 30/09/2026 → 20/11/2026).
 const ANEXO1=[[180000,4,0],[360000,7.3,5940],[720000,9.5,13860],[1800000,10.7,22500],[3600000,14.3,87300],[4800000,19,378000]]; // [limite RBT12, alíq. %, PD]
 const faixa=r=>ANEXO1.find(f=>r<=f[0])||ANEXO1[ANEXO1.length-1];
 const DIAS=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
@@ -72,21 +71,28 @@ const round2=n=>Math.round(n*100)/100;
 const man={rbt:false,aliq:false,pd:false,pay:false,venc:false}; // true = o usuário digitou; não sobrescrever
 let ultimo={calc:0,key:''};
 
-function mesAtual(){
-  const d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;
-  $('impDe').value=iso(y,m,1);$('impAte').value=iso(y,m,new Date(y,m,0).getDate());
-}
+function mesAtual(){const d=new Date();$('impMes').value=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;}
 function limparManual(){Object.keys(man).forEach(k=>man[k]=false);}
 
 function calcular(list){
-  const de=$('impDe').value,ate=$('impAte').value;
-  const pDe=pdate(de),pAte=pdate(ate);
-  const key=de+'_'+ate;
+  const mes=$('impMes').value;
+  const m=/^(\d{4})-(\d{2})$/.exec(mes||'');
+  const y=m?+m[1]:0,mo=m?+m[2]:0;
+  const key=mes;
   const info=[];
-  // RBT12 automático = valor total das notas do período filtrado
+  // faturamento do mês escolhido
   const total=list.reduce((t,n)=>t+Number(n.value||0),0);
-  const rbtAuto=round2(total);
-  $('impRbtInfo').textContent=pDe&&pAte?`Notas de ${dateBR(de)} a ${dateBR(ate)}`:'Informe as duas datas.';
+  // RBT12 automático = notas dos 12 meses ANTERIORES ao mês escolhido
+  let rbtAuto=0;
+  if(m){
+    const t=y*12+(mo-1);
+    const s=t-12,e=t-1;
+    const ini=iso(Math.floor(s/12),s%12+1,1);
+    const fim=iso(Math.floor(e/12),e%12+1,new Date(Math.floor(e/12),e%12+1,0).getDate());
+    rbtAuto=round2(notes().filter(n=>n.date>=ini&&n.date<=fim).reduce((x,n)=>x+Number(n.value||0),0));
+    $('impMesInfo').textContent=`RBT12: ${dateBR(ini)} a ${dateBR(fim)}`;
+    $('impRbtInfo').textContent=`Notas de ${dateBR(ini)} a ${dateBR(fim)}`;
+  }else{$('impMesInfo').textContent='';$('impRbtInfo').textContent='Escolha o mês.';}
   if(!man.rbt)$('impRbt').value=fmt2(rbtAuto);
   const rbt=parseMoneyInput($('impRbt').value);
   // alíquota e PD
@@ -105,15 +111,15 @@ function calcular(list){
   if(!man.pay)$('impPagar').value=fmt2(calc);
   ultimo={calc,key};
   dicas();
-  // vencimento: dia 20 do mês seguinte ao fim do período
-  if(pAte){
-    const t=pAte.y*12+(pAte.m-1)+2;
+  // vencimento: dia 20 do mês seguinte ao mês de apuração
+  if(m){
+    const t=y*12+(mo-1)+1;
     if(!man.venc)$('impVenc').value=iso(Math.floor(t/12),t%12+1,20);
   }else if(!man.venc)$('impVenc').value='';
   vencDica();
-  if(!pDe||!pAte)info.push('Informe as duas datas para o cálculo e o vencimento.');
+  if(!m)info.push('Escolha o mês para o cálculo e o vencimento.');
   if(rbt>4800000)info.push('RBT12 acima de R$ 4.800.000,00 (limite do Simples Nacional).');
-  info.push('O RBT12 é o valor total das notas do período filtrado (use 12 meses). Se houve faturamento fora do sistema, digite o RBT12 correto. Confirme valores com seu contador.');
+  info.push('O RBT12 soma só as notas registradas aqui. Se houve faturamento antes de usar o sistema, digite o RBT12 correto. Confirme valores com seu contador.');
   $('impInfo').innerHTML=info.map(esc).join('<br>');
 }
 function dicas(){
@@ -132,11 +138,11 @@ function vencDica(){
 }
 
 function render(){
-  const de=$('impDe').value,ate=$('impAte').value;
+  const mes=$('impMes').value;
   const cfg=data.taxCfg&&data.taxCfg.anexo;
   if(cfg&&$('impAnexo').value!==cfg)$('impAnexo').value=cfg;
   const all=notes().slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt).localeCompare(String(a.createdAt)));
-  const list=all.filter(n=>(!de||String(n.date)>=de)&&(!ate||String(n.date)<=ate));
+  const list=all.filter(n=>!mes||String(n.date).startsWith(mes));
   $('impQtd').textContent=list.length;
   $('impTotal').textContent=money(list.reduce((t,n)=>t+Number(n.value||0),0));
   $('menuImpostos').textContent=all.length;
@@ -175,12 +181,8 @@ function init(){
   $('impostoForm').addEventListener('submit',salvar);
   bindMoneyMask($('impRbt'));bindMoneyMask($('impAliq'),{percent:true});bindMoneyMask($('impPd'));bindMoneyMask($('impPagar'));
   mesAtual();
-  const filtro=()=>{
-    if($('impDe').value&&$('impAte').value&&$('impDe').value>$('impAte').value){const t=$('impDe').value;$('impDe').value=$('impAte').value;$('impAte').value=t;}
-    limparManual();render();
-  };
-  $('impDe').addEventListener('change',filtro);
-  $('impAte').addEventListener('change',filtro);
+  const filtro=()=>{limparManual();render();};
+  $('impMes').addEventListener('change',filtro);
   $('impMesAtual').addEventListener('click',()=>{mesAtual();filtro();});
   $('impAnexo').addEventListener('change',()=>{man.aliq=false;man.pd=false;(data.taxCfg||(data.taxCfg={})).anexo=$('impAnexo').value;saveData();});
   [['impRbt','rbt'],['impAliq','aliq'],['impPd','pd']].forEach(([id,k])=>$(id).addEventListener('money-mask-updated',()=>{man[k]=!!$(id).value.trim();render();}));
