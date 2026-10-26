@@ -56,6 +56,19 @@
     </div>
   </div>
 
+  <div id="recModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="recTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">PROMISSÓRIAS</p><h2 id="recTitulo">Receber pagamento</h2><p id="recCliente"></p></div><button type="button" id="recFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="recForm" autocomplete="off">
+        <label for="recValor">VALOR RECEBIDO</label><input id="recValor" inputmode="numeric" required placeholder="0,00">
+        <label for="recDestino">PARA ONDE VAI O PAGAMENTO</label><select id="recDestino" required><option value="">Selecione...</option><option value="blu">Caixa BLU</option><option value="nubank">Caixa NUBANK</option><option value="dinheiro">Dinheiro</option><option value="particular">Particular (não vai para nenhum caixa)</option></select>
+        <p id="recResumo" class="pay-hint"></p>
+        <p id="recErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Confirmar recebimento</button>
+      </form>
+    </div>
+  </div>
+
   <div id="ckrUsersModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="ckrUsersTitle">
     <div class="users-card">
       <div class="users-heading"><div><p class="auth-eyebrow">ADMINISTRAÇÃO</p><h2 id="ckrUsersTitle">Gerenciar usuários</h2><p>Somente o ADMIN pode criar, editar e remover usuários.</p></div><button type="button" id="ckrCloseUsers" class="users-close" aria-label="Fechar">×</button></div>
@@ -716,10 +729,10 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=21"></script>
-  <script src="modulos.js?v=12"></script>
+  <script src="app.js?v=22"></script>
+  <script src="modulos.js?v=13"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
-  <script src="impostos.js?v=3"></script>
+  <script src="impostos.js?v=2"></script>
 </body>
 </html>
