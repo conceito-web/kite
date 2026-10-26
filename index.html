@@ -43,6 +43,19 @@
     </div>
   </section>
 
+  <div id="impostoModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="impTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">IMPOSTOS</p><h2 id="impTitulo">Informações de imposto</h2><p>Informe os dados da nota fiscal desta venda.</p></div><button type="button" id="impFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="impostoForm" autocomplete="off">
+        <label for="impData">DATA</label><input id="impData" type="date" required>
+        <label for="impValor">VALOR DA NOTA</label><input id="impValor" inputmode="numeric" required placeholder="0,00">
+        <label for="impNumero">N° DA NOTA</label><input id="impNumero" maxlength="30" required placeholder="Ex.: 000123">
+        <p id="impErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Salvar</button>
+      </form>
+    </div>
+  </div>
+
   <div id="ckrUsersModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="ckrUsersTitle">
     <div class="users-card">
       <div class="users-heading"><div><p class="auth-eyebrow">ADMINISTRAÇÃO</p><h2 id="ckrUsersTitle">Gerenciar usuários</h2><p>Somente o ADMIN pode criar, editar e remover usuários.</p></div><button type="button" id="ckrCloseUsers" class="users-close" aria-label="Fechar">×</button></div>
@@ -108,6 +121,7 @@
         <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
         <button class="nav-link" data-panel="financeiro"><span class="nav-icon">$</span> Despesas e lucro <span class="nav-count" id="menuDespesasPend">0</span></button>
         <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
+        <button class="nav-link" data-panel="impostos"><span class="nav-icon">§</span> Impostos <span class="nav-count" id="menuImpostos">0</span></button>
         <button class="nav-link" data-panel="pedidos"><span class="nav-icon">⊕</span> Pedidos à fábrica <span class="nav-count" id="menuPedidos">0</span></button>
         <button class="nav-link" data-panel="contador"><span class="nav-icon">✉</span> Exportar p/ contador</button>
         <div id="ckrExpiryStatus" class="expiry-status" hidden aria-live="polite"></div>
@@ -297,6 +311,7 @@
               <label class="field">Observação (opcional)<input id="vendaObs" maxlength="180" placeholder="Observação da venda"></label>
               <button class="button button-primary full-button" type="submit"><b id="confirmarVendaTexto" style="font:inherit">Confirmar venda e baixar estoque</b> <span>→</span></button>
               <button class="button button-light full-button" id="salvarOrcamentoVenda" type="button">✎ Salvar como orçamento</button>
+              <button class="button button-light full-button" id="vendaImposto" type="button">🧾 Informações de imposto</button>
               <div id="reciboAcoes" class="receipt-actions" hidden>
                 <p id="reciboStatus">Venda registrada. Gere o recibo em PDF e envie ao cliente.</p>
                 <button class="button button-light full-button" id="baixarReciboPdf" type="button">⬇ Baixar recibo em PDF</button>
@@ -504,6 +519,7 @@
                 <p id="pdvOrcAviso" class="pay-hint" hidden></p>
                 <button class="button button-primary full-button" id="pdvFinalizar" type="button">Finalizar venda (F2)</button>
                 <button class="button button-light full-button" id="pdvOrcamento" type="button">✎ Salvar como orçamento</button>
+                <button class="button button-light full-button" id="pdvImposto" type="button">🧾 Informações de imposto</button>
                 <div id="pdvPos" class="receipt-actions" hidden><p id="pdvPosTexto"></p><button class="button button-light full-button" id="pdvImprimir" type="button">Imprimir cupom (80 mm)</button><button class="button button-light full-button" id="pdvPdf" type="button">⬇ Baixar recibo em PDF</button><small>O cupom não tem valor fiscal. A NFC-e continua sendo emitida no seu outro sistema.</small></div>
               </section>
             </div>
@@ -535,6 +551,22 @@
             <div class="surface-heading responsive-heading"><div><h2>Parcelas</h2><p id="promSubtitulo">Todas as parcelas</p></div><div class="search-tools"><select id="promStatus" aria-label="Filtrar situação"><option value="abertas">Em aberto</option><option value="vencidas">Vencidas</option><option value="avencer">A vencer em breve</option><option value="recebidas">Recebidas</option><option value="todas">Todas</option></select><div class="search-box"><span>⌕</span><input id="promBusca" type="search" placeholder="Buscar cliente ou venda..."></div></div></div>
             <div class="table-wrap"><table><thead><tr><th>VENCIMENTO</th><th>CLIENTE</th><th>VENDA</th><th>PARCELA</th><th>VALOR</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="promRows"></tbody></table></div>
             <div id="promVazio" class="empty-state"><div class="empty-symbol">◔</div><b>Nenhuma parcela encontrada</b><p>Vendas feitas na forma "Promissória" aparecem aqui com os vencimentos.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-impostos">
+          <div class="page-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Impostos</h1><p class="subtitle">Registro das notas informadas nas vendas (Registrar venda e PDV). Por enquanto são registros soltos: não alteram venda, estoque nem financeiro.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Resumo</h2><p>Escolha o mês para filtrar. Deixe vazio para ver todos.</p></div></div>
+            <div class="form-grid"><label class="field">Mês<input type="month" id="impMes"></label></div>
+            <div class="stats-grid">
+              <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">§</span><span class="stat-label">Notas no período</span></div><strong id="impQtd">0</strong></article>
+              <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">R$</span><span class="stat-label">Valor total das notas</span></div><strong id="impTotal">R$ 0,00</strong></article>
+            </div>
+          </section>
+          <section class="surface">
+            <div class="surface-heading"><div><h2>Notas registradas</h2></div><button class="button button-light button-small" id="impNova" type="button">＋ Nova nota</button></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>N° DA NOTA</th><th>VALOR DA NOTA</th><th>ORIGEM</th><th>AÇÕES</th></tr></thead><tbody id="impLista"></tbody></table></div>
           </section>
         </section>
 
@@ -684,9 +716,10 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
   <script src="modulos.js?v=12"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
+  <script src="impostos.js?v=1"></script>
 </body>
 </html>
