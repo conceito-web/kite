@@ -71,7 +71,7 @@ function finish(){
  const pay=pays.map(p=>({...p}));
  if(change){const cp=[...pay].reverse().find(p=>p.method==='Dinheiro'&&p.amount>=change-0.009);if(!cp){toast('O troco só pode sair de um pagamento em dinheiro.',true);return;}cp.amount=r2(cp.amount-change);}
  const payments=pay.filter(p=>p.amount>0.009);
- const client=$('pdvCliente').value.trim(),saleId=Date.now().toString(36).toUpperCase(),date=new Date().toISOString(),customer=findCustomerForSale(client,''),discount=r2(t.sub-t.total);
+ const client=$('pdvCliente').value.trim(),saleId=Date.now().toString(36).toUpperCase(),date=saleDateISO('pdvData'),customer=findCustomerForSale(client,''),discount=r2(t.sub-t.total);
  if(payments.length){const perr=validatePayments(payments,client);if(perr){toast(perr,true);return;}}
  let alloc=0;
  const plan=planFifo(cart);
@@ -85,7 +85,7 @@ function finish(){
  });
  const rec={id:saleId,date,client,note:'',items,subtotal:t.sub,discount,total:t.total,payments:fin.payments,paid:t.paid,change};
  receivables().push(...buildReceivables(saleId,client,customer,fin.payments,date));markQuoteSold(saleId,'pdv');
- cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');$('pdvPagMetodo').value='';pdvSync();
+ cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');setSaleDateToday();$('pdvPagMetodo').value='';pdvSync();
  if(saveData()){
   lastReceipt=rec;
   $('pdvPos').hidden=false;
@@ -361,7 +361,7 @@ function renderProm(){
   const st=recStatus(r),got=recGot(r),part=!r.paid&&got>0.004,hasPay=Array.isArray(r.recPayments)&&r.recPayments.length>0;
   const amountCell=money(r.amount)+(part?`<br><small>Recebido ${money(got)} · falta ${money(recRem(r))}</small>`:'');
   const acts=r.paid?`<button type="button" class="row-action" data-rec-undo="${esc(r.id)}">Desfazer</button>`
-   :`<button type="button" class="row-action" data-rec-pay="${esc(r.id)}">Receber</button><button type="button" class="row-action" data-rec-wa="${esc(r.id)}">Lembrar</button>${hasPay?`<button type="button" class="row-action" data-rec-undo="${esc(r.id)}">Desfazer</button>`:''}`;
+   :`<button type="button" class="row-action" data-rec-pay="${esc(r.id)}">Receber</button><button type="button" class="row-action" data-rec-date="${esc(r.id)}">Data</button><button type="button" class="row-action" data-rec-wa="${esc(r.id)}">Lembrar</button>${hasPay?`<button type="button" class="row-action" data-rec-undo="${esc(r.id)}">Desfazer</button>`:''}`;
   return `<tr><td>${esc(brDate(r.dueDate))}</td><td><span class="product-name">${esc(r.client||'—')}</span></td><td>Venda ${esc(r.saleId)}<br><small>${esc(dateText(r.saleDate))}</small></td><td>${r.n}/${r.of}</td><td>${amountCell}</td><td><span class="pill ${st.k}">${esc(st.t)}</span>${r.paid?`<br><small>${esc(dateText(r.paidAt))}</small>`:''}</td><td>${acts}</td></tr>`;
  }).join('');
  $('promVazio').style.display=rows.length?'none':'block';
@@ -436,8 +436,24 @@ function recDesfazer(r){
  data.cashLedger=(data.cashLedger||[]).filter(e=>e.recGid!==gid);
  if(saveData())toast('Recebimento desfeito.');
 }
+// Altera o vencimento de uma parcela em aberto (e grava também na venda, para o recibo sair com a data nova).
+function recMudarData(r){
+ if(!r||r.paid)return;
+ const raw=prompt(`Novo vencimento da parcela ${r.n}/${r.of} (${r.client||'cliente'}).\nDigite no formato dd/mm/aaaa:`,brDate(r.dueDate));
+ if(raw===null)return;
+ const mt=/^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*$/.exec(raw);
+ const nd=mt?`${mt[3]}-${mt[2].padStart(2,'0')}-${mt[1].padStart(2,'0')}`:'';
+ const chk=new Date(nd+'T12:00:00');
+ if(!mt||isNaN(chk)||localDateKey(chk)!==nd){toast('Data inválida. Use dd/mm/aaaa.',true);return;}
+ r.dueDate=nd;
+ const movs=data.movements.filter(x=>x.type==='venda'&&(x.saleId||x.id)===r.saleId);
+ const proms=movs.length?(movs[0].payments||[]).filter(p=>p.method===PM.PROM):[];
+ if(proms.length===1)movs.forEach(x=>(x.payments||[]).forEach(p=>{if(p.method===PM.PROM){const arr=promissorySchedule(p).map(s=>s.dueDate);arr[r.n-1]=nd;p.dueDates=arr;}}));
+ if(saveData())toast('Vencimento alterado.');
+}
 $('promRows').addEventListener('click',e=>{
- const pay=e.target.closest('[data-rec-pay]'),undo=e.target.closest('[data-rec-undo]'),wa=e.target.closest('[data-rec-wa]');
+ const pay=e.target.closest('[data-rec-pay]'),undo=e.target.closest('[data-rec-undo]'),wa=e.target.closest('[data-rec-wa]'),dt=e.target.closest('[data-rec-date]');
+ if(dt){recMudarData(recGet(dt.dataset.recDate));return;}
  if(pay){const r=recGet(pay.dataset.recPay);if(r)recAbrir(r);}
  else if(undo){const r=recGet(undo.dataset.recUndo);if(r)recDesfazer(r);}
  else if(wa){
