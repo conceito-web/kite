@@ -81,7 +81,7 @@ function finish(){
  cart.forEach((it,i)=>{
   const p=productById(it.productId),costTotal=plan[i].costTotal;
   stockOut(p,it.quantity,plan[i].allocs);
-  recordMovement('venda',p,it.quantity,items[i].lineTotal,`${prefix} · Item ${i+1}/${cart.length}`,{client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note:'',payments:fin.payments,subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,unitPrice:it.price,unitCost:items[i].cost,fifo:plan[i].allocs,costTotal,profit:fin.items[i].profit,fee:fin.items[i].fee,factoryCredit:fin.items[i].factoryCredit,saleId,date,cashSessionId:s.id,source:'pdv',cashReceived:t.paid,change});
+  recordMovement('venda',p,it.quantity,items[i].lineTotal,`${prefix} · Item ${i+1}/${cart.length}`,{client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note:'',taxNoteId:(window.ckrTaxNoteAtual?window.ckrTaxNoteAtual('pdv'):''),payments:fin.payments,subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,unitPrice:it.price,unitCost:items[i].cost,fifo:plan[i].allocs,costTotal,profit:fin.items[i].profit,fee:fin.items[i].fee,factoryCredit:fin.items[i].factoryCredit,saleId,date,cashSessionId:s.id,source:'pdv',cashReceived:t.paid,change});
  });
  const rec={id:saleId,date,client,note:'',items,subtotal:t.sub,discount,total:t.total,payments:fin.payments,paid:t.paid,change};
  receivables().push(...buildReceivables(saleId,client,customer,fin.payments,date));markQuoteSold(saleId,'pdv');
