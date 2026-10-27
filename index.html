@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -352,12 +352,13 @@
         <section class="panel" id="panel-historico">
           <div class="page-heading"><div><p class="eyebrow">AUDITORIA</p><h1>Movimentações</h1><p class="subtitle">Busque vendas, edite ou cancele, e consulte o histórico de entradas e vendas deste dispositivo.</p></div></div>
           <section class="surface list-surface sales-search-surface">
-            <div class="surface-heading"><div><h2>Buscar vendas</h2><p>Pesquise por cliente, CPF, produto ou data. Ao buscar um cliente, aparecem todas as vendas dele.</p></div></div>
+            <div class="surface-heading"><div><h2>Buscar vendas</h2><p>Pesquise por cliente, CPF, produto, data ou número da nota fiscal. Ao buscar um cliente, aparecem todas as vendas dele.</p></div></div>
             <div class="sales-search-filters">
-              <label class="field">Cliente, CPF, produto ou data<input id="buscaVenda" type="search" autocomplete="off" placeholder="Ex.: Maria, 123.456.789-00, colchão, 15/10/2026"></label>
+              <label class="field">Cliente, CPF, produto ou data<input id="buscaVenda" type="search" autocomplete="off" placeholder="Ex.: Maria, 123.456.789-00, colchão, 15/10/2026, nota 1234"></label>
               <label class="field">Data inicial<input type="date" id="buscaVendaInicio"></label>
               <label class="field">Data final<input type="date" id="buscaVendaFim"></label>
               <label class="field">Situação<select id="buscaVendaStatus"><option value="todas">Todas</option><option value="ativas">Ativas</option><option value="canceladas">Canceladas</option></select></label>
+              <label class="field">Nota fiscal<select id="buscaVendaNota"><option value="todas">Todas</option><option value="com">Com nota</option><option value="sem">Sem nota</option></select></label>
               <button class="button button-light" id="limparBuscaVenda" type="button">Limpar</button>
             </div>
             <div id="vendasResumo" class="sales-search-summary"></div>
@@ -760,7 +761,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=26"></script>
   <script src="modulos.js?v=15"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
