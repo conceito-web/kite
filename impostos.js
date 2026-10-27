@@ -176,6 +176,7 @@ function render(){
   $('menuImpostos').textContent=all.length;
   $('impLista').innerHTML=list.map(n=>`<tr><td>${esc(dateBR(n.date))}</td><td>${esc(n.number)}</td><td>${money(n.value)}</td><td>${esc(ORIGENS[n.origin]||'—')}</td><td><button class="button button-light button-small" type="button" data-imp-edit="${esc(n.id)}">Modificar</button> <button class="button button-danger-light button-small" type="button" data-imp-del="${esc(n.id)}">Excluir</button></td></tr>`).join('')
     ||'<tr><td colspan="5" class="cart-empty">Nenhuma nota registrada neste período.</td></tr>';
+  $('impListaTotal').innerHTML=list.length?`<tr class="imp-total-row"><td colspan="2"><b>TOTAL${mes?' DO MÊS':''} · ${list.length} ${list.length===1?'nota':'notas'}</b></td><td><b>${money(list.reduce((t,n)=>t+Number(n.value||0),0))}</b></td><td colspan="2"></td></tr>`:'';
   calcular(list);
 }
 
