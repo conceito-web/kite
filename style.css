@@ -215,7 +215,7 @@ table{max-width:100%}
 
 /* Movimentações: busca de vendas, edição e cancelamento */
 .sales-search-surface{margin-bottom:17px}
-.sales-search-filters{display:grid;grid-template-columns:minmax(0,2.2fr) repeat(3,minmax(0,1fr)) auto;gap:13px;align-items:end;margin-bottom:14px}
+.sales-search-filters{display:grid;grid-template-columns:minmax(0,2.2fr) repeat(4,minmax(0,1fr)) auto;gap:13px;align-items:end;margin-bottom:14px}
 .sales-search-filters .button{height:42px}
 .sales-search-summary{display:flex;flex-wrap:wrap;gap:6px 20px;padding:11px 14px;background:#f6f8fc;border:1px solid #edf0f5;border-radius:9px;color:#6b7a90;font-size:11px;margin-bottom:12px}
 .sales-search-summary b{color:#23334d}
