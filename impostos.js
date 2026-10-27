@@ -174,9 +174,15 @@ function render(){
   $('impQtd').textContent=list.length;
   $('impTotal').textContent=money(list.reduce((t,n)=>t+Number(n.value||0),0));
   $('menuImpostos').textContent=all.length;
-  $('impLista').innerHTML=list.map(n=>`<tr><td>${esc(dateBR(n.date))}</td><td>${esc(n.number)}</td><td>${money(n.value)}</td><td>${esc(ORIGENS[n.origin]||'—')}</td><td><button class="button button-light button-small" type="button" data-imp-edit="${esc(n.id)}">Modificar</button> <button class="button button-danger-light button-small" type="button" data-imp-del="${esc(n.id)}">Excluir</button></td></tr>`).join('')
-    ||'<tr><td colspan="5" class="cart-empty">Nenhuma nota registrada neste período.</td></tr>';
-  $('impListaTotal').innerHTML=list.length?`<tr class="imp-total-row"><td colspan="2"><b>TOTAL${mes?' DO MÊS':''} · ${list.length} ${list.length===1?'nota':'notas'}</b></td><td><b>${money(list.reduce((t,n)=>t+Number(n.value||0),0))}</b></td><td colspan="2"></td></tr>`:'';
+  const termo=(($('impBusca')||{}).value||'').trim().toLowerCase(),tdig=termo.replace(/\D/g,'');
+  const vis=!termo?list:list.filter(n=>{
+    const val=Number(n.value||0),valTxt=val.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),valDig=String(Math.round(val*100)),valRaw=String(val);
+    const hay=[dateBR(n.date),String(n.date||''),String(n.number||'').toLowerCase(),valTxt,valRaw,money(val).toLowerCase()].join(' ');
+    return hay.includes(termo)||(tdig.length>=2&&(valDig.includes(tdig)||String(n.number||'').replace(/\D/g,'').includes(tdig)||String(n.date||'').replace(/\D/g,'').includes(tdig)||dateBR(n.date).replace(/\D/g,'').includes(tdig)));
+  });
+  $('impLista').innerHTML=vis.map(n=>`<tr><td>${esc(dateBR(n.date))}</td><td>${esc(n.number)}</td><td>${money(n.value)}</td><td>${esc(ORIGENS[n.origin]||'—')}</td><td><button class="button button-light button-small" type="button" data-imp-edit="${esc(n.id)}">Modificar</button> <button class="button button-danger-light button-small" type="button" data-imp-del="${esc(n.id)}">Excluir</button></td></tr>`).join('')
+    ||`<tr><td colspan="5" class="cart-empty">${termo?'Nenhuma nota encontrada para essa busca.':'Nenhuma nota registrada neste período.'}</td></tr>`;
+  $('impListaTotal').innerHTML=vis.length?`<tr class="imp-total-row"><td colspan="2"><b>${termo?'TOTAL DA BUSCA':mes?'TOTAL DO MÊS':'TOTAL'} · ${vis.length} ${vis.length===1?'nota':'notas'}</b></td><td><b>${money(vis.reduce((t,n)=>t+Number(n.value||0),0))}</b></td><td colspan="2"></td></tr>`:'';
   calcular(list);
 }
 
@@ -228,6 +234,7 @@ function init(){
   mesAtual();
   const filtro=()=>{limparManual();render();};
   $('impMes').addEventListener('change',filtro);
+  $('impBusca').addEventListener('input',render);
   $('impMesAtual').addEventListener('click',()=>{mesAtual();filtro();});
   $('impAnexo').addEventListener('change',()=>{man.aliq=false;man.pd=false;(data.taxCfg||(data.taxCfg={})).anexo=$('impAnexo').value;saveData();});
   [['impRbt','rbt'],['impAliq','aliq'],['impPd','pd']].forEach(([id,k])=>$(id).addEventListener('money-mask-updated',()=>{man[k]=!!$(id).value.trim();render();}));
