@@ -767,7 +767,7 @@ function getSales(){
 }
 function saleMatches(s,tokens){
  if(!tokens.length)return true;
- const hay=fold([s.client,s.cpf,new Date(s.date).toLocaleDateString('pt-BR'),localDateKey(s.date),s.items.map(i=>`${i.name} ${i.code}`).join(' ')].join(' '));
+ const hay=fold([s.client,s.cpf,new Date(s.date).toLocaleDateString('pt-BR'),localDateKey(s.date),s.items.map(i=>`${i.name} ${i.code}`).join(' '),s.taxNote?`nota nf ${s.taxNote.number}`:''].join(' '));
  const cpfDigits=digits(s.cpf),idFold=fold(s.id);
  return tokens.every(t=>hay.includes(t)||(t.length>=4&&idFold.includes(t))||(/^[\d.\-]+$/.test(t)&&digits(t).length>=3&&cpfDigits.includes(digits(t))));
 }
@@ -775,16 +775,18 @@ function noteDateBR(iso){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');retur
 function renderSaleSearch(){
  const body=document.getElementById('listaVendasBusca');if(!body)return;
  const tokens=fold(document.getElementById('buscaVenda').value).split(/\s+/).filter(Boolean);
- const start=document.getElementById('buscaVendaInicio').value,end=document.getElementById('buscaVendaFim').value,status=document.getElementById('buscaVendaStatus').value;
+ const start=document.getElementById('buscaVendaInicio').value,end=document.getElementById('buscaVendaFim').value,status=document.getElementById('buscaVendaStatus').value,notaFiltro=document.getElementById('buscaVendaNota').value;
  const sales=getSales().filter(s=>{
   const day=localDateKey(s.date);
   if(start&&day<start)return false;if(end&&day>end)return false;
   if(status==='ativas'&&s.canceled)return false;if(status==='canceladas'&&!s.canceled)return false;
+  if(notaFiltro==='com'&&!s.taxNote)return false;if(notaFiltro==='sem'&&s.taxNote)return false;
   return saleMatches(s,tokens);
  });
  const active=sales.filter(s=>!s.canceled),LIMIT=100;
  const totalAtivas=active.reduce((n,s)=>n+s.total,0),lucroAtivas=active.filter(s=>s.profitKnown).reduce((n,s)=>n+s.profit,0);
- document.getElementById('vendasResumo').innerHTML=`<span><b>${sales.length}</b> ${sales.length===1?'venda encontrada':'vendas encontradas'}</span><span>Total das ativas: <b>${esc(money(totalAtivas))}</b></span><span>Lucro das ativas: <b>${esc(money(lucroAtivas))}</b></span><span>Canceladas: <b>${sales.length-active.length}</b></span>${sales.length>LIMIT?`<span>Mostrando as ${LIMIT} mais recentes — refine a busca para ver as demais.</span>`:''}`;
+ const comNota=active.filter(s=>s.taxNote),totalNotas=comNota.reduce((n,s)=>n+Number(s.taxNote.value||0),0);
+ document.getElementById('vendasResumo').innerHTML=`<span><b>${sales.length}</b> ${sales.length===1?'venda encontrada':'vendas encontradas'}</span><span>Total das ativas: <b>${esc(money(totalAtivas))}</b></span><span>Lucro das ativas: <b>${esc(money(lucroAtivas))}</b></span><span>Canceladas: <b>${sales.length-active.length}</b></span><span>Total das notas: <b>${esc(money(totalNotas))}</b> (${comNota.length} ${comNota.length===1?'nota':'notas'})</span>${sales.length>LIMIT?`<span>Mostrando as ${LIMIT} mais recentes — refine a busca para ver as demais.</span>`:''}`;
  body.innerHTML=sales.slice(0,LIMIT).map(s=>`<tr class="${s.canceled?'row-canceled':''}">`
   +`<td>${esc(dateText(s.date))}<br><small>Venda ${esc(s.id)}</small></td>`
   +`<td><span class="product-name">${esc(s.client||'Sem cliente')}</span>${s.cpf?`<br><small>CPF ${esc(s.cpf)}</small>`:''}</td>`
@@ -871,8 +873,8 @@ document.getElementById('listaVendasBusca').addEventListener('click',e=>{
  if(edit)startSaleEdit(edit.dataset.saleEdit);else if(cancel)cancelSale(cancel.dataset.saleCancel);
 });
 ['buscaVenda'].forEach(k=>document.getElementById(k).addEventListener('input',renderSaleSearch));
-['buscaVendaInicio','buscaVendaFim','buscaVendaStatus'].forEach(k=>document.getElementById(k).addEventListener('change',renderSaleSearch));
-document.getElementById('limparBuscaVenda').addEventListener('click',()=>{['buscaVenda','buscaVendaInicio','buscaVendaFim'].forEach(k=>document.getElementById(k).value='');document.getElementById('buscaVendaStatus').value='todas';renderSaleSearch();});
+['buscaVendaInicio','buscaVendaFim','buscaVendaStatus','buscaVendaNota'].forEach(k=>document.getElementById(k).addEventListener('change',renderSaleSearch));
+document.getElementById('limparBuscaVenda').addEventListener('click',()=>{['buscaVenda','buscaVendaInicio','buscaVendaFim'].forEach(k=>document.getElementById(k).value='');document.getElementById('buscaVendaStatus').value='todas';document.getElementById('buscaVendaNota').value='todas';renderSaleSearch();});
 document.getElementById('cancelarEdicaoVenda').addEventListener('click',()=>{cancelSaleEdit();toast('Edição cancelada. Nada foi alterado.');});
 document.getElementById('filtroTipo').addEventListener('change',renderHistory);
 document.getElementById('limparHistorico').addEventListener('click',()=>{if(!confirm('Apagar o histórico? Os produtos e quantidades em estoque serão mantidos.'))return;data.movements=[];if(saveData())toast('Histórico apagado.');});
