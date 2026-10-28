@@ -351,6 +351,7 @@ if(typeof baseShowProfit==='function'){
         b.addEventListener('click',e=>{e.preventDefault();abrirAjuda(id);});
         botoes[id]=b;
       }
+      el.textContent='';   // oculta o número (ex.: 53,5%); fica só o "?" clicável, o valor aparece no popup
       el.appendChild(botoes[id]);
       if(ajudaId===id&&pop&&!pop.hidden)montarAjuda(id);
     }else if(ajudaId===id)fecharAjuda();
