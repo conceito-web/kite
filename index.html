@@ -337,7 +337,8 @@
               </section>
               <label class="field">Observação (opcional)<input id="vendaObs" maxlength="180" placeholder="Observação da venda"></label>
               <button class="button button-primary full-button" type="submit"><b id="confirmarVendaTexto" style="font:inherit">Confirmar venda e baixar estoque</b> <span>→</span></button>
-              <button class="button button-light full-button" id="salvarOrcamentoVenda" type="button">✎ Salvar como orçamento</button>
+              <label class="field">Parcelar no orçamento (aparece no cupom)<select id="vendaOrcParcelas"><option value="1">À vista (sem parcelas)</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></label>
+                <button class="button button-light full-button" id="salvarOrcamentoVenda" type="button">✎ Salvar como orçamento</button>
               <button class="button button-light full-button" id="vendaImposto" type="button">🧾 Informações de imposto</button>
               <div id="reciboAcoes" class="receipt-actions" hidden>
                 <p id="reciboStatus">Venda registrada. Gere o recibo em PDF e envie ao cliente.</p>
@@ -547,6 +548,7 @@
                 <div class="pdv-total"><span id="pdvRestoLabel">Falta receber</span><strong id="pdvResto">R$ 0,00</strong></div>
                 <p id="pdvOrcAviso" class="pay-hint" hidden></p>
                 <button class="button button-primary full-button" id="pdvFinalizar" type="button">Finalizar venda (F2)</button>
+                <label class="field">Parcelar no orçamento (aparece no cupom)<select id="pdvOrcParcelas"><option value="1">À vista (sem parcelas)</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></label>
                 <button class="button button-light full-button" id="pdvOrcamento" type="button">✎ Salvar como orçamento</button>
                 <button class="button button-light full-button" id="pdvImposto" type="button">🧾 Informações de imposto</button>
                 <div id="pdvPos" class="receipt-actions" hidden><p id="pdvPosTexto"></p><button class="button button-light full-button" id="pdvImprimir" type="button">Imprimir cupom (80 mm)</button><button class="button button-light full-button" id="pdvPdf" type="button">⬇ Baixar recibo em PDF</button><small>O cupom não tem valor fiscal. A NFC-e continua sendo emitida no seu outro sistema.</small></div>
@@ -762,7 +764,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=26"></script>
-  <script src="modulos.js?v=16"></script>
+  <script src="modulos.js?v=17"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
   <script src="impostos.js?v=11"></script>
