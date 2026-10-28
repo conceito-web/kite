@@ -295,7 +295,7 @@ const pct1=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionD
 function criarPop(){
   if(pop)return pop;
   const st=document.createElement('style');
-  st.textContent='.imp-q{width:20px;height:20px;margin-left:8px;border-radius:50%;border:1px solid #c9d3e6;background:#f3f6fd;color:#4a62a8;font:800 12px "DM Sans",sans-serif;line-height:1;padding:0;cursor:pointer;flex:none}.imp-q:hover{background:#e6edff}'
+  st.textContent='.imp-q{width:20px;height:20px;margin-left:8px;border-radius:50%;border:1px solid #c9d3e6;background:#f3f6fd;color:#4a62a8;font:800 12px "DM Sans",sans-serif;line-height:1;padding:0;cursor:pointer;flex:none}.imp-q:hover{background:#e6edff}.imp-q.baixo{border-color:#fca5a5;background:#fef2f2;color:#dc2626}.imp-q.baixo:hover{background:#fee2e2}'
    +'.imp-pop{position:fixed;z-index:200;width:290px;max-width:calc(100vw - 16px);background:#fff;border:1px solid #dde4f0;border-radius:12px;box-shadow:0 14px 34px #182b4833;padding:14px 15px;font:500 12px "DM Sans",sans-serif;color:#2b3a55}'
    +'.imp-pop h4{margin:0 0 9px;font:800 13px Manrope,sans-serif;color:#1d2b42}.imp-pop .r{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #f0f3f8}.imp-pop .r span:last-child{text-align:right;white-space:nowrap}'
    +'.imp-pop .r.t{border-bottom:0;border-top:2px solid #dde4f0;margin-top:3px;padding-top:8px;font-weight:800;color:#159568}.imp-pop small{display:block;margin-top:8px;color:#9aa4b2;font-size:10px;line-height:1.4}';
@@ -345,12 +345,14 @@ if(typeof baseShowProfit==='function'){
     el.title='';
     if(detalhe[id]){
       if(!botoes[id]){
+        criarPop();
         const b=document.createElement('button');
         b.type='button';b.className='imp-q';b.textContent='?';
         b.setAttribute('aria-label','Ver de onde vem o lucro');b.title='De onde vem o lucro';
         b.addEventListener('click',e=>{e.preventDefault();abrirAjuda(id);});
         botoes[id]=b;
       }
+      botoes[id].classList.toggle('baixo',Math.round((v-ae)*10)/10<=39);   // "?" vermelho se o lucro estiver abaixo de 40%
       el.textContent='';   // oculta o número (ex.: 53,5%); fica só o "?" clicável, o valor aparece no popup
       el.appendChild(botoes[id]);
       if(ajudaId===id&&pop&&!pop.hidden)montarAjuda(id);
