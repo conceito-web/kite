@@ -792,6 +792,9 @@ const qDays=()=>Math.max(1,Math.round(Number((data.settings||{}).quoteDays))||7)
 const qUntil=q=>new Date(new Date(q.date).getTime()+(q.validDays||7)*864e5);
 const qExpired=q=>q.status==='aberto'&&qUntil(q).getTime()<Date.now();
 const qFmt=v=>v>0?Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
+// Parcelamento do orçamento: valor total dividido em n parcelas (sem acréscimo). A última absorve os centavos.
+const qInst=q=>{const n=Math.max(1,Math.min(12,Math.round(Number(q.installments))||1));return n>1&&q.total>0?splitInstallments(q.total,n):[];};
+const qInstText=q=>{const p=qInst(q);if(!p.length)return '';const n=p.length,a=p[0],b=p[n-1];return a===b?`${n}x de ${money(a)}`:`${n-1}x de ${money(a)} + 1x de ${money(b)}`;};
 const qMonth=d=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0');};
 
 function saveQuote(src,target){
@@ -799,7 +802,7 @@ function saveQuote(src,target){
  if(!src.items.length){toast('Adicione pelo menos um produto antes de salvar o orçamento.',true);return;}
  let alloc=0;
  const items=src.items.map((it,i)=>{let lt;if(i===src.items.length-1)lt=r2(src.total-alloc);else{lt=src.subtotal?r2(r2(it.quantity*it.price)*(src.total/src.subtotal)):0;alloc+=lt;}return {productId:it.productId,name:it.name,quantity:it.quantity,price:it.price,cost:Number(it.cost||0),lineTotal:lt};});
- const base={client:src.client,note:src.note||'',items,subtotal:src.subtotal,discountCash:src.discountCash,discountPercent:src.discountPercent,discount:r2(src.subtotal-src.total),total:src.total};
+ const base={client:src.client,note:src.note||'',items,subtotal:src.subtotal,discountCash:src.discountCash,discountPercent:src.discountPercent,discount:r2(src.subtotal-src.total),total:src.total,installments:Math.max(1,Math.min(12,Math.round(Number(src.installments))||1))};
  const old=pendingQuote&&pendingQuote.target===target?quotes().find(x=>x.id===pendingQuote.id&&x.status==='aberto'):null;
  let q;
  if(old){Object.assign(old,base,{editedAt:new Date().toISOString()});q=old;}
@@ -819,16 +822,16 @@ window.markQuoteSold=markQuoteSold;
 $('salvarOrcamentoVenda').addEventListener('click',()=>{
  if(editingSale){toast('Termine ou cancele a edição da venda antes de salvar um orçamento.',true);return;}
  const t=saleTotals();
- const q=saveQuote({client:$('vendaCliente').value.trim(),note:$('vendaObs').value.trim(),items:saleCart.map(x=>({...x})),subtotal:t.subtotal,discountCash:t.discountCash,discountPercent:t.discountPercent,total:t.total},'venda');
+ const q=saveQuote({client:$('vendaCliente').value.trim(),note:$('vendaObs').value.trim(),items:saleCart.map(x=>({...x})),subtotal:t.subtotal,discountCash:t.discountCash,discountPercent:t.discountPercent,total:t.total,installments:$('vendaOrcParcelas').value},'venda');
  if(!q)return;
- saleCart=[];$('formVenda').reset();$('linhasPagamento').innerHTML='';addPaymentRow();renderCart();updateSalePreview();goTo('orcamentos');
+ saleCart=[];$('formVenda').reset();$('vendaOrcParcelas').value='1';$('linhasPagamento').innerHTML='';addPaymentRow();renderCart();updateSalePreview();goTo('orcamentos');
 });
 // ---- salvar a partir do PDV ----
 $('pdvOrcamento').addEventListener('click',()=>{
  const t=totals();
- const q=saveQuote({client:$('pdvCliente').value.trim(),note:'',items:cart.map(x=>({...x})),subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,total:t.total},'pdv');
+ const q=saveQuote({client:$('pdvCliente').value.trim(),note:'',items:cart.map(x=>({...x})),subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,total:t.total,installments:$('pdvOrcParcelas').value},'pdv');
  if(!q)return;
- cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');$('pdvPagMetodo').value='';pdvSync();render();goTo('orcamentos');
+ cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');$('pdvPagMetodo').value='';$('pdvOrcParcelas').value='1';pdvSync();render();goTo('orcamentos');
 });
 
 // ---- converter em venda ----
@@ -842,7 +845,7 @@ function qToSale(q){
  if(editingSale){toast('Termine ou cancele a edição da venda antes de converter um orçamento.',true);return;}
  if(saleCart.length&&!confirm('O carrinho de Registrar venda tem itens. Substituí-los pelos do orçamento?'))return;
  const lines=qLines(q);if(!lines.length)return;
- saleCart=lines;$('vendaCliente').value=q.client||'';$('vendaObs').value=q.note||'';$('vendaDescontoReais').value=qFmt(q.discountCash);$('vendaDescontoPercentual').value=qFmt(q.discountPercent);
+ saleCart=lines;$('vendaCliente').value=q.client||'';$('vendaObs').value=q.note||'';$('vendaDescontoReais').value=qFmt(q.discountCash);$('vendaDescontoPercentual').value=qFmt(q.discountPercent);$('vendaOrcParcelas').value=String(q.installments||1);
  pendingQuote={id:q.id,target:'venda'};renderCart();updateSalePreview();qBanners();goTo('venda');
  toast(`Orçamento ${qNum(q)} carregado. Ajuste o que precisar e confirme a venda.`);
 }
@@ -850,7 +853,7 @@ function qToPdv(q){
  if(!openSession()){toast('Abra o caixa no PDV antes de levar o orçamento para lá.',true);goTo('pdv');return;}
  if(cart.length&&!confirm('O carrinho do PDV tem itens. Substituí-los pelos do orçamento?'))return;
  const lines=qLines(q);if(!lines.length)return;
- cart=lines;pays=[];$('pdvCliente').value=q.client||'';$('pdvDescReais').value=qFmt(q.discountCash);$('pdvDescPct').value=qFmt(q.discountPercent);
+ cart=lines;pays=[];$('pdvCliente').value=q.client||'';$('pdvDescReais').value=qFmt(q.discountCash);$('pdvDescPct').value=qFmt(q.discountPercent);$('pdvOrcParcelas').value=String(q.installments||1);
  pendingQuote={id:q.id,target:'pdv'};$('pdvPos').hidden=true;pdvSync();render();qBanners();goTo('pdv');
  toast(`Orçamento ${qNum(q)} carregado no PDV.`);
 }
@@ -874,7 +877,8 @@ function qPdf(q){
  q.items.forEach(it=>{const nm=doc.splitTextToSize(it.name,88),h=Math.max(7,nm.length*5);if(y+h>265){doc.addPage();y=18;}doc.text(nm,15,y);doc.text(String(it.quantity),108,y);doc.text(money(it.price),126,y);doc.text(money(it.lineTotal),166,y);y+=h;});
  y+=2;doc.line(15,y,195,y);y+=8;
  if(q.discount>0){doc.text('Subtotal:',135,y);doc.text(money(q.subtotal),195,y,{align:'right'});y+=6;doc.text('Desconto:',135,y);doc.text('- '+money(q.discount),195,y,{align:'right'});y+=7;}
- doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('TOTAL:',125,y);doc.text(money(q.total),195,y,{align:'right'});y+=11;
+ doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('TOTAL:',125,y);doc.text(money(q.total),195,y,{align:'right'});y+=(qInst(q).length?7:11);
+ if(qInst(q).length){doc.setFontSize(11);doc.text('Parcelamento: '+qInstText(q),195,y,{align:'right'});y+=9;}
  doc.setFont('helvetica','normal');doc.setFontSize(10);if(y>255){doc.addPage();y=18;}
  if(q.note){const l=doc.splitTextToSize('Obs.: '+q.note,175);doc.text(l,15,y);y+=l.length*5+2;}
  const f=doc.splitTextToSize(`Orçamento válido por ${q.validDays} dias (até ${qUntil(q).toLocaleDateString('pt-BR')}). Não é documento fiscal e não reserva estoque; preços e disponibilidade podem mudar após a validade.`,175);doc.text(f,15,y);
@@ -882,7 +886,7 @@ function qPdf(q){
 }
 function qCoupon(q){
  const rows=q.items.map(i=>`<tr><td colspan="2">${esc(i.name)}</td></tr><tr><td>${i.quantity} x ${money(i.price)}</td><td class="r">${money(i.lineTotal)}</td></tr>`).join('');
- const html=`<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{font:12px/1.4 monospace;width:74mm;margin:0}h1{font-size:15px;text-align:center;margin:0}.c{text-align:center}.r{text-align:right}table{width:100%;border-collapse:collapse}hr{border:0;border-top:1px dashed #000}</style><h1>CONCEITO</h1><p class="c">Tel.: (85) 98743-1390</p><p class="c"><b>ORÇAMENTO ${esc(qNum(q))}</b><br>NÃO É DOCUMENTO FISCAL<br>${esc(new Date(q.date).toLocaleDateString('pt-BR'))}<br>Válido até ${esc(qUntil(q).toLocaleDateString('pt-BR'))}${q.client?'<br>Cliente: '+esc(q.client):''}</p><hr><table>${rows}</table><hr><table>${q.discount>0?`<tr><td>Subtotal</td><td class="r">${money(q.subtotal)}</td></tr><tr><td>Desconto</td><td class="r">- ${money(q.discount)}</td></tr>`:''}<tr><td><b>TOTAL</b></td><td class="r"><b>${money(q.total)}</b></td></tr></table><hr><p class="c">Orçamento válido por ${q.validDays} dias.<br>Não reserva estoque.<br>Dúvidas: (85) 98743-1390</p>`;
+ const html=`<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{font:12px/1.4 monospace;width:74mm;margin:0}h1{font-size:15px;text-align:center;margin:0}.c{text-align:center}.r{text-align:right}table{width:100%;border-collapse:collapse}hr{border:0;border-top:1px dashed #000}</style><h1>CONCEITO</h1><p class="c">Tel.: (85) 98743-1390</p><p class="c"><b>ORÇAMENTO ${esc(qNum(q))}</b><br>NÃO É DOCUMENTO FISCAL<br>${esc(new Date(q.date).toLocaleDateString('pt-BR'))}<br>Válido até ${esc(qUntil(q).toLocaleDateString('pt-BR'))}${q.client?'<br>Cliente: '+esc(q.client):''}</p><hr><table>${rows}</table><hr><table>${q.discount>0?`<tr><td>Subtotal</td><td class="r">${money(q.subtotal)}</td></tr><tr><td>Desconto</td><td class="r">- ${money(q.discount)}</td></tr>`:''}<tr><td><b>TOTAL</b></td><td class="r"><b>${money(q.total)}</b></td></tr></table>${qInst(q).length?`<hr><p class="c"><b>PARCELAMENTO</b><br>${qInst(q).length}x de <b>${money(qInst(q)[0])}</b>${qInst(q)[0]!==qInst(q).slice(-1)[0]?`<br>(última parcela: ${money(qInst(q).slice(-1)[0])})`:''}</p>`:''}<hr><p class="c">Orçamento válido por ${q.validDays} dias.<br>Não reserva estoque.<br>Dúvidas: (85) 98743-1390</p>`;
  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
  f.contentDocument.open();f.contentDocument.write(html);f.contentDocument.close();
  setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),1500);},250);
@@ -893,7 +897,7 @@ function qWhats(q){
  let n=phone.replace(/\D/g,'');if(n&&n.length<10){toast('Informe um número com DDD válido.',true);return;}if(n&&n.length<=11)n='55'+n;
  const L=[`Olá${q.client?' '+q.client:''}! Segue o *ORÇAMENTO ${qNum(q)}* da Conceito.`,`Data: ${new Date(q.date).toLocaleDateString('pt-BR')} · Válido até ${qUntil(q).toLocaleDateString('pt-BR')}`,...qItemsText(q)];
  if(q.discount>0)L.push(`Subtotal: ${money(q.subtotal)}`,`Desconto: ${money(q.discount)}`);
- L.push(`TOTAL: ${money(q.total)}`);if(q.note)L.push(`Observação: ${q.note}`);L.push('Orçamento sem valor fiscal e sem reserva de estoque.');
+ L.push(`TOTAL: ${money(q.total)}`);if(qInst(q).length)L.push(`Parcelamento: ${qInstText(q)}`);if(q.note)L.push(`Observação: ${q.note}`);L.push('Orçamento sem valor fiscal e sem reserva de estoque.');
  window.open(`https://wa.me/${n}?text=${encodeURIComponent(L.join('\n'))}`,'_blank','noopener');
 }
 
