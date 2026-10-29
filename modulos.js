@@ -797,12 +797,41 @@ const qInst=q=>{const n=Math.max(1,Math.min(12,Math.round(Number(q.installments)
 const qInstText=q=>{const p=qInst(q);if(!p.length)return '';const n=p.length,a=p[0],b=p[n-1];return a===b?`${n}x de ${money(a)}`:`${n-1}x de ${money(a)} + 1x de ${money(b)}`;};
 const qMonth=d=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0');};
 
+
+// ---- Foto do produto no orçamento ----
+// A foto é reduzida (máx. 700 px, JPEG) para caber no armazenamento do navegador e seguir leve no WhatsApp.
+const qPhoto={venda:'',pdv:''};
+function photoShrink(file,cb){
+ const r=new FileReader();
+ r.onerror=()=>toast('Não foi possível ler a foto.',true);
+ r.onload=()=>{const im=new Image();
+  im.onerror=()=>toast('Arquivo de imagem inválido.',true);
+  im.onload=()=>{const M=700,k=Math.min(1,M/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=Math.max(1,Math.round(im.width*k));cv.height=Math.max(1,Math.round(im.height*k));
+   const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(im,0,0,cv.width,cv.height);cb(cv.toDataURL('image/jpeg',0.72));};
+  im.src=r.result;};
+ r.readAsDataURL(file);
+}
+function photoPaint(p){
+ const v=qPhoto[p];
+ $(p+'FotoPrev').hidden=!v;$(p+'FotoRemover').hidden=!v;
+ if(v)$(p+'FotoPrev').src=v;else $(p+'FotoPrev').removeAttribute('src');
+ $(p+'FotoDrop').querySelector('.qphoto-txt').textContent=v?' Trocar foto':' Adicionar foto';
+}
+function photoSet(p,v){qPhoto[p]=v||'';photoPaint(p);}
+['venda','pdv'].forEach(p=>{
+ $(p+'FotoInput').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];e.target.value='';if(!f)return;photoShrink(f,d=>photoSet(p,d));});
+ $(p+'FotoRemover').addEventListener('click',()=>photoSet(p,''));
+});
+// A foto é do orçamento: ao concluir a venda (carrinho esvaziado) o quadro volta vazio.
+$('pdvFinalizar').addEventListener('click',()=>setTimeout(()=>{if(!cart.length)photoSet('pdv','');},300));
+$('formVenda').addEventListener('submit',()=>setTimeout(()=>{if(!saleCart.length)photoSet('venda','');},300));
+
 function saveQuote(src,target){
  // src: {client,note,items:[{productId,name,quantity,price,cost}],subtotal,discountCash,discountPercent,total}
  if(!src.items.length){toast('Adicione pelo menos um produto antes de salvar o orçamento.',true);return;}
  let alloc=0;
  const items=src.items.map((it,i)=>{let lt;if(i===src.items.length-1)lt=r2(src.total-alloc);else{lt=src.subtotal?r2(r2(it.quantity*it.price)*(src.total/src.subtotal)):0;alloc+=lt;}return {productId:it.productId,name:it.name,quantity:it.quantity,price:it.price,cost:Number(it.cost||0),lineTotal:lt};});
- const base={client:src.client,note:src.note||'',items,subtotal:src.subtotal,discountCash:src.discountCash,discountPercent:src.discountPercent,discount:r2(src.subtotal-src.total),total:src.total,installments:Math.max(1,Math.min(12,Math.round(Number(src.installments))||1))};
+ const base={client:src.client,note:src.note||'',items,subtotal:src.subtotal,discountCash:src.discountCash,discountPercent:src.discountPercent,discount:r2(src.subtotal-src.total),total:src.total,installments:Math.max(1,Math.min(12,Math.round(Number(src.installments))||1)),photo:src.photo||''};
  const old=pendingQuote&&pendingQuote.target===target?quotes().find(x=>x.id===pendingQuote.id&&x.status==='aberto'):null;
  let q;
  if(old){Object.assign(old,base,{editedAt:new Date().toISOString()});q=old;}
@@ -822,16 +851,16 @@ window.markQuoteSold=markQuoteSold;
 $('salvarOrcamentoVenda').addEventListener('click',()=>{
  if(editingSale){toast('Termine ou cancele a edição da venda antes de salvar um orçamento.',true);return;}
  const t=saleTotals();
- const q=saveQuote({client:$('vendaCliente').value.trim(),note:$('vendaObs').value.trim(),items:saleCart.map(x=>({...x})),subtotal:t.subtotal,discountCash:t.discountCash,discountPercent:t.discountPercent,total:t.total,installments:$('vendaOrcParcelas').value},'venda');
+ const q=saveQuote({client:$('vendaCliente').value.trim(),note:$('vendaObs').value.trim(),items:saleCart.map(x=>({...x})),subtotal:t.subtotal,discountCash:t.discountCash,discountPercent:t.discountPercent,total:t.total,installments:$('vendaOrcParcelas').value,photo:qPhoto.venda},'venda');
  if(!q)return;
- saleCart=[];$('formVenda').reset();$('vendaOrcParcelas').value='1';$('linhasPagamento').innerHTML='';addPaymentRow();renderCart();updateSalePreview();goTo('orcamentos');
+ photoSet('venda','');saleCart=[];$('formVenda').reset();$('vendaOrcParcelas').value='1';$('linhasPagamento').innerHTML='';addPaymentRow();renderCart();updateSalePreview();goTo('orcamentos');
 });
 // ---- salvar a partir do PDV ----
 $('pdvOrcamento').addEventListener('click',()=>{
  const t=totals();
- const q=saveQuote({client:$('pdvCliente').value.trim(),note:'',items:cart.map(x=>({...x})),subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,total:t.total,installments:$('pdvOrcParcelas').value},'pdv');
+ const q=saveQuote({client:$('pdvCliente').value.trim(),note:'',items:cart.map(x=>({...x})),subtotal:t.sub,discountCash:t.dc,discountPercent:t.dp,total:t.total,installments:$('pdvOrcParcelas').value,photo:qPhoto.pdv},'pdv');
  if(!q)return;
- cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');$('pdvPagMetodo').value='';$('pdvOrcParcelas').value='1';pdvSync();render();goTo('orcamentos');
+ photoSet('pdv','');cart=[];pays=[];['pdvCliente','pdvDescReais','pdvDescPct','pdvPagValor','pdvBusca'].forEach(k=>$(k).value='');$('pdvPagMetodo').value='';$('pdvOrcParcelas').value='1';pdvSync();render();goTo('orcamentos');
 });
 
 // ---- converter em venda ----
@@ -845,7 +874,7 @@ function qToSale(q){
  if(editingSale){toast('Termine ou cancele a edição da venda antes de converter um orçamento.',true);return;}
  if(saleCart.length&&!confirm('O carrinho de Registrar venda tem itens. Substituí-los pelos do orçamento?'))return;
  const lines=qLines(q);if(!lines.length)return;
- saleCart=lines;$('vendaCliente').value=q.client||'';$('vendaObs').value=q.note||'';$('vendaDescontoReais').value=qFmt(q.discountCash);$('vendaDescontoPercentual').value=qFmt(q.discountPercent);$('vendaOrcParcelas').value=String(q.installments||1);
+ saleCart=lines;$('vendaCliente').value=q.client||'';$('vendaObs').value=q.note||'';$('vendaDescontoReais').value=qFmt(q.discountCash);$('vendaDescontoPercentual').value=qFmt(q.discountPercent);$('vendaOrcParcelas').value=String(q.installments||1);photoSet('venda',q.photo);
  pendingQuote={id:q.id,target:'venda'};renderCart();updateSalePreview();qBanners();goTo('venda');
  toast(`Orçamento ${qNum(q)} carregado. Ajuste o que precisar e confirme a venda.`);
 }
@@ -853,7 +882,7 @@ function qToPdv(q){
  if(!openSession()){toast('Abra o caixa no PDV antes de levar o orçamento para lá.',true);goTo('pdv');return;}
  if(cart.length&&!confirm('O carrinho do PDV tem itens. Substituí-los pelos do orçamento?'))return;
  const lines=qLines(q);if(!lines.length)return;
- cart=lines;pays=[];$('pdvCliente').value=q.client||'';$('pdvDescReais').value=qFmt(q.discountCash);$('pdvDescPct').value=qFmt(q.discountPercent);$('pdvOrcParcelas').value=String(q.installments||1);
+ cart=lines;pays=[];$('pdvCliente').value=q.client||'';$('pdvDescReais').value=qFmt(q.discountCash);$('pdvDescPct').value=qFmt(q.discountPercent);$('pdvOrcParcelas').value=String(q.installments||1);photoSet('pdv',q.photo);
  pendingQuote={id:q.id,target:'pdv'};$('pdvPos').hidden=true;pdvSync();render();qBanners();goTo('pdv');
  toast(`Orçamento ${qNum(q)} carregado no PDV.`);
 }
@@ -880,6 +909,7 @@ function qPdf(q){
  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('TOTAL:',125,y);doc.text(money(q.total),195,y,{align:'right'});y+=(qInst(q).length?7:11);
  if(qInst(q).length){doc.setFontSize(11);doc.text('Parcelamento: '+qInstText(q),195,y,{align:'right'});y+=9;}
  doc.setFont('helvetica','normal');doc.setFontSize(10);if(y>255){doc.addPage();y=18;}
+ if(q.photo){try{const ip=doc.getImageProperties(q.photo),k=Math.min(90/ip.width,70/ip.height),w=ip.width*k,h=ip.height*k;if(y+h>270){doc.addPage();y=18;}doc.addImage(q.photo,'JPEG',15,y,w,h);y+=h+6;}catch(_){}}
  if(q.note){const l=doc.splitTextToSize('Obs.: '+q.note,175);doc.text(l,15,y);y+=l.length*5+2;}
  const f=doc.splitTextToSize(`Orçamento válido por ${q.validDays} dias (até ${qUntil(q).toLocaleDateString('pt-BR')}). Não é documento fiscal e não reserva estoque; preços e disponibilidade podem mudar após a validade.`,175);doc.text(f,15,y);
  doc.save(`orcamento-conceito-${String(q.number).padStart(4,'0')}.pdf`);
@@ -891,14 +921,34 @@ function qCoupon(q){
  f.contentDocument.open();f.contentDocument.write(html);f.contentDocument.close();
  setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),1500);},250);
 }
+const qDataFile=(url,name)=>{const b=atob(url.split(',')[1]),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return new File([a],name,{type:'image/jpeg'});};
+// Copia a foto para a área de transferência (PNG) para colar na conversa quando o aparelho não compartilha arquivos.
+function qCopyPhoto(url){
+ if(!(navigator.clipboard&&window.ClipboardItem))return Promise.resolve(false);
+ const png=new Promise((ok,no)=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);c.toBlob(b=>b?ok(b):no(),'image/png');};im.onerror=no;im.src=url;});
+ return navigator.clipboard.write([new ClipboardItem({'image/png':png})]).then(()=>true).catch(()=>false);
+}
 function qWhats(q){
- const cust=findCustomerForSale(q.client,''),phone=prompt('Digite o WhatsApp do cliente com DDD (somente números), ou deixe vazio para escolher uma conversa:',cust?digits(cust.phone):'');
- if(phone===null)return;
- let n=phone.replace(/\D/g,'');if(n&&n.length<10){toast('Informe um número com DDD válido.',true);return;}if(n&&n.length<=11)n='55'+n;
  const L=[`Olá${q.client?' '+q.client:''}! Segue o *ORÇAMENTO ${qNum(q)}* da Conceito.`,`Data: ${new Date(q.date).toLocaleDateString('pt-BR')} · Válido até ${qUntil(q).toLocaleDateString('pt-BR')}`,...qItemsText(q)];
  if(q.discount>0)L.push(`Subtotal: ${money(q.subtotal)}`,`Desconto: ${money(q.discount)}`);
  L.push(`TOTAL: ${money(q.total)}`);if(qInst(q).length)L.push(`Parcelamento: ${qInstText(q)}`);if(q.note)L.push(`Observação: ${q.note}`);L.push('Orçamento sem valor fiscal e sem reserva de estoque.');
- window.open(`https://wa.me/${n}?text=${encodeURIComponent(L.join('\n'))}`,'_blank','noopener');
+ const text=L.join('\n');
+ // Celular: abre a lista de compartilhamento com FOTO + texto; é só escolher o WhatsApp e o cliente.
+ if(q.photo&&navigator.canShare&&navigator.share){
+  const file=qDataFile(q.photo,`orcamento-${String(q.number).padStart(4,'0')}.jpg`);
+  if(navigator.canShare({files:[file]})){
+   navigator.share({files:[file],text}).catch(e=>{if(e&&e.name!=='AbortError')toast('Não foi possível compartilhar a foto. Tente novamente.',true);});
+   return;
+  }
+ }
+ // Computador: abre o WhatsApp com o texto e deixa a foto copiada para colar (Ctrl+V).
+ const copied=q.photo?qCopyPhoto(q.photo):Promise.resolve(false);
+ const cust=findCustomerForSale(q.client,''),phone=prompt('Digite o WhatsApp do cliente com DDD (somente números), ou deixe vazio para escolher uma conversa:',cust?digits(cust.phone):'');
+ if(phone===null)return;
+ let n=phone.replace(/\D/g,'');if(n&&n.length<10){toast('Informe um número com DDD válido.',true);return;}if(n&&n.length<=11)n='55'+n;
+ window.open(`https://wa.me/${n}?text=${encodeURIComponent(text)}`,'_blank','noopener');
+ if(q.photo)copied.then(ok=>{if(ok)toast('Foto copiada. Na conversa do WhatsApp, cole com Ctrl+V para enviar junto.');else{const a=document.createElement('a');a.href=q.photo;a.download=`orcamento-${String(q.number).padStart(4,'0')}.jpg`;a.click();toast('Foto baixada. Anexe-a na conversa do WhatsApp.');}});
+ else if(!n)toast('Cliente sem telefone cadastrado: escolha a conversa no WhatsApp.');
 }
 
 // ---- painel: relatório mensal + lista ----
@@ -914,7 +964,7 @@ function renderQuotes(){
  qBanners();
  const pill=q=>q.status==='vendido'?`<span class="pill ativa">Vendido</span>${q.saleId?`<br><small>Venda ${esc(q.saleId)}</small>`:''}`:q.status==='cancelado'?'<span class="pill cancelada">Cancelado</span>':`<span class="pill">Aberto</span>${qExpired(q)?'<br><small>vencido</small>':''}`;
  const btn=(a,t,i)=>`<button type="button" class="row-action" data-q-act="${a}" data-q-id="${esc(i)}">${t}</button>`;
- $('orcLista').innerHTML=list.map(q=>`<tr${q.status==='cancelado'?' class="row-canceled"':''}><td>${esc(qNum(q))}</td><td>${esc(new Date(q.date).toLocaleDateString('pt-BR'))}</td><td>${esc(q.client||'—')}</td><td>${money(q.total)}</td><td class="sale-status">${pill(q)}</td><td>${btn('pdf','PDF',q.id)}${btn('cup','Cupom 80 mm',q.id)}${btn('wa','WhatsApp',q.id)}${q.status==='aberto'?btn('venda','Converter em venda',q.id)+btn('pdv','Levar ao PDV',q.id)+btn('cancel','Cancelar',q.id):''}${q.status==='cancelado'?btn('reabrir','Reabrir',q.id):''}</td></tr>`).join('')||'<tr><td colspan="6" class="cart-empty">Nenhum orçamento neste período.</td></tr>';
+ $('orcLista').innerHTML=list.map(q=>`<tr${q.status==='cancelado'?' class="row-canceled"':''}><td>${esc(qNum(q))}${q.photo?`<img class="q-thumb" src="${q.photo}" alt="Foto">`:''}</td><td>${esc(new Date(q.date).toLocaleDateString('pt-BR'))}</td><td>${esc(q.client||'—')}</td><td>${money(q.total)}</td><td class="sale-status">${pill(q)}</td><td>${btn('pdf','PDF',q.id)}${btn('cup','Cupom 80 mm',q.id)}${btn('wa','WhatsApp',q.id)}${q.status==='aberto'?btn('venda','Converter em venda',q.id)+btn('pdv','Levar ao PDV',q.id)+btn('cancel','Cancelar',q.id):''}${q.status==='cancelado'?btn('reabrir','Reabrir',q.id):''}</td></tr>`).join('')||'<tr><td colspan="6" class="cart-empty">Nenhum orçamento neste período.</td></tr>';
 }
 window.renderQuotes=renderQuotes;
 $('orcMes').addEventListener('input',renderQuotes);
