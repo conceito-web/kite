@@ -10,6 +10,54 @@ const imports=()=>data.xmlImports||(data.xmlImports=[]);
 const openSession=()=>sessions().find(s=>!s.closedAt);
 let cart=[],pays=[],xmlNotes=[];
 const EMAIL_KEY='ckr_contador_email';
+// ---- Fotos do cadastro de produtos ----
+// Ficam no IndexedDB do navegador (limite bem maior que o localStorage) e entram no backup (campo productPhotos).
+const pf=new Map();let pfDb=null;
+const pfOpen=()=>new Promise((ok,no)=>{if(!window.indexedDB)return no();const r=indexedDB.open('conceito-fotos',1);r.onupgradeneeded=()=>r.result.createObjectStore('fotos');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+const pfTx=fn=>pfDb?new Promise((ok,no)=>{const tx=pfDb.transaction('fotos','readwrite');fn(tx.objectStore('fotos'));tx.oncomplete=ok;tx.onerror=()=>no(tx.error);}):Promise.reject();
+const pfWarn=()=>toast('Não foi possível gravar a foto no armazenamento do navegador. Ela vale só até fechar o sistema.',true);
+function pfPut(id,url){pf.set(id,url);pfTx(s=>s.put(url,id)).catch(pfWarn);}
+window.pfDelete=id=>{pf.delete(id);pfTx(s=>s.delete(id)).catch(()=>{});};
+window.pfClear=()=>{pf.clear();pfTx(s=>s.clear()).catch(()=>{});};
+window.pfRestore=obj=>{
+ pf.clear();pfTx(s=>s.clear()).catch(()=>{});
+ if(obj&&typeof obj==='object')Object.keys(obj).forEach(k=>{const v=obj[k];if(typeof v==='string'&&v.indexOf('data:image/')===0)pfPut(k,v);});
+ try{window.renderAll();}catch(_){}
+};
+window.pfThumb=id=>pf.has(id)?`<img class="p-thumb" src="${pf.get(id)}" alt="">`:'';
+pfOpen().then(db=>{pfDb=db;return new Promise(ok=>{const r=db.transaction('fotos').objectStore('fotos').openCursor();r.onsuccess=()=>{const c=r.result;if(c){pf.set(c.key,c.value);c.continue();}else ok();};r.onerror=()=>ok();});}).then(()=>{if(typeof window.renderAll==='function')window.renderAll();}).catch(()=>{});
+// o backup leva as fotos junto (adicionadas só durante a exportação)
+document.getElementById('fazerBackup').addEventListener('click',()=>{if(pf.size)data.productPhotos=Object.fromEntries(pf);setTimeout(()=>{delete data.productPhotos;},0);},true);
+
+// formulário de produto
+const pfForm={pending:undefined};
+function pfFormPaint(){
+ const v=pfForm.pending!==undefined?pfForm.pending:(typeof editingId!=='undefined'&&editingId?pf.get(editingId)||'':'');
+ $('produtoFotoPrev').hidden=!v;$('produtoFotoRemover').hidden=!v;
+ if(v)$('produtoFotoPrev').src=v;else $('produtoFotoPrev').removeAttribute('src');
+ $('produtoFotoDrop').querySelector('.qphoto-txt').textContent=v?' Trocar foto':' Adicionar foto';
+}
+window.pfFormReset=()=>{pfForm.pending=undefined;pfFormPaint();};
+window.pfFormLoad=()=>{pfForm.pending=undefined;pfFormPaint();};
+window.pfFormSave=id=>{
+ if(pfForm.pending===undefined)return;
+ if(pfForm.pending==='')window.pfDelete(id);else pfPut(id,pfForm.pending);
+ pfForm.pending=undefined;
+};
+$('produtoFotoInput').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];e.target.value='';if(!f)return;photoShrink(f,d=>{pfForm.pending=d;pfFormPaint();});});
+$('produtoFotoRemover').addEventListener('click',()=>{pfForm.pending='';pfFormPaint();});
+
+// fotos dos produtos que estão no carrinho (aparecem sozinhas e vão no orçamento)
+const itemPhotos=items=>{const seen=new Set(),out=[];items.forEach(i=>{if(seen.has(i.productId))return;seen.add(i.productId);const v=pf.get(i.productId);if(v)out.push({v,name:i.name});});return out;};
+function stripPaint(p){
+ const box=$(p+'FotosProd');if(!box)return;
+ const list=itemPhotos(p==='pdv'?cart:saleCart);
+ box.hidden=!list.length;
+ box.querySelector('.qphoto-strip').innerHTML=list.map(x=>`<img src="${x.v}" alt="${esc(x.name)}" title="${esc(x.name)}">`).join('');
+}
+const baseRenderCart=window.renderCart;
+if(typeof baseRenderCart==='function')window.renderCart=function(){const r=baseRenderCart.apply(this,arguments);try{stripPaint('venda');}catch(_){}return r;};
+
 
 // ================= CAIXA / PDV =================
 function sessionStats(s){
@@ -29,6 +77,7 @@ function totals(){
 }
 function render(){
  const s=openSession();
+ try{stripPaint('pdv');}catch(_){}
  $('pdvFechado').hidden=!!s;$('pdvAberto').hidden=!s;
  if(!s){
   $('pdvHistCaixa').innerHTML=sessions().filter(x=>x.closedAt).slice(-6).reverse().map(x=>`<tr><td>${esc(dateText(x.openedAt))}</td><td>${esc(x.openedBy||'—')}</td><td>${sessionStats(x).count} · ${money(sessionStats(x).total)}</td><td>${money(x.expected)}</td><td>${money(x.counted)}</td><td>${money(x.counted-x.expected)}</td></tr>`).join('')||'<tr><td colspan="6" class="cart-empty">Nenhum fechamento ainda.</td></tr>';
@@ -894,6 +943,7 @@ function qBanners(){
 $('cancelarOrcVenda').addEventListener('click',()=>{pendingQuote=null;qBanners();toast('Orçamento desvinculado. O carrinho continua como está.');});
 
 // ---- PDF, cupom 80 mm e WhatsApp ----
+const qPhotos=q=>[...(q.photo?[q.photo]:[]),...itemPhotos(q.items).map(x=>x.v)].slice(0,6);
 const qItemsText=q=>q.items.map(x=>`${x.name} | Qtd.: ${x.quantity} | Unit.: ${money(x.price)} | Total: ${money(x.lineTotal)}`);
 function qPdf(q){
  if(!window.jspdf||!window.jspdf.jsPDF){toast('A biblioteca de PDF não carregou. Verifique a internet e tente novamente.',true);return;}
@@ -909,7 +959,8 @@ function qPdf(q){
  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('TOTAL:',125,y);doc.text(money(q.total),195,y,{align:'right'});y+=(qInst(q).length?7:11);
  if(qInst(q).length){doc.setFontSize(11);doc.text('Parcelamento: '+qInstText(q),195,y,{align:'right'});y+=9;}
  doc.setFont('helvetica','normal');doc.setFontSize(10);if(y>255){doc.addPage();y=18;}
- if(q.photo){try{const ip=doc.getImageProperties(q.photo),k=Math.min(90/ip.width,70/ip.height),w=ip.width*k,h=ip.height*k;if(y+h>270){doc.addPage();y=18;}doc.addImage(q.photo,'JPEG',15,y,w,h);y+=h+6;}catch(_){}}
+ const phs=qPhotos(q);
+ if(phs.length){try{let x=15,rowH=0;phs.forEach(u=>{const ip=doc.getImageProperties(u),k=Math.min(56/ip.width,56/ip.height),w=ip.width*k,h=ip.height*k;if(x+w>196){x=15;y+=rowH+4;rowH=0;}if(y+h>272){doc.addPage();y=18;x=15;rowH=0;}doc.addImage(u,'JPEG',x,y,w,h);x+=w+4;rowH=Math.max(rowH,h);});y+=rowH+6;}catch(_){}}
  if(q.note){const l=doc.splitTextToSize('Obs.: '+q.note,175);doc.text(l,15,y);y+=l.length*5+2;}
  const f=doc.splitTextToSize(`Orçamento válido por ${q.validDays} dias (até ${qUntil(q).toLocaleDateString('pt-BR')}). Não é documento fiscal e não reserva estoque; preços e disponibilidade podem mudar após a validade.`,175);doc.text(f,15,y);
  doc.save(`orcamento-conceito-${String(q.number).padStart(4,'0')}.pdf`);
@@ -922,32 +973,36 @@ function qCoupon(q){
  setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),1500);},250);
 }
 const qDataFile=(url,name)=>{const b=atob(url.split(',')[1]),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return new File([a],name,{type:'image/jpeg'});};
-// Copia a foto para a área de transferência (PNG) para colar na conversa quando o aparelho não compartilha arquivos.
-function qCopyPhoto(url){
- if(!(navigator.clipboard&&window.ClipboardItem))return Promise.resolve(false);
- const png=new Promise((ok,no)=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);c.toBlob(b=>b?ok(b):no(),'image/png');};im.onerror=no;im.src=url;});
- return navigator.clipboard.write([new ClipboardItem({'image/png':png})]).then(()=>true).catch(()=>false);
+// Junta as fotos lado a lado em uma só imagem (PNG) — usado no computador, onde só dá para colar uma imagem.
+function qCollage(urls){
+ return Promise.all(urls.map(u=>new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=no;im.src=u;}))).then(ims=>{
+  const H=ims.length===1?ims[0].height:360,ws=ims.map(i=>Math.round(i.width*H/i.height)),cv=document.createElement('canvas');
+  cv.width=ws.reduce((a,b)=>a+b,0)+(ims.length-1)*8;cv.height=H;
+  const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,H);let px=0;ims.forEach((im,i)=>{x.drawImage(im,px,0,ws[i],H);px+=ws[i]+8;});
+  return new Promise((ok,no)=>cv.toBlob(b=>b?ok(b):no(),'image/png'));
+ });
 }
 function qWhats(q){
  const L=[`Olá${q.client?' '+q.client:''}! Segue o *ORÇAMENTO ${qNum(q)}* da Conceito.`,`Data: ${new Date(q.date).toLocaleDateString('pt-BR')} · Válido até ${qUntil(q).toLocaleDateString('pt-BR')}`,...qItemsText(q)];
  if(q.discount>0)L.push(`Subtotal: ${money(q.subtotal)}`,`Desconto: ${money(q.discount)}`);
  L.push(`TOTAL: ${money(q.total)}`);if(qInst(q).length)L.push(`Parcelamento: ${qInstText(q)}`);if(q.note)L.push(`Observação: ${q.note}`);L.push('Orçamento sem valor fiscal e sem reserva de estoque.');
- const text=L.join('\n');
- // Celular: abre a lista de compartilhamento com FOTO + texto; é só escolher o WhatsApp e o cliente.
- if(q.photo&&navigator.canShare&&navigator.share){
-  const file=qDataFile(q.photo,`orcamento-${String(q.number).padStart(4,'0')}.jpg`);
-  if(navigator.canShare({files:[file]})){
-   navigator.share({files:[file],text}).catch(e=>{if(e&&e.name!=='AbortError')toast('Não foi possível compartilhar a foto. Tente novamente.',true);});
+ const text=L.join('\n'),photos=qPhotos(q),num=String(q.number).padStart(4,'0');
+ // Celular: abre a lista de compartilhamento com as FOTOS + texto; é só escolher o WhatsApp e o cliente.
+ if(photos.length&&navigator.canShare&&navigator.share){
+  const files=photos.map((u,i)=>qDataFile(u,`orcamento-${num}-${i+1}.jpg`));
+  if(navigator.canShare({files})){
+   navigator.share({files,text}).catch(e=>{if(e&&e.name!=='AbortError')toast('Não foi possível compartilhar as fotos. Tente novamente.',true);});
    return;
   }
  }
- // Computador: abre o WhatsApp com o texto e deixa a foto copiada para colar (Ctrl+V).
- const copied=q.photo?qCopyPhoto(q.photo):Promise.resolve(false);
+ // Computador: abre o WhatsApp com o texto e deixa a foto (ou as fotos juntas numa imagem) copiada para colar (Ctrl+V).
+ let collage=null,copied=Promise.resolve(false);
+ if(photos.length){collage=qCollage(photos);copied=(navigator.clipboard&&window.ClipboardItem)?navigator.clipboard.write([new ClipboardItem({'image/png':collage})]).then(()=>true).catch(()=>false):Promise.resolve(false);}
  const cust=findCustomerForSale(q.client,''),phone=prompt('Digite o WhatsApp do cliente com DDD (somente números), ou deixe vazio para escolher uma conversa:',cust?digits(cust.phone):'');
  if(phone===null)return;
  let n=phone.replace(/\D/g,'');if(n&&n.length<10){toast('Informe um número com DDD válido.',true);return;}if(n&&n.length<=11)n='55'+n;
  window.open(`https://wa.me/${n}?text=${encodeURIComponent(text)}`,'_blank','noopener');
- if(q.photo)copied.then(ok=>{if(ok)toast('Foto copiada. Na conversa do WhatsApp, cole com Ctrl+V para enviar junto.');else{const a=document.createElement('a');a.href=q.photo;a.download=`orcamento-${String(q.number).padStart(4,'0')}.jpg`;a.click();toast('Foto baixada. Anexe-a na conversa do WhatsApp.');}});
+ if(photos.length)copied.then(ok=>{if(ok){toast('Foto copiada. Na conversa do WhatsApp, cole com Ctrl+V para enviar junto.');return;}collage.then(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`orcamento-${num}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);toast('Foto baixada. Anexe-a na conversa do WhatsApp.');}).catch(()=>toast('Não foi possível preparar a foto.',true));});
  else if(!n)toast('Cliente sem telefone cadastrado: escolha a conversa no WhatsApp.');
 }
 
@@ -964,7 +1019,7 @@ function renderQuotes(){
  qBanners();
  const pill=q=>q.status==='vendido'?`<span class="pill ativa">Vendido</span>${q.saleId?`<br><small>Venda ${esc(q.saleId)}</small>`:''}`:q.status==='cancelado'?'<span class="pill cancelada">Cancelado</span>':`<span class="pill">Aberto</span>${qExpired(q)?'<br><small>vencido</small>':''}`;
  const btn=(a,t,i)=>`<button type="button" class="row-action" data-q-act="${a}" data-q-id="${esc(i)}">${t}</button>`;
- $('orcLista').innerHTML=list.map(q=>`<tr${q.status==='cancelado'?' class="row-canceled"':''}><td>${esc(qNum(q))}${q.photo?`<img class="q-thumb" src="${q.photo}" alt="Foto">`:''}</td><td>${esc(new Date(q.date).toLocaleDateString('pt-BR'))}</td><td>${esc(q.client||'—')}</td><td>${money(q.total)}</td><td class="sale-status">${pill(q)}</td><td>${btn('pdf','PDF',q.id)}${btn('cup','Cupom 80 mm',q.id)}${btn('wa','WhatsApp',q.id)}${q.status==='aberto'?btn('venda','Converter em venda',q.id)+btn('pdv','Levar ao PDV',q.id)+btn('cancel','Cancelar',q.id):''}${q.status==='cancelado'?btn('reabrir','Reabrir',q.id):''}</td></tr>`).join('')||'<tr><td colspan="6" class="cart-empty">Nenhum orçamento neste período.</td></tr>';
+ $('orcLista').innerHTML=list.map(q=>`<tr${q.status==='cancelado'?' class="row-canceled"':''}><td>${esc(qNum(q))}${qPhotos(q).length?`<img class="q-thumb" src="${qPhotos(q)[0]}" alt="Foto">`:''}</td><td>${esc(new Date(q.date).toLocaleDateString('pt-BR'))}</td><td>${esc(q.client||'—')}</td><td>${money(q.total)}</td><td class="sale-status">${pill(q)}</td><td>${btn('pdf','PDF',q.id)}${btn('cup','Cupom 80 mm',q.id)}${btn('wa','WhatsApp',q.id)}${q.status==='aberto'?btn('venda','Converter em venda',q.id)+btn('pdv','Levar ao PDV',q.id)+btn('cancel','Cancelar',q.id):''}${q.status==='cancelado'?btn('reabrir','Reabrir',q.id):''}</td></tr>`).join('')||'<tr><td colspan="6" class="cart-empty">Nenhum orçamento neste período.</td></tr>';
 }
 window.renderQuotes=renderQuotes;
 $('orcMes').addEventListener('input',renderQuotes);
@@ -982,6 +1037,6 @@ $('orcLista').addEventListener('click',e=>{
 
 // ================= integração =================
 const baseRender=window.renderAll;
-window.renderAll=function(){baseRender();render();renderQuotes();xmlHist();ctPreview();renderProm();renderFactory();renderPedidos();pedSync();if(!taxasDirty)loadTaxasForm();};
+window.renderAll=function(){baseRender();render();try{stripPaint('venda');}catch(_){}renderQuotes();xmlHist();ctPreview();renderProm();renderFactory();renderPedidos();pedSync();if(!taxasDirty)loadTaxasForm();};
 render();xmlHist();ctPreview();renderProm();renderFactory();loadTaxasForm();pedReset();renderPedidos();renderQuotes();
 })();
