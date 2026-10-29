@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=26">
+  <link rel="stylesheet" href="style.css?v=27">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -226,6 +226,7 @@
               <label class="field">Preço de venda (R$)<input id="produtoPreco" type="text" inputmode="numeric" autocomplete="off" value="0,00" placeholder="0,00" required></label>
               <label class="field">Estoque inicial<input id="produtoEstoque" type="number" min="0" step="1" value="0" required></label>
               <label class="field">Nº da nota (opcional)<input id="produtoNota" maxlength="40" autocomplete="off" placeholder="Ex.: 12345"></label>
+              <div class="field field-wide qphoto" id="produtoFotoBox"><span>Foto do produto (aparece sozinha no PDV, nas vendas e nos orçamentos)</span><div class="qphoto-row"><label class="qphoto-drop" for="produtoFotoInput" id="produtoFotoDrop"><b>📷</b><span class="qphoto-txt"> Adicionar foto</span><input type="file" accept="image/*" id="produtoFotoInput" hidden></label><img id="produtoFotoPrev" class="qphoto-prev" alt="Foto do produto" hidden><button type="button" class="button button-light button-small" id="produtoFotoRemover" hidden>Remover foto</button></div></div>
               <div class="form-actions field-wide"><button class="button button-primary" id="salvarProdutoBtn" type="submit">Salvar produto</button><button class="button button-light" id="cancelarEdicao" type="button" hidden>Cancelar edição</button></div>
             </form>
           </section>
@@ -337,7 +338,8 @@
               </section>
               <label class="field">Observação (opcional)<input id="vendaObs" maxlength="180" placeholder="Observação da venda"></label>
               <button class="button button-primary full-button" type="submit"><b id="confirmarVendaTexto" style="font:inherit">Confirmar venda e baixar estoque</b> <span>→</span></button>
-              <div class="field qphoto" id="vendaFotoBox"><span>Foto do produto (vai junto no orçamento)</span><div class="qphoto-row"><label class="qphoto-drop" for="vendaFotoInput" id="vendaFotoDrop"><b>📷</b><span class="qphoto-txt"> Adicionar foto</span><input type="file" accept="image/*" id="vendaFotoInput" hidden></label><img id="vendaFotoPrev" class="qphoto-prev" alt="Foto do produto" hidden><button type="button" class="button button-light button-small" id="vendaFotoRemover" hidden>Remover foto</button></div></div>
+              <div class="field qphoto" id="vendaFotoBox"><span>Foto extra do orçamento (opcional)</span><div class="qphoto-row"><label class="qphoto-drop" for="vendaFotoInput" id="vendaFotoDrop"><b>📷</b><span class="qphoto-txt"> Adicionar foto</span><input type="file" accept="image/*" id="vendaFotoInput" hidden></label><img id="vendaFotoPrev" class="qphoto-prev" alt="Foto do produto" hidden><button type="button" class="button button-light button-small" id="vendaFotoRemover" hidden>Remover foto</button></div></div>
+                <div class="qphoto-auto" id="vendaFotosProd" hidden><small>Fotos dos produtos do carrinho (vão junto no orçamento):</small><div class="qphoto-strip"></div></div>
                 <label class="field">Parcelar no orçamento (aparece no cupom)<select id="vendaOrcParcelas"><option value="1">À vista (sem parcelas)</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></label>
                 <button class="button button-light full-button" id="salvarOrcamentoVenda" type="button">✎ Salvar como orçamento</button>
               <button class="button button-light full-button" id="vendaImposto" type="button">🧾 Informações de imposto</button>
@@ -549,7 +551,8 @@
                 <div class="pdv-total"><span id="pdvRestoLabel">Falta receber</span><strong id="pdvResto">R$ 0,00</strong></div>
                 <p id="pdvOrcAviso" class="pay-hint" hidden></p>
                 <button class="button button-primary full-button" id="pdvFinalizar" type="button">Finalizar venda (F2)</button>
-                <div class="field qphoto" id="pdvFotoBox"><span>Foto do produto (vai junto no orçamento)</span><div class="qphoto-row"><label class="qphoto-drop" for="pdvFotoInput" id="pdvFotoDrop"><b>📷</b><span class="qphoto-txt"> Adicionar foto</span><input type="file" accept="image/*" id="pdvFotoInput" hidden></label><img id="pdvFotoPrev" class="qphoto-prev" alt="Foto do produto" hidden><button type="button" class="button button-light button-small" id="pdvFotoRemover" hidden>Remover foto</button></div></div>
+                <div class="field qphoto" id="pdvFotoBox"><span>Foto extra do orçamento (opcional)</span><div class="qphoto-row"><label class="qphoto-drop" for="pdvFotoInput" id="pdvFotoDrop"><b>📷</b><span class="qphoto-txt"> Adicionar foto</span><input type="file" accept="image/*" id="pdvFotoInput" hidden></label><img id="pdvFotoPrev" class="qphoto-prev" alt="Foto do produto" hidden><button type="button" class="button button-light button-small" id="pdvFotoRemover" hidden>Remover foto</button></div></div>
+                <div class="qphoto-auto" id="pdvFotosProd" hidden><small>Fotos dos produtos do carrinho (vão junto no orçamento):</small><div class="qphoto-strip"></div></div>
                 <label class="field">Parcelar no orçamento (aparece no cupom)<select id="pdvOrcParcelas"><option value="1">À vista (sem parcelas)</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></label>
                 <button class="button button-light full-button" id="pdvOrcamento" type="button">✎ Salvar como orçamento</button>
                 <button class="button button-light full-button" id="pdvImposto" type="button">🧾 Informações de imposto</button>
@@ -765,8 +768,8 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=26"></script>
-  <script src="modulos.js?v=18"></script>
+  <script src="app.js?v=27"></script>
+  <script src="modulos.js?v=19"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
   <script src="impostos.js?v=11"></script>
