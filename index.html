@@ -90,7 +90,7 @@
         <label for="ckrNewPassword">Senha (mínimo 6 caracteres)</label><input id="ckrNewPassword" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Crie uma senha">
         <label for="ckrNewPasswordConfirm">Confirmar senha</label><input id="ckrNewPasswordConfirm" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Repita a senha">
         <label for="ckrNewRole">Perfil de acesso</label>
-        <select id="ckrNewRole"><option value="usuario" selected>Usuário — Visão geral, Clientes e Registrar venda</option><option value="master">Master — todas as funções, exceto Gerenciar usuários</option></select>
+        <select id="ckrNewRole"><option value="usuario" selected>Usuário — Clientes e Registrar venda</option><option value="master">Master — todas as funções, exceto Gerenciar usuários</option></select>
         <label for="ckrNewValidity">Tempo de uso do usuário</label>
         <select id="ckrNewValidity"><option value="7">7 dias</option><option value="15">15 dias</option><option value="30">30 dias</option><option value="60">60 dias</option><option value="90">90 dias</option><option value="182.5" selected>6 meses (182,5 dias)</option><option value="365">1 ano</option></select>
         <div class="users-expiry-note">O ADMIN tem acesso permanente e ilimitado. Os perfis Master e Usuário perdem o acesso quando o prazo termina e o ADMIN pode renovar em "Editar".</div>
@@ -102,7 +102,7 @@
         <label for="ckrEditUsername">Nome de usuário</label>
         <input id="ckrEditUsername" required minlength="3" maxlength="60">
         <label for="ckrEditRole">Perfil de acesso</label>
-        <select id="ckrEditRole"><option value="usuario">Usuário — Visão geral, Clientes e Registrar venda</option><option value="master">Master — todas as funções, exceto Gerenciar usuários</option></select>
+        <select id="ckrEditRole"><option value="usuario">Usuário — Clientes e Registrar venda</option><option value="master">Master — todas as funções, exceto Gerenciar usuários</option></select>
         <label for="ckrEditExpiry">Acesso válido até</label>
         <input id="ckrEditExpiry" type="datetime-local" required>
         <div class="users-renew"><span>Renovar a partir de hoje:</span><button type="button" class="button" data-renew-days="30">+30 dias</button><button type="button" class="button" data-renew-days="90">+90 dias</button><button type="button" class="button" data-renew-days="365">+1 ano</button></div>
@@ -768,7 +768,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=27"></script>
+  <script src="app.js?v=28"></script>
   <script src="modulos.js?v=19"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
