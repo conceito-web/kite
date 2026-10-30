@@ -289,13 +289,15 @@ const baseShowProfit=window.showProfitPct;
 // "?" ao lado do Lucro (%): mostra de onde vem o número (custo, imposto, taxa da maquininha).
 const detalhe={};            // por tela: última composição calculada {total,cost,fee,profit,ae}
 const botoes={};
+const LIMITE_LUCRO=40;   // % mínima de lucro: abaixo disso o "?" fica vermelho; de 40% para cima fica azul
+const somenteVer=()=>{const r=document.body.dataset.ckrRole;return r!=='admin'&&r!=='master';};   // perfil "usuário": só vê o "?" colorido, sem clicar
 let ajudaId=null;            // tela cuja ajuda está aberta
 let pop=null;
 const pct1=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
 function criarPop(){
   if(pop)return pop;
   const st=document.createElement('style');
-  st.textContent='.imp-q{width:20px;height:20px;margin-left:8px;border-radius:50%;border:1px solid #c9d3e6;background:#f3f6fd;color:#4a62a8;font:800 12px "DM Sans",sans-serif;line-height:1;padding:0;cursor:pointer;flex:none}.imp-q:hover{background:#e6edff}.imp-q.baixo{border-color:#fca5a5;background:#fef2f2;color:#dc2626}.imp-q.baixo:hover{background:#fee2e2}'
+  st.textContent='.imp-q{width:20px;height:20px;margin-left:8px;border-radius:50%;border:1px solid #c9d3e6;background:#f3f6fd;color:#4a62a8;font:800 12px "DM Sans",sans-serif;line-height:1;padding:0;cursor:pointer;flex:none}.imp-q:hover{background:#e6edff}.imp-q.baixo{border-color:#fca5a5;background:#fef2f2;color:#dc2626}.imp-q.baixo:hover{background:#fee2e2}.imp-q.alto{border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}.imp-q.alto:hover{background:#dbeafe}.imp-q.baixo.travado,.imp-q.alto.travado{pointer-events:none;cursor:default}'
    +'.imp-pop{position:fixed;z-index:200;width:290px;max-width:calc(100vw - 16px);background:#fff;border:1px solid #dde4f0;border-radius:12px;box-shadow:0 14px 34px #182b4833;padding:14px 15px;font:500 12px "DM Sans",sans-serif;color:#2b3a55}'
    +'.imp-pop h4{margin:0 0 9px;font:800 13px Manrope,sans-serif;color:#1d2b42}.imp-pop .r{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #f0f3f8}.imp-pop .r span:last-child{text-align:right;white-space:nowrap}'
    +'.imp-pop .r.t{border-bottom:0;border-top:2px solid #dde4f0;margin-top:3px;padding-top:8px;font-weight:800;color:#159568}.imp-pop small{display:block;margin-top:8px;color:#9aa4b2;font-size:10px;line-height:1.4}';
@@ -322,6 +324,7 @@ function montarAjuda(id){
     +`<small>A porcentagem de cada linha é sobre o total da venda (já com desconto).</small>`;
 }
 function abrirAjuda(id){
+  if(somenteVer()){fecharAjuda();return;}   // usuário comum não abre o detalhe do lucro
   criarPop();
   if(ajudaId===id){fecharAjuda();return;}
   ajudaId=id;montarAjuda(id);
@@ -352,7 +355,13 @@ if(typeof baseShowProfit==='function'){
         b.addEventListener('click',e=>{e.preventDefault();abrirAjuda(id);});
         botoes[id]=b;
       }
-      botoes[id].classList.toggle('baixo',Math.round((v-ae)*10)/10<=39);   // "?" vermelho se o lucro estiver abaixo de 40%
+      const baixo=Math.round((v-ae)*10)/10<LIMITE_LUCRO,travado=somenteVer();
+      botoes[id].classList.toggle('baixo',baixo);   // vermelho: lucro abaixo de 40%
+      botoes[id].classList.toggle('alto',!baixo);   // azul: lucro em 40% ou mais
+      botoes[id].classList.toggle('travado',travado);
+      botoes[id].tabIndex=travado?-1:0;
+      if(travado){botoes[id].title='';botoes[id].setAttribute('aria-label',baixo?'Lucro abaixo do mínimo':'Lucro dentro do mínimo');botoes[id].setAttribute('aria-disabled','true');fecharAjuda();}
+      else{botoes[id].title='De onde vem o lucro';botoes[id].setAttribute('aria-label','Ver de onde vem o lucro');botoes[id].removeAttribute('aria-disabled');}
       el.textContent='';   // oculta o número (ex.: 53,5%); fica só o "?" clicável, o valor aparece no popup
       el.appendChild(botoes[id]);
       if(ajudaId===id&&pop&&!pop.hidden)montarAjuda(id);
