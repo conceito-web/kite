@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=28">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -82,6 +82,19 @@
     </div>
   </div>
 
+  <div id="encModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="encModalTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">ENCOMENDAS</p><h2 id="encModalTitulo">Receber pagamento</h2><p id="encModalInfo"></p></div><button type="button" id="encModalFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="encModalForm" autocomplete="off">
+        <label for="encModalValor">VALOR RECEBIDO</label><input id="encModalValor" inputmode="numeric" required placeholder="0,00">
+        <label for="encModalForma">FORMA DE PAGAMENTO</label><select id="encModalForma" required></select>
+        <label for="encModalData">DATA DO PAGAMENTO</label><input id="encModalData" type="date">
+        <p id="encModalErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Confirmar recebimento</button>
+      </form>
+    </div>
+  </div>
+
   <div id="ckrUsersModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="ckrUsersTitle">
     <div class="users-card">
       <div class="users-heading"><div><p class="auth-eyebrow">ADMINISTRAÇÃO</p><h2 id="ckrUsersTitle">Gerenciar usuários</h2><p>Somente o ADMIN pode criar, editar e remover usuários.</p></div><button type="button" id="ckrCloseUsers" class="users-close" aria-label="Fechar">×</button></div>
@@ -142,6 +155,7 @@
         <button class="nav-link" data-panel="venda"><span class="nav-icon">↗</span> Registrar venda</button>
         <button class="nav-link" data-panel="pdv"><span class="nav-icon">▣</span> PDV (Caixa)</button>
         <button class="nav-link" data-panel="orcamentos"><span class="nav-icon">✎</span> Orçamentos <span class="nav-count" id="menuOrcamentos">0</span></button>
+        <button class="nav-link" data-panel="encomendas"><span class="nav-icon">⧖</span> Encomendas <span class="nav-count" id="menuEncomendas">0</span></button>
         <button class="nav-link" data-panel="promissorias"><span class="nav-icon">◔</span> Promissórias <span class="nav-count" id="menuPromissorias">0</span></button>
         <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
         <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
@@ -309,6 +323,9 @@
           <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Registrar venda</h1><p class="subtitle">Registre uma venda e atualize o estoque automaticamente.</p></div></div>
           <section class="surface operation-card"><div class="operation-art orange-art">↗</div><h2>Nova venda</h2><p class="operation-intro">Confira o produto, a quantidade e o valor antes de confirmar.</p>
             <form id="formVenda" class="form-stack">
+              <label class="check-filter enc-toggle"><input type="checkbox" id="vendaEncomenda"><span><b>Encomenda</b> — o produto ainda não chegou<small class="enc-sub">Não baixa estoque e não entra no financeiro agora. Informe abaixo o que o cliente já pagou (sinal ou valor total); o resto é recebido na entrega.</small></span></label>
+              <div id="vendaEncExtra" class="form-two" hidden><label class="field">Previsão de chegada (opcional)<input id="vendaEncPrevisao" type="date"></label></div>
+              <div id="vendaEncAviso" class="sale-edit-banner" hidden><div><b id="vendaEncTitulo"></b><p id="vendaEncTexto"></p></div><button type="button" class="button button-light button-small" id="cancelarEncVenda">Desvincular</button></div>
               <div id="vendaOrcAviso" class="sale-edit-banner" hidden><div><b id="vendaOrcTitulo"></b><p>Altere o que quiser. Ao confirmar a venda, o orçamento passa para “Vendido”.</p></div><button type="button" class="button button-light button-small" id="cancelarOrcVenda">Desvincular</button></div>
               <div id="vendaEdicaoAviso" class="sale-edit-banner" hidden><div><b id="vendaEdicaoTitulo">Editando venda</b><p>Ajuste itens, valores ou pagamentos. Ao salvar, o estoque, o total vendido e o lucro são recalculados.</p></div><button type="button" class="button button-light button-small" id="cancelarEdicaoVenda">Cancelar edição</button></div>
               <div class="field product-search"><span>Buscar produto</span><div class="product-search-box"><input id="vendaBuscaProduto" type="search" autocomplete="off" placeholder="Digite o nome ou parte dele (ou o código)"><div id="vendaSugestoes" class="product-suggest" hidden></div></div></div>
@@ -575,6 +592,20 @@
           </section>
         </section>
 
+        <section class="panel" id="panel-encomendas">
+          <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Encomendas</h1><p class="subtitle">Vendas de produtos que ainda não chegaram. O sinal (ou o pagamento total) fica registrado aqui; estoque, caixa e lucro só são lançados na entrega. Para criar, vá em Registrar venda e marque “Encomenda”.</p></div></div>
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">⧖</span><span class="stat-label">Aguardando</span></div><strong id="encStatAbertas">0</strong><div class="stat-foot" id="encStatAbertasNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">R$</span><span class="stat-label">Já recebido (sinais)</span></div><strong id="encStatRecebido">R$ 0,00</strong><div class="stat-foot">Ainda não entrou no caixa do sistema</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="stat-label">A receber na entrega</span></div><strong id="encStatReceber">R$ 0,00</strong><div class="stat-foot">Saldo das encomendas em aberto</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">✓</span><span class="stat-label">Prontas para entregar</span></div><strong id="encStatProntas">0</strong><div class="stat-foot" id="encStatProntasNota"></div></article>
+          </div>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Lista de encomendas</h2><p>“Produto já no estoque” aparece quando você dá entrada do produto que chegou.</p></div><div class="search-tools"><select id="encFiltro" aria-label="Filtrar situação"><option value="abertas">Aguardando</option><option value="entregues">Entregues</option><option value="canceladas">Canceladas</option><option value="todas">Todas</option></select><div class="search-box"><span>⌕</span><input id="encBusca" type="search" placeholder="Buscar cliente ou produto"></div></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Nº</th><th>DATA</th><th>CLIENTE</th><th>PRODUTOS</th><th>TOTAL</th><th>JÁ PAGO</th><th>FALTA</th><th>PREVISÃO</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="encLista"></tbody></table></div>
+          </section>
+        </section>
+
         <section class="panel" id="panel-promissorias">
           <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Promissórias</h1><p class="subtitle">Parcelas a receber das vendas na promissória, com lembrete de vencimento.</p></div></div>
           <div class="stats-grid">
@@ -768,8 +799,9 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=28"></script>
+  <script src="app.js?v=29"></script>
   <script src="modulos.js?v=19"></script>
+  <script src="encomendas.js?v=1"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
   <script src="impostos.js?v=11"></script>
