@@ -50,19 +50,15 @@ function autoEntries(){
  });
  const out=[];
  first.forEach((m,k)=>{
-  const saleDay=localDateKey(m.date);if(!saleDay)return;
-  // Cada pagamento entra no caixa no dia em que foi RECEBIDO (p.paidAt). Sem paidAt = dia da venda.
-  // Assim o sinal entra na data da venda e o saldo da encomenda entra na data da entrega/recebimento.
-  const days=new Map(),bucket=d=>{let b=days.get(d);if(!b){b={fab:0,cash:0,pix:0,parcs:[]};days.set(d,b);}return b;};
+  const day=localDateKey(m.date);if(!day||(start&&day<start))return;
+  let fab=0,cash=0,pix=0;const parcs=[];
   (m.payments||[]).forEach((p,pi)=>{
    if(!p)return;
-   const day=/^\d{4}-\d{2}-\d{2}$/.test(p.paidAt||'')?p.paidAt:saleDay;
-   if(start&&day<start)return;
-   const b=bucket(day),amt=Number(p.amount||0);
-   if(p.method===CASH){b.cash+=amt;return;}
-   if(p.method===PIX){b.pix+=amt;return;}
+   const amt=Number(p.amount||0);
+   if(p.method===CASH){cash+=amt;return;}
+   if(p.method===PIX){pix+=amt;return;}
    if(!isCard(p.method))return;
-   if((p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica'){b.fab+=amt-Number(p.factoryCredit||0);return;}
+   if((p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica'){fab+=amt-Number(p.factoryCredit||0);return;}
    // cartão loja / débito: valor líquido (sem taxa) dividido em parcelas, cada uma com sua data de entrada
    const deb=p.method===PM.DEBIT,n=deb?1:Math.max(1,Math.min(60,Math.floor(Number(p.installments)||1))),net=r2(amt-Number(p.fee||0));
    if(!(net>0))return;
@@ -71,14 +67,12 @@ function autoEntries(){
     const pkey=k+':'+pi+':'+i,o=ov[pkey]||null,defDate=addDays(day,deb?dias(true):dias(false)*i),defAmt=r2((i<n?q:cents-q*(n-1))/100);
     const date=(o&&o.date)||defDate,amount=(o&&o.amount!=null)?r2(o.amount):defAmt;
     if(!(amount>0))continue;
-    b.parcs.push({pkey,saleKey:k,client:m.client||'',saleDay,method:p.method,i,n,date,amount,defDate,defAmt,edited:!!o});
+    parcs.push({pkey,saleKey:k,client:m.client||'',saleDay:day,method:p.method,i,n,date,amount,defDate,defAmt,edited:!!o});
    }
   });
-  days.forEach((b,day)=>{
-   const fab=r2(b.fab),cash=r2(b.cash),pix=r2(b.pix);
-   if(fab+cash+pix<=0.004&&!b.parcs.length)return;
-   out.push({key:day===saleDay?k:k+'@'+day,saleKey:k,date:day,ts:String(m.date||'')+(day===saleDay?'':'~'+day),client:m.client||'',fab,cash,pix,blu:fab,parcs:b.parcs});
-  });
+  fab=r2(fab);cash=r2(cash);pix=r2(pix);
+  if(fab+cash+pix<=0.004&&!parcs.length)return;
+  out.push({key:k,date:day,ts:String(m.date||''),client:m.client||'',fab,cash,pix,blu:fab,parcs});
  });
  return out;
 }
@@ -136,7 +130,7 @@ function renderCard(S){
 function rowsAll(S){
  const rows=[];
  S.auto.forEach(a=>{
-  const desc=`Venda #${String(a.saleKey||a.key).slice(-6)}${a.client?' · '+a.client:''}${a.key!==a.saleKey?' · recebimento posterior (saldo)':''}`;
+  const desc=`Venda #${String(a.key).slice(-6)}${a.client?' · '+a.client:''}`;
   if(a.fab>0)rows.push({acc:'blu',date:a.date,ts:a.ts,amount:a.fab,auto:true,desc,sub:`cartão fábrica ${money(a.fab)}`});
   if(a.cash>0)rows.push({acc:'dinheiro',date:a.date,ts:a.ts,amount:a.cash,auto:true,desc,sub:'pago em dinheiro'});
   if(a.pix>0)rows.push({acc:S.pa,date:a.date,ts:a.ts,amount:a.pix,auto:true,desc,sub:'pago em Pix'});
@@ -336,8 +330,6 @@ function init(){
  });
 }
 init();
-// Usado pelo módulo Encomendas (valor retido em cancelamento)
-window.ckrCaixa={push:(acc,amount,kind,date,note)=>push(acc,amount,kind,date,note),accounts:()=>ACCS.filter(a=>a.k!=='agenda').map(a=>({k:a.k,name:a.name})),pixAcc};
 
 const baseRender=window.renderAll;
 window.renderAll=function(){baseRender();render();};
