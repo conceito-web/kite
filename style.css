@@ -455,3 +455,21 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 .ord-modal-card h3{margin:0;font-size:17px}
 #panel-encomendas td .sale-items{margin:4px 0}
 #panel-encomendas .search-tools input,#panel-encomendas .search-tools select{padding:9px 12px;border:1px solid #d9dfe9;border-radius:10px;font:inherit;font-size:13px;background:#fff;max-width:100%}
+
+/* ===== Correção: PDV/Encomenda saindo da tela + modal centralizado ===== */
+.pdv-grid{grid-template-columns:minmax(0,1.3fr) minmax(300px,.9fr)}
+.pdv-grid>.surface{grid-template-columns:minmax(0,1fr);min-width:0}
+@media(max-width:900px){.pdv-grid{grid-template-columns:minmax(0,1fr)}}
+.ord-box,.ord-body,.ord-actions{min-width:0;max-width:100%}
+.ord-box .check-filter,.ord-main{white-space:normal;align-items:flex-start;line-height:1.35}
+.ord-box .check-filter input{flex:0 0 auto;margin-top:2px}
+.ord-box .form-two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ord-box .field input,.ord-box .field select{min-width:0;max-width:100%;text-overflow:ellipsis}
+.ord-actions .button{white-space:normal;text-align:center;max-width:100%}
+.pdv-pay{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+@media(max-width:520px){.ord-box .form-two{grid-template-columns:minmax(0,1fr)}.pdv-pay{grid-template-columns:minmax(0,1fr)}}
+.ord-modal{align-items:center;justify-content:center;padding:12px}
+.ord-modal-card{margin:auto;max-height:calc(100dvh - 24px);overflow-y:auto;min-width:0}
+.ord-modal-card .form-two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ord-modal-card .field select{min-width:0;text-overflow:ellipsis}
+@media(max-width:520px){.ord-modal-card{padding:16px}.ord-modal-card .form-two{grid-template-columns:minmax(0,1fr)}}
