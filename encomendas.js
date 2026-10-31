@@ -195,11 +195,13 @@ function openNewProduct(key){
    <div class="form-two"><label class="field">Valor de venda (R$)<input id="npPreco" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label>
    <label class="field">Custo estimado (R$)<input id="npCusto" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label></div>
    <label class="field">Tipo
-    <select id="npTipo"><option value="mto">Sob-medida / sob encomenda (não passa pelo estoque)</option><option value="novo">Produto novo que ainda não comprei (vendo antes de receber)</option></select></label>
+    <select id="npTipo"><option value="mto">Sob-medida / sob encomenda (não passa pelo estoque)</option><option value="novo">Produto novo que ainda não comprei (vendo antes de receber)</option><option value="outro">Outro (digitar)…</option></select></label>
+   <label class="field" id="npTipoOutroWrap" hidden>Digite o tipo<input id="npTipoOutro" maxlength="80" placeholder="Ex.: Importado, Reforma, Brinde…"></label>
    <div class="ord-actions"><button type="button" class="button button-primary" id="npSalvar">Cadastrar e adicionar</button><button type="button" class="button button-light" id="npCancelar">Cancelar</button></div>
   </div>`;
   document.body.appendChild(m);
   bindMoneyMask($('npPreco'));bindMoneyMask($('npCusto'));
+  $('npTipo').addEventListener('change',()=>{const o=$('npTipo').value==='outro';$('npTipoOutroWrap').hidden=!o;if(o)setTimeout(()=>$('npTipoOutro').focus(),30);});
   $('npCancelar').addEventListener('click',()=>{m.hidden=true;});
   m.addEventListener('click',e=>{if(e.target===m)m.hidden=true;});
   $('npSalvar').addEventListener('click',()=>{
@@ -208,9 +210,11 @@ function openNewProduct(key){
    if(!name){toast('Informe o nome do produto.',true);$('npNome').focus();return;}
    if(!(qty>=1)){toast('Informe uma quantidade inteira maior que zero.',true);return;}
    if(!(price>0)){toast('Informe o valor de venda.',true);$('npPreco').focus();return;}
+   const tipoSel=$('npTipo').value,tipoTxt=tipoSel==='outro'?$('npTipoOutro').value.trim():'';
+   if(tipoSel==='outro'&&!tipoTxt){toast('Digite o tipo do produto.',true);$('npTipoOutro').focus();return;}
    if(code&&data.products.some(p=>(p.code||'').toLowerCase()===code.toLowerCase())){toast('Já existe produto com o código '+code+'.',true);return;}
    if(!code)code=nextProductCode();
-   const p={id:id(),name,code,cost,price,stock:0,createdAt:todayISO(),nfNumber:'',madeToOrder:$('npTipo').value==='mto',createdInSale:true};
+   const p={id:id(),name,code,cost,price,stock:0,createdAt:todayISO(),nfNumber:'',madeToOrder:tipoSel==='mto'||tipoSel==='outro',typeLabel:tipoTxt,createdInSale:true};
    data.products.push(p);
    const k=m.dataset.key;
    if(!window.ckrAddOrderItem||!window.ckrAddOrderItem(k,p,qty,price,cost)){toast('Não foi possível adicionar ao carrinho.',true);return;}
@@ -219,7 +223,7 @@ function openNewProduct(key){
  }
  m.dataset.key=key;
  $('npNome').value=(key==='venda'?$('vendaBuscaProduto'):$('pdvBusca')).value.trim().replace(/^\s*\d+\s*\*\s*/,'');
- $('npCod').value=nextProductCode();$('npQtd').value='1';$('npPreco').value='';$('npCusto').value='';$('npTipo').value='mto';
+ $('npCod').value=nextProductCode();$('npQtd').value='1';$('npPreco').value='';$('npCusto').value='';$('npTipo').value='mto';$('npTipoOutro').value='';$('npTipoOutroWrap').hidden=true;
  m.hidden=false;setTimeout(()=>$('npNome').focus(),50);
 }
 
