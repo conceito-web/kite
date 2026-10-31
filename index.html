@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=29">
+  <link rel="stylesheet" href="style.css?v=27">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -177,7 +177,6 @@
 
           <div id="promAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="promAlertaTexto"></p><button class="text-button" data-go="promissorias">Ver promissórias</button></div>
           <div id="pedAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="pedAlertaTexto"></p><button class="text-button" data-go="pedidos">Ver pedidos à fábrica</button></div>
-          <div id="ordAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="ordAlertaTexto"></p><button class="text-button" data-go="encomendas">Ver encomendas</button></div>
           <div id="despAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="despAlertaTexto"></p><button class="text-button" data-go="financeiro">Ver despesas</button></div>
 
           <div class="stats-grid">
@@ -330,7 +329,6 @@
               </div>
               <div class="sale-total"><span>Subtotal</span><strong id="subtotalVendaPreview">R$ 0,00</strong></div>
               <div class="sale-total sale-total-discount"><span>Total com desconto</span><strong id="totalVendaPreview">R$ 0,00</strong></div>
-              <div id="ordBoxVenda"></div>
               <section class="payment-box">
                 <div class="payment-heading"><div><h3>Formas de pagamento</h3><p>Adicione uma linha para cada pagamento.</p></div><button class="button button-light button-small" id="adicionarPagamento" type="button">＋ Adicionar</button></div>
                 <div id="linhasPagamento" class="payment-lines"></div>
@@ -547,7 +545,6 @@
                 <div class="sale-discounts" style="grid-template-columns:repeat(3,minmax(0,1fr))"><label class="field">Desconto (R$)<input id="pdvDescReais" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><label class="field">Desconto (%)<input id="pdvDescPct" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"></label><div class="field"><span>Lucro (%)</span><strong id="pdvLucroPct" style="min-height:44px;display:flex;align-items:center;font-size:15px;color:#1f2a44">—</strong></div></div>
                 <div class="pdv-total"><span>Subtotal</span><strong id="pdvSub">R$ 0,00</strong></div>
                 <div class="pdv-total big"><span>Total</span><strong id="pdvTotal">R$ 0,00</strong></div>
-                <div id="ordBoxPdv"></div>
                 <div class="pdv-pay"><label class="field">Pagamento<select id="pdvPagMetodo"><option value="">Selecione...</option><option>Dinheiro</option><option>Pix</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Link de pagamento (Blu)</option><option>Promissória</option></select></label><label class="field">Valor (R$)<input id="pdvPagValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><button class="button button-light" id="pdvPagAdd" type="button">Adicionar</button></div>
                 <div id="pdvPagExtra" class="payment-card-options pdv-pag-extra" hidden></div>
                 <div id="pdvChips" class="pdv-chips"></div>
@@ -771,11 +768,10 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=29"></script>
-  <script src="modulos.js?v=20"></script>
+  <script src="app.js?v=28"></script>
+  <script src="modulos.js?v=19"></script>
   <script src="despesas.js?v=4"></script>
-  <script src="caixa.js?v=6"></script>
+  <script src="caixa.js?v=5"></script>
   <script src="impostos.js?v=11"></script>
-  <script src="encomendas.js?v=2"></script>
 </body>
 </html>
