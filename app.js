@@ -131,7 +131,6 @@ function planFifo(lines,restoreMovs=[]){
  const work={},get=pid=>{if(!work[pid]){const p=productById(pid);work[pid]=p?ensureLayers(p).map(l=>({...l})):[];}return work[pid];};
  restoreMovs.forEach(m=>restoreInto(get(m.productId),movAllocs(m,productById(m.productId))));
  return lines.map(it=>{
-  if(it.madeToOrder){const c=Math.round(it.quantity*Number(it.cost||0)*100)/100;return {allocs:[],costTotal:c,unitCost:it.quantity?c/it.quantity:0};} // sob encomenda: custo informado, sem baixa de lote
   let need=it.quantity,costTotal=0;const allocs=[];
   for(const l of get(it.productId)){if(need<=0)break;if(l.qty<=0)continue;const t=Math.min(l.qty,need);l.qty-=t;need-=t;allocs.push({lid:l.id,qty:t,cost:l.cost,date:l.date});costTotal+=t*l.cost;}
   if(need>0){const p=productById(it.productId);costTotal+=need*Number(p&&p.cost||0);}
@@ -143,12 +142,12 @@ function layersText(p){const L=ensureLayers(p);return L.length>1&&new Set(L.map(
 function typePill(m){if(m.type==='venda'&&m.canceled)return '<span class="pill cancelada">Venda cancelada</span>';return `<span class="pill ${m.type}">${m.type==='venda'?'Venda':'Entrada'}</span>`;}
 function dateText(d){return new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}
 // Usuários que não são ADMIN só acessam estes painéis:
-const USER_PANELS=['clientes','venda','pdv','orcamentos','promissorias','encomendas'];
+const USER_PANELS=['clientes','venda','pdv','orcamentos','promissorias'];
 // Perfis: admin (tudo + usuários, sem prazo) | master (tudo, menos usuários, com prazo) | usuario (só USER_PANELS, com prazo)
 function hasFullAccess(){const r=document.body.dataset.ckrRole;return r==='admin'||r==='master';}
 function canAccessPanel(name){return hasFullAccess()||USER_PANELS.includes(name);}
 function currentUserName(){return document.body.dataset.ckrUser||'';}
-function goTo(name){if(!canAccessPanel(name)){toast('Seu acesso permite apenas Clientes, Registrar venda, PDV, Encomendas, Orçamentos e Promissórias.',true);return;}document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===`panel-${name}`));document.querySelectorAll('.nav-link').forEach(b=>b.classList.toggle('active',b.dataset.panel===name));const selected=document.querySelector(`.nav-link[data-panel="${name}"]`);document.getElementById('pageBreadcrumb').textContent=selected?selected.textContent.trim().replace(/\d+$/,'').trim():'Visão geral';document.getElementById('sidebar').classList.remove('open');window.scrollTo({top:0,behavior:'smooth'});}
+function goTo(name){if(!canAccessPanel(name)){toast('Seu acesso permite apenas Clientes, Registrar venda, PDV, Orçamentos e Promissórias.',true);return;}document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===`panel-${name}`));document.querySelectorAll('.nav-link').forEach(b=>b.classList.toggle('active',b.dataset.panel===name));const selected=document.querySelector(`.nav-link[data-panel="${name}"]`);document.getElementById('pageBreadcrumb').textContent=selected?selected.textContent.trim().replace(/\d+$/,'').trim():'Visão geral';document.getElementById('sidebar').classList.remove('open');window.scrollTo({top:0,behavior:'smooth'});}
 document.querySelectorAll('[data-panel]').forEach(b=>b.addEventListener('click',()=>goTo(b.dataset.panel)));
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>goTo(b.dataset.go)));
 document.getElementById('mobileMenu').addEventListener('click',()=>document.getElementById('sidebar').classList.toggle('open'));
@@ -430,8 +429,6 @@ document.getElementById('listaProdutos').addEventListener('click',e=>{
 document.getElementById('buscaProduto').addEventListener('input',renderProducts);
 document.getElementById('filtroEstoquePositivo').addEventListener('change',renderProducts);
 document.getElementById('formEntrada').addEventListener('submit',e=>{e.preventDefault();const p=productById(document.getElementById('entradaProduto').value),qty=Number(document.getElementById('entradaQuantidade').value),note=document.getElementById('entradaObs').value.trim();if(!p){toast('Cadastre e selecione um produto primeiro.',true);return;}if(!Number.isInteger(qty)||qty<1){toast('Informe uma quantidade inteira maior que zero.',true);return;}const uc=parseMoneyInput(document.getElementById('entradaCusto').value)||Number(p.cost||0);stockIn(p,qty,uc);recordMovement('entrada',p,qty,uc*qty,note,{unitCost:uc});if(saveData()){e.target.reset();toast('Entrada registrada com sucesso.');}});
-window.ckrTotalFn=window.ckrTotalFn||{};window.ckrTotalFn.venda=()=>saleTotals().total;
-window.ckrAddItemVenda=function(p,qty,price,cost){saleCart.push({productId:p.id,name:p.name,quantity:qty,price:round2(price),cost:round2(cost),madeToOrder:true});renderCart();return true;};
 function cartSubtotal(){return Math.round(saleCart.reduce((sum,item)=>sum+item.quantity*item.price,0)*100)/100;}
 function saleTotals(){
  const subtotal=saleCart.length?cartSubtotal():Math.round(Number(document.getElementById('vendaQuantidade').value||0)*parseMoneyInput(document.getElementById('vendaPreco').value)*100)/100;
@@ -445,8 +442,7 @@ function renderCart(){
  const body=document.getElementById('carrinhoLinhas');
  document.getElementById('carrinhoQuantidade').textContent=`${saleCart.reduce((n,x)=>n+x.quantity,0)} item(ns)`;
  if(!saleCart.length){body.innerHTML='<tr><td colspan="5" class="cart-empty">O carrinho está vazio.</td></tr>';}
- else body.innerHTML=saleCart.map((item,i)=>`<tr><td>${esc(item.name)}${item.madeToOrder?' <small class="mto-tag">sob encomenda</small>':''}</td><td>${item.quantity}</td><td>${money(item.price)}</td><td>${money(item.quantity*item.price)}</td><td><button type="button" class="cart-remove" data-cart-remove="${i}" aria-label="Remover ${esc(item.name)}">×</button></td></tr>`).join('');
- ['vendaProduto','vendaQuantidade','vendaPreco'].forEach(k=>{const f=document.getElementById(k);if(f)f.required=!saleCart.length;}); // com itens no carrinho, o campo de produto avulso deixa de ser obrigatório
+ else body.innerHTML=saleCart.map((item,i)=>`<tr><td>${esc(item.name)}</td><td>${item.quantity}</td><td>${money(item.price)}</td><td>${money(item.quantity*item.price)}</td><td><button type="button" class="cart-remove" data-cart-remove="${i}" aria-label="Remover ${esc(item.name)}">×</button></td></tr>`).join('');
  document.getElementById('subtotalVendaPreview').textContent=money(saleTotals().subtotal);
  document.getElementById('totalVendaPreview').textContent=money(saleTotals().total);
  updatePaymentSummary();
@@ -455,13 +451,10 @@ document.getElementById('carrinhoLinhas').addEventListener('click',e=>{const b=e
 document.getElementById('adicionarAoCarrinho').addEventListener('click',()=>{
  const p=productById(document.getElementById('vendaProduto').value),qty=Number(document.getElementById('vendaQuantidade').value),price=parseMoneyInput(document.getElementById('vendaPreco').value);
  if(!p){toast('Selecione um produto.',true);return;}if(!Number.isInteger(qty)||qty<1){toast('Informe uma quantidade inteira maior que zero.',true);return;}if(!Number.isFinite(price)||price<0){toast('Informe um preço válido.',true);return;}
- const already=saleCart.filter(x=>x.productId===p.id&&!x.madeToOrder).reduce((n,x)=>n+x.quantity,0);
- // Encomenda ligada: produto sob-medida ou sem estoque suficiente vira item "sob encomenda" (não baixa estoque).
- const mto=!!(window.ckrOrder&&ckrOrder.enabled('venda')&&(p.madeToOrder||already+qty>availableStock(p)));
- if(!mto&&already+qty>availableStock(p)){toast(`Estoque insuficiente para ${p.name}. Disponível: ${availableStock(p)}. Marque "Encomenda" para vender sem estoque.`,true);return;}
- const existing=saleCart.find(x=>x.productId===p.id&&x.price===Math.round(price*100)/100&&!!x.madeToOrder===mto);
- if(existing)existing.quantity+=qty;else saleCart.push({productId:p.id,name:p.name,quantity:qty,price:Math.round(price*100)/100,cost:Number(p.cost||0),madeToOrder:mto});
- if(mto&&!(Number(p.cost)>0))toast('Item sob encomenda com custo zerado: informe o custo real ao entregar para o lucro ficar certo.');
+ const already=saleCart.filter(x=>x.productId===p.id).reduce((n,x)=>n+x.quantity,0);
+ if(already+qty>availableStock(p)){toast(`Estoque insuficiente para ${p.name}. Disponível: ${availableStock(p)}.`,true);return;}
+ const existing=saleCart.find(x=>x.productId===p.id&&x.price===Math.round(price*100)/100);
+ if(existing)existing.quantity+=qty;else saleCart.push({productId:p.id,name:p.name,quantity:qty,price:Math.round(price*100)/100,cost:Number(p.cost||0)});
  document.getElementById('vendaQuantidade').value='1';document.getElementById('vendaBuscaProduto').value='';renderVendaProdutoSelect(false);renderCart();toast(`${p.name} adicionado ao carrinho.`);
 });
 // ===== Pagamentos: formas, taxas, crédito da fábrica e promissória =====
@@ -508,7 +501,6 @@ function buildReceivables(saleId,client,customer,payments,date){
 // - Cartão loja, débito e link Blu: a taxa é descontada do lucro.
 // - Cartão fábrica: X% do valor vira crédito com a fábrica (padrão 60%) e o restante entra como lucro (40%); nessa parte o custo do produto não é descontado de novo.
 function enrichPayment(p){
- if(p&&p.locked)return {...p}; // pagamento já fechado (ex.: sinal): mantém a taxa da época
  const x={...p,fee:0,feeRate:0,factoryCredit:0},n=Number(x.installments)||1;
  if(x.method===PM.DEBIT)x.feeRate=cardRate(x.brand,'debit',1);
  else if(x.method===PM.CREDIT||x.method===PM.BLU){if(x.responsible==='fabrica')x.factoryCredit=round2(x.amount*getSettings().factoryCreditPct/100);else x.feeRate=x.method===PM.BLU?bluRate(x.brand,n,x.extended):cardRate(x.brand,'credit',n);}
@@ -527,8 +519,7 @@ function calcSaleFinance(lines,total,payments){
  });
  return {payments:pays,items,totalFee:round2(totalFee),totalFactoryCredit:round2(items.reduce((s,i)=>s+i.factoryCredit,0))};
 }
-function payLabel(x){const t=payLabel0(x);return x&&x.kind==='sinal'?'Sinal · '+t:x&&x.kind==='saldo'?'Saldo · '+t+(x.paidAt?' (recebido em '+brDate(x.paidAt)+')':''):t;}
-function payLabel0(x){
+function payLabel(x){
  const n=x.installments,brand=x.brand&&BRAND_NAMES[x.brand]?` · ${BRAND_NAMES[x.brand]}`:'';
  if(x.method===PM.CREDIT)return `${x.method}: ${money(x.amount)} em ${n||1}x (${x.responsible==='fabrica'?'fábrica':'loja'+brand})`;
  if(x.method===PM.DEBIT)return `${x.method}: ${money(x.amount)}${x.brand&&BRAND_NAMES[x.brand]?' ('+BRAND_NAMES[x.brand]+')':''}`;
@@ -607,7 +598,7 @@ function saleProfitPct(lines,total,payments,restoreMovs){ window.saleProfitDetai
 }
 function showProfitPct(id,v){const el=document.getElementById(id);if(!el)return;const ok=v!==null&&Number.isFinite(v);el.textContent=ok?v.toFixed(1).replace('.',',')+'%':'—';el.style.color=(ok&&Math.round(v*10)/10<=39)?'#dc2626':'#1f2a44';}
 function updateSaleProfitLabel(){
- let lines=saleCart.map(i=>({productId:i.productId,quantity:i.quantity,price:i.price,cost:i.cost,madeToOrder:i.madeToOrder}));
+ let lines=saleCart.map(i=>({productId:i.productId,quantity:i.quantity,price:i.price}));
  if(!lines.length){const p=productById(document.getElementById('vendaProduto').value),q=Number(document.getElementById('vendaQuantidade').value),pr=parseMoneyInput(document.getElementById('vendaPreco').value);if(p&&q>0&&Number.isFinite(pr))lines=[{productId:p.id,quantity:q,price:pr}];}
  let old=[];if(editingSale)old=data.movements.filter(m=>m.type==='venda'&&(m.saleId||m.id)===editingSale.saleId&&!m.canceled);
  showProfitPct('vendaLucroPct',saleProfitPct(lines,saleTotals().total,readPayments(),old));
@@ -616,8 +607,7 @@ function updatePaymentSummary(){
  const total=saleTotals().total,payments=readPayments(),received=Math.round(payments.reduce((s,x)=>s+x.amount,0)*100)/100,remaining=Math.round((total-received)*100)/100;
  document.getElementById('totalRecebido').textContent=money(received);document.getElementById('saldoRestante').textContent=money(Math.max(0,remaining));
  const notice=document.getElementById('avisoPagamento');
- if(remaining>0.009&&window.ckrOrder&&ckrOrder.partial('venda')){notice.textContent=received>0?`Sinal recebido agora: ${money(received)} · saldo a receber na entrega: ${money(remaining)}.`:`Informe o sinal recebido agora. Saldo a receber na entrega: ${money(remaining)}.`;notice.classList.remove('payment-error');notice.classList.toggle('payment-ok',received>0);}
- else if(remaining>0.009){notice.textContent=`Falta receber ${money(remaining)} para completar a venda.`;notice.classList.remove('payment-ok','payment-error');}
+ if(remaining>0.009){notice.textContent=`Falta receber ${money(remaining)} para completar a venda.`;notice.classList.remove('payment-ok','payment-error');}
  else if(remaining< -0.009){notice.textContent=`Os pagamentos ultrapassam o total em ${money(-remaining)}.`;notice.classList.remove('payment-ok');notice.classList.add('payment-error');}
  else{notice.textContent='Pagamento completo: o total da venda foi quitado.';notice.classList.add('payment-ok');notice.classList.remove('payment-error');}
  const fin=document.getElementById('resumoFinanceiro');
@@ -626,7 +616,6 @@ function updatePaymentSummary(){
   const parts=[fee>0?`Taxas descontadas do lucro: ${money(fee)}`:'',fab>0?`Crédito com a fábrica: ${money(fab)}`:'',prom>0?`A receber em promissória: ${money(prom)}`:''].filter(Boolean);
   fin.textContent=parts.join(' · ');fin.hidden=!parts.length;
  }
- if(window.ckrOrder)ckrOrder.refresh('venda');
  updateSaleProfitLabel();
 }
 function updateSalePreview(){
@@ -637,16 +626,6 @@ function updateSalePreview(){
 ['vendaPreco','vendaDescontoReais'].forEach(key=>bindMoneyMask(document.getElementById(key)));bindPercentInput(document.getElementById('vendaDescontoPercentual'));
 ['vendaPreco','vendaDescontoReais'].forEach(key=>document.getElementById(key).addEventListener('money-mask-updated',updateSalePreview));
 document.getElementById('adicionarPagamento').addEventListener('click',addPaymentRow);
-function orderReceiptLines(r){
- const o=r&&r.order;if(!o||!o.isOrder)return [];
- const paid=round2((r.payments||[]).reduce((s,p)=>s+Number(p.amount||0),0)),bal=Math.max(0,round2(Number(r.total||0)-paid)),out=['ENCOMENDA / SOB MEDIDA'];
- if(o.status==='entregue')out.push(`${o.deliveryMode==='retirada'?'Retirado':'Entregue'} em ${brDate(o.deliveredAt)}.`);
- else out.push(`${o.deliveryMode==='retirada'?'Retirada na loja':'Entrega'} prevista para ${o.expectedDate?brDate(o.expectedDate):'a combinar'}.`);
- if(o.deliveryMode==='entrega'&&o.address)out.push('Endereço: '+o.address);
- if(o.notes)out.push('Detalhes: '+o.notes);
- out.push(`Valor pago: ${money(paid)} | ${bal>0.009?`Saldo a pagar${o.status==='entregue'?'':' na entrega'}: ${money(bal)}${o.balanceDueDate?' (previsto '+brDate(o.balanceDueDate)+')':''}`:'pedido quitado'}`);
- return out;
-}
 function createReceiptPdf(receipt){
  if(!window.jspdf||!window.jspdf.jsPDF){toast('A biblioteca de PDF não carregou. Verifique a internet e tente novamente.',true);return false;}
  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});let y=18;
@@ -657,14 +636,14 @@ function createReceiptPdf(receipt){
  y+=2;doc.line(15,y,195,y);y+=8;if(receipt.discount>0){doc.text('Subtotal:',135,y);doc.text(money(receipt.subtotal),195,y,{align:'right'});y+=6;doc.text('Desconto:',135,y);doc.text('- '+money(receipt.discount),195,y,{align:'right'});y+=7;}
  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('TOTAL GERAL:',125,y);doc.text(money(receipt.total),195,y,{align:'right'});y+=11;
  doc.setFont('helvetica','normal');doc.setFontSize(10);
- (receipt.payments||[]).forEach(p=>{const ls=doc.splitTextToSize('Pagamento: '+payLabel(p),180);if(y+ls.length*5>270){doc.addPage();y=18;}doc.text(ls,15,y);y+=ls.length*5;if(p.method===PM.PROM)promissorySchedule(p).forEach(x=>{if(y>270){doc.addPage();y=18;}doc.text(`   Parcela ${x.n}/${x.of}: vence em ${brDate(x.dueDate)} - ${money(x.amount)}`,15,y);y+=5;});});orderReceiptLines(receipt).forEach(t=>{const ls=doc.splitTextToSize(t,180);if(y+ls.length*5>270){doc.addPage();y=18;}doc.text(ls,15,y);y+=ls.length*5;});y+=4;
+ (receipt.payments||[]).forEach(p=>{const ls=doc.splitTextToSize('Pagamento: '+payLabel(p),180);if(y+ls.length*5>270){doc.addPage();y=18;}doc.text(ls,15,y);y+=ls.length*5;if(p.method===PM.PROM)promissorySchedule(p).forEach(x=>{if(y>270){doc.addPage();y=18;}doc.text(`   Parcela ${x.n}/${x.of}: vence em ${brDate(x.dueDate)} - ${money(x.amount)}`,15,y);y+=5;});});y+=4;
  doc.setFont('helvetica','normal');doc.setFontSize(10);if(y>265){doc.addPage();y=18;}doc.text('Observação: garantia de 3 meses (90 dias).',15,y);y+=7;if(receipt.note){const lines=doc.splitTextToSize(`Obs. do pedido: ${receipt.note}`,175);doc.text(lines,15,y);}
  doc.save(`recibo-conceito-${receipt.id}.pdf`);return true;
 }
 function receiptWhatsappText(receipt){
  const lines=[`Olá${receipt.client?' '+receipt.client:''}! Segue o resumo da sua compra na Conceito.`,`Data: ${new Date(receipt.date).toLocaleString('pt-BR')}`,...receipt.items.map(x=>`${x.name} | Qtd.: ${x.quantity} | Unit.: ${money(x.price)} | Total: ${money(x.lineTotal)}`)];
  if(receipt.discount>0){lines.push(`Subtotal: ${money(receipt.subtotal)}`,`Desconto: ${money(receipt.discount)}`);}
- lines.push(`TOTAL GERAL: ${money(receipt.total)}`);(receipt.payments||[]).forEach(p=>{lines.push('Pagamento: '+payLabel(p));if(p.method===PM.PROM)promissorySchedule(p).forEach(x=>lines.push(`  Parcela ${x.n}/${x.of}: vence em ${brDate(x.dueDate)} - ${money(x.amount)}`));});orderReceiptLines(receipt).forEach(t=>lines.push(t));lines.push('Garantia: 3 meses (90 dias).');if(receipt.note)lines.push(`Observação: ${receipt.note}`);lines.push('O recibo em PDF será anexado nesta conversa.');return lines.join('\n');
+ lines.push(`TOTAL GERAL: ${money(receipt.total)}`);(receipt.payments||[]).forEach(p=>{lines.push('Pagamento: '+payLabel(p));if(p.method===PM.PROM)promissorySchedule(p).forEach(x=>lines.push(`  Parcela ${x.n}/${x.of}: vence em ${brDate(x.dueDate)} - ${money(x.amount)}`));});lines.push('Garantia: 3 meses (90 dias).');if(receipt.note)lines.push(`Observação: ${receipt.note}`);lines.push('O recibo em PDF será anexado nesta conversa.');return lines.join('\n');
 }
 // Abre o WhatsApp com o resumo do recibo. Usado logo após a venda e também pelas vendas antigas (Movimentações).
 // Sugere o telefone do cliente cadastrado; números com 10 ou 11 dígitos recebem o código do Brasil (55) automaticamente.
@@ -687,7 +666,7 @@ function receiptFromSale(s){
  // Vendas novas guardam a observação separada; as antigas têm que ser extraídas do texto de detalhes.
  let note=ref.note;
  if(note===undefined){note=String(ref.details||'').split(' · ').filter(part=>!/^(Cliente:|Venda |Subtotal:|Desconto total:|Pagamentos:|Item \d+\/\d+|Venda editada|PDV|Troco:)/.test(part)).join(' · ');}
- return {id:s.id,date:s.date,client:s.client,note:note||'',items:s.items,subtotal,discount:Math.max(0,round2(subtotal-s.total)),total:s.total,payments:s.payments||[],order:(s.movements.find(x=>x.order&&x.order.isOrder)||{}).order||null};
+ return {id:s.id,date:s.date,client:s.client,note:note||'',items:s.items,subtotal,discount:Math.max(0,round2(subtotal-s.total)),total:s.total,payments:s.payments||[]};
 }
 document.getElementById('baixarReciboPdf').addEventListener('click',()=>{if(lastReceipt)createReceiptPdf(lastReceipt);});
 document.getElementById('enviarReciboWhatsapp').addEventListener('click',()=>sendReceiptWhatsapp(lastReceipt));
@@ -695,7 +674,6 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
  e.preventDefault();
  if(!saleCart.length){toast('Adicione pelo menos um produto ao carrinho antes de confirmar.',true);return;}
  const client=document.getElementById('vendaCliente').value.trim(),note=document.getElementById('vendaObs').value.trim(),totals=saleTotals(),payments=readPayments(),received=Math.round(payments.reduce((s,x)=>s+x.amount,0)*100)/100;
- const ord=(!editingSale&&window.ckrOrder)?ckrOrder.read('venda'):null; // dados da encomenda (ou null = venda normal)
  // Em edição: localiza os lançamentos originais (ainda ativos) e soma de volta o estoque que eles já baixaram.
  let oldMovements=[];
  if(editingSale){
@@ -704,12 +682,10 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
  }
  if(editingSale&&receivables().some(r=>r.saleId===editingSale.saleId&&(r.paid||r.received>0)&&!r.canceled)){toast('Esta venda tem parcelas de promissória já recebidas e não pode ser editada. Cancele a venda ou desfaça os recebimentos no painel Promissórias.',true);return;}
  const oldQty={};oldMovements.forEach(m=>{oldQty[m.productId]=(oldQty[m.productId]||0)+Number(m.quantity||0);});
- const need={};saleCart.forEach(item=>{if(item.madeToOrder)return;need[item.productId]=(need[item.productId]||0)+item.quantity;});
- for(const item of saleCart){const p=productById(item.productId);if(!p||(!item.madeToOrder&&need[item.productId]>Number(p.stock)+(oldQty[item.productId]||0))){toast(`Estoque insuficiente ou produto removido: ${item.name}.`,true);return;}}
+ const need={};saleCart.forEach(item=>{need[item.productId]=(need[item.productId]||0)+item.quantity;});
+ for(const item of saleCart){const p=productById(item.productId);if(!p||need[item.productId]>Number(p.stock)+(oldQty[item.productId]||0)){toast(`Estoque insuficiente ou produto removido: ${item.name}.`,true);return;}}
  {const perr=validatePayments(payments,client);if(perr){toast(perr,true);return;}}
- if(ord){const oerr=ckrOrder.validate('venda',ord,received,totals.total);if(oerr){toast(oerr,true);return;}}
- else if(Math.abs(received-totals.total)>0.009){toast(`Os pagamentos devem somar exatamente ${money(totals.total)}. Saldo: ${money(totals.total-received)}.`,true);return;}
- if(ord){const dk=localDateKey(saleDateISO('vendaData',null));payments.forEach((p,i)=>{payments[i]={...p,paidAt:dk,kind:ord.partial?'sinal':'pagamento'};});} // data de cada recebimento (alimenta o caixa)
+ if(Math.abs(received-totals.total)>0.009){toast(`Os pagamentos devem somar exatamente ${money(totals.total)}. Saldo: ${money(totals.total-received)}.`,true);return;}
  const paymentDetails=payments.map(payLabel).join(' | ');
  const discount= Math.round((totals.subtotal-totals.total)*100)/100;let allocated=0;
  const receiptItems=saleCart.map((item,index)=>{const raw=Math.round(item.quantity*item.price*100)/100;let lineTotal;if(index===saleCart.length-1)lineTotal=Math.round((totals.total-allocated)*100)/100;else{lineTotal=totals.subtotal?Math.round(raw*(totals.total/totals.subtotal)*100)/100:0;allocated+=lineTotal;}return {...item,lineTotal};});
@@ -720,7 +696,7 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
  const date=saleDateISO('vendaData',wasEditing?editingSale.date:null);
  const customer=findCustomerForSale(client,'');
  const detailPrefix=[client?`Cliente: ${client}`:'',`Venda ${saleId}`,wasEditing?'Venda editada':'',`Subtotal: ${money(totals.subtotal)}`,discount?`Desconto total: ${money(discount)}`:'',`Pagamentos: ${paymentDetails}`,note].filter(Boolean).join(' · ');
- const snapshot={id:saleId,date,client,note,items:receiptItems,subtotal:totals.subtotal,discount,total:totals.total,payments:fin.payments,order:ord||null};
+ const snapshot={id:saleId,date,client,note,items:receiptItems,subtotal:totals.subtotal,discount,total:totals.total,payments:fin.payments};
  // A partir daqui os dados são alterados (todas as validações já passaram).
  let insertAt=0;
  if(wasEditing){
@@ -731,9 +707,9 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
  saleCart.forEach((item,index)=>{
   const p=productById(item.productId);
   const unitCost=plan[index].unitCost,costTotal=plan[index].costTotal;
-  if(!item.madeToOrder)stockOut(p,item.quantity,plan[index].allocs); // sob encomenda não mexe no estoque
+  stockOut(p,item.quantity,plan[index].allocs);
   const detail=[detailPrefix,`Item ${index+1}/${saleCart.length}`].filter(Boolean).join(' · ');
-  const extra={client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note,payments:fin.payments,subtotal:totals.subtotal,discountCash:totals.discountCash,discountPercent:totals.discountPercent,unitPrice:item.price,unitCost,costTotal,profit:fin.items[index].profit,fee:fin.items[index].fee,factoryCredit:fin.items[index].factoryCredit,saleId,date,fifo:plan[index].allocs,taxNoteId:(window.ckrTaxNoteAtual?window.ckrTaxNoteAtual('venda'):''),madeToOrder:!!item.madeToOrder,...(ord?{order:{...ord}}:{})};
+  const extra={client,clientCpf:customer?customer.cpf||'':'',customerId:customer?customer.id:'',note,payments:fin.payments,subtotal:totals.subtotal,discountCash:totals.discountCash,discountPercent:totals.discountPercent,unitPrice:item.price,unitCost,costTotal,profit:fin.items[index].profit,fee:fin.items[index].fee,factoryCredit:fin.items[index].factoryCredit,saleId,date,fifo:plan[index].allocs,taxNoteId:(window.ckrTaxNoteAtual?window.ckrTaxNoteAtual('venda'):'')};
   if(wasEditing){extra.editedAt=new Date().toISOString();extra.editedBy=currentUserName();}
   recordMovement('venda',p,item.quantity,receiptItems[index].lineTotal,detail,extra);
  });
@@ -742,9 +718,9 @@ document.getElementById('formVenda').addEventListener('submit',e=>{
  data.receivables=receivables().filter(r=>r.saleId!==saleId);
  receivables().push(...buildReceivables(saleId,client,customer,fin.payments,date));if(window.markQuoteSold)window.markQuoteSold(saleId,'venda');
  if(saveData()){
-  lastReceipt=snapshot;saleCart=[];exitSaleEdit();e.target.reset();if(window.ckrOrder)ckrOrder.reset('venda');setSaleDateToday();document.getElementById('linhasPagamento').innerHTML='';addPaymentRow();document.getElementById('reciboAcoes').hidden=false;
+  lastReceipt=snapshot;saleCart=[];exitSaleEdit();e.target.reset();setSaleDateToday();document.getElementById('linhasPagamento').innerHTML='';addPaymentRow();document.getElementById('reciboAcoes').hidden=false;
   document.getElementById('reciboStatus').textContent=wasEditing?`Venda ${saleId} atualizada. Baixe o PDF atualizado e envie ao cliente.`:`Venda ${saleId} registrada. Baixe o PDF e envie ao cliente.`;
-  renderCart();updateSalePreview();toast(wasEditing?'Venda atualizada. Estoque, valores e lucro foram recalculados.':ord?(ord.partial?`Encomenda registrada. Saldo de ${money(totals.total-received)} a receber na entrega.`:'Encomenda registrada.'):'Venda registrada, estoque atualizado e recibo disponível.');
+  renderCart();updateSalePreview();toast(wasEditing?'Venda atualizada. Estoque, valores e lucro foram recalculados.':'Venda registrada, estoque atualizado e recibo disponível.');
  }
 });
 
@@ -796,11 +772,6 @@ function saleMatches(s,tokens){
  return tokens.every(t=>hay.includes(t)||(t.length>=4&&idFold.includes(t))||(/^[\d.\-]+$/.test(t)&&digits(t).length>=3&&cpfDigits.includes(digits(t))));
 }
 function noteDateBR(iso){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?`${m[3]}/${m[2]}/${m[1]}`:'—';}
-function orderPill(s){
- const m=s.movements.find(x=>x.order&&x.order.isOrder);if(!m||s.canceled)return '';
- const paid=round2((s.payments||[]).reduce((n,p)=>n+Number(p.amount||0),0)),bal=Math.max(0,round2(s.total-paid)),o=m.order;
- return `<br><span class="pill ord-pend">Encomenda · ${o.status==='entregue'?'entregue':'pendente'}</span>${bal>0.009?`<br><small>Saldo a receber: ${esc(money(bal))}</small>`:''}`;
-}
 function renderSaleSearch(){
  const body=document.getElementById('listaVendasBusca');if(!body)return;
  const tokens=fold(document.getElementById('buscaVenda').value).split(/\s+/).filter(Boolean);
@@ -822,7 +793,7 @@ function renderSaleSearch(){
   +`<td><ul class="sale-items">${s.items.map(i=>`<li>${i.quantity}× ${esc(i.name)}</li>`).join('')}</ul></td>`
   +`<td class="${s.canceled?'sale-money-canceled':''}">${esc(money(s.total))}</td>`
   +`<td>${s.canceled||!s.profitKnown?'—':esc(money(s.profit))}</td>`
-  +`<td class="sale-status">${s.canceled?`<span class="pill cancelada">Cancelada</span>${s.canceledAt?`<br><small>${esc(dateText(s.canceledAt))}</small>`:''}`:'<span class="pill ativa">Ativa</span>'}${orderPill(s)}${s.canceled?'':(s.taxNote?`<br><button type="button" class="nota-badge com" data-sale-nota="${esc(s.id)}" title="Clique para trocar ou remover a nota desta venda">✓ Com nota</button><br><small>Nota ${esc(s.taxNote.number)} · emitida em ${esc(noteDateBR(s.taxNote.date))}</small>`:`<br><button type="button" class="nota-badge sem" data-sale-nota="${esc(s.id)}" title="Clique para vincular uma nota a esta venda">✕ Sem nota</button>`)}${s.edited?'<br><small>editada</small>':''}</td>`
+  +`<td class="sale-status">${s.canceled?`<span class="pill cancelada">Cancelada</span>${s.canceledAt?`<br><small>${esc(dateText(s.canceledAt))}</small>`:''}`:'<span class="pill ativa">Ativa</span>'}${s.canceled?'':(s.taxNote?`<br><button type="button" class="nota-badge com" data-sale-nota="${esc(s.id)}" title="Clique para trocar ou remover a nota desta venda">✓ Com nota</button><br><small>Nota ${esc(s.taxNote.number)} · emitida em ${esc(noteDateBR(s.taxNote.date))}</small>`:`<br><button type="button" class="nota-badge sem" data-sale-nota="${esc(s.id)}" title="Clique para vincular uma nota a esta venda">✕ Sem nota</button>`)}${s.edited?'<br><small>editada</small>':''}</td>`
   +`<td>${s.canceled?'—':`<button type="button" class="row-action" data-sale-receipt="${esc(s.id)}">Recibo PDF</button><button type="button" class="row-action" data-sale-whatsapp="${esc(s.id)}">WhatsApp</button><button type="button" class="row-action" data-sale-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-sale-cancel="${esc(s.id)}">Cancelar venda</button>`}</td></tr>`).join('');
  document.getElementById('semVendasBusca').style.display=sales.length?'none':'block';
 }
@@ -832,15 +803,13 @@ function exitSaleEdit(){
  const label=document.getElementById('confirmarVendaTexto');if(label)label.textContent='Confirmar venda e baixar estoque';
 }
 function cancelSaleEdit(){
- exitSaleEdit();saleCart=[];if(window.ckrOrder)ckrOrder.reset('venda');if(window.ckrTaxNoteSet)window.ckrTaxNoteSet('venda',null);
+ exitSaleEdit();saleCart=[];if(window.ckrTaxNoteSet)window.ckrTaxNoteSet('venda',null);
  document.getElementById('formVenda').reset();setSaleDateToday();renderVendaProdutoSelect(false);document.getElementById('linhasPagamento').innerHTML='';addPaymentRow();
  renderCart();updateSalePreview();
 }
 function startSaleEdit(saleId){
  if(!hasFullAccess()){toast('Seu perfil não tem permissão para editar vendas.',true);return;}
  const s=getSales().find(x=>x.id===saleId);if(!s||s.canceled)return;
- if(s.movements.some(m=>m.order&&m.order.isOrder)){toast('Encomendas são ajustadas no painel Encomendas (receber saldo, entrega, cancelar).',true);goTo('encomendas');return;}
- if(window.ckrOrder)ckrOrder.reset('venda');
  if(!editingSale&&saleCart.length&&!confirm('O carrinho da venda em andamento será substituído pelos itens desta venda. Continuar?'))return;
  const qtyByProduct={};s.movements.forEach(m=>{qtyByProduct[m.productId]=(qtyByProduct[m.productId]||0)+Number(m.quantity||0);});
  editingSale={saleId:s.id,date:s.date,qtyByProduct};
@@ -874,21 +843,19 @@ function startSaleEdit(saleId){
  renderCart();goTo('venda');
  toast('Venda carregada. Altere o que precisar e salve.');
 }
-function cancelSale(saleId,opts){
- opts=opts||{};
+function cancelSale(saleId){
  if(!hasFullAccess()){toast('Seu perfil não tem permissão para cancelar vendas.',true);return;}
  const s=getSales().find(x=>x.id===saleId);if(!s||s.canceled)return;
- if(!opts.skipConfirm&&window.ckrOrder&&s.movements.some(m=>m.order&&m.order.isOrder)){ckrOrder.openCancel(saleId);return;} // encomenda: pergunta se devolve ou retém o valor pago
  const paidProm=receivables().filter(r=>r.saleId===s.id&&(r.paid||r.received>0)&&!r.canceled),promWarn=paidProm.length?`\n\nAtenção: ${paidProm.length} parcela(s) de promissória já recebida(s) (${money(paidProm.reduce((n,r)=>n+(r.received!=null?Number(r.received):Number(r.amount)),0))}). Devolva ao cliente, se for o caso.`:'';
  const lines=s.items.map(i=>`• ${i.quantity}× ${i.name}`).join('\n');
- if(!opts.skipConfirm&&!confirm(`Cancelar a venda ${s.id}${s.client?' de '+s.client:''}?\n\n${lines}\n\nOs produtos voltarão ao estoque e ${money(s.total)} será retirado do total de vendas e do lucro.${promWarn}`))return;
+ if(!confirm(`Cancelar a venda ${s.id}${s.client?' de '+s.client:''}?\n\n${lines}\n\nOs produtos voltarão ao estoque e ${money(s.total)} será retirado do total de vendas e do lucro.${promWarn}`))return;
  const when=new Date().toISOString(),missing=[];
  receivables().forEach(r=>{if(r.saleId===s.id)r.canceled=true;});
  s.movements.forEach(m=>{
   if(m.canceled)return;
   const p=productById(m.productId);
-  if(m.madeToOrder){/* sob encomenda: nunca saiu do estoque */}else if(p)stockBack(p,m);else missing.push(m.productName);
-  m.canceled=true;m.canceledAt=when;m.canceledBy=currentUserName();if(m.order&&m.order.isOrder)m.order={...m.order,status:'cancelado'};
+  if(p)stockBack(p,m);else missing.push(m.productName);
+  m.canceled=true;m.canceledAt=when;m.canceledBy=currentUserName();
  });
  if(editingSale&&editingSale.saleId===s.id)cancelSaleEdit();
  if(saveData())toast(missing.length?`Venda cancelada. Não foi possível devolver ao estoque (produto excluído): ${missing.join(', ')}.`:'Venda cancelada. Estoque e valores atualizados.',missing.length>0);
@@ -920,7 +887,6 @@ document.getElementById('exportarRelatorioCsv').addEventListener('click',()=>{co
 document.getElementById('imprimirRelatorio').addEventListener('click',()=>{renderDateReport();window.print();});
 // Período padrão: mês atual
 const reportToday=new Date();document.getElementById('relatorioDataInicio').value=`${reportToday.getFullYear()}-${String(reportToday.getMonth()+1).padStart(2,'0')}-01`;document.getElementById('relatorioDataFim').value=localDateKey(reportToday);
-document.addEventListener('ckr-order-change',e=>{if(e.detail&&e.detail.prefix==='venda'){const t=document.getElementById('confirmarVendaTexto');if(t&&!editingSale)t.textContent=ckrOrder.enabled('venda')?'Confirmar encomenda':'Confirmar venda e baixar estoque';updatePaymentSummary();}});
 renderAll();
 addPaymentRow();
 
