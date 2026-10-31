@@ -1,501 +1,254 @@
 'use strict';
-// ============================================================================
-// ENCOMENDAS (sob-medida, pagamento em partes e entrega)  ·  Conceito
-// ----------------------------------------------------------------------------
-// Como funciona:
-//  • A venda continua sendo a de sempre (movimentos tipo "venda", um por item). A encomenda só ACRESCENTA dados:
-//      m.order = { isOrder, partial, status:'pendente'|'entregue'|'cancelado', deliveryMode:'entrega'|'retirada',
-//                  expectedDate, deliveredAt, address, notes, balanceDueDate, sinalPct, cancel:{...} }
-//      m.madeToOrder = true  → item sob encomenda: NÃO baixa estoque e NÃO volta ao estoque ao cancelar.
-//      payments[i].paidAt (AAAA-MM-DD) e payments[i].kind ('sinal' | 'saldo' | 'pagamento')
-//  • Saldo = total da venda − soma dos pagamentos recebidos.
-//  • Receber o saldo adiciona um novo pagamento à venda (com a data em que foi recebido) e recalcula taxas/lucro.
-//  • Usa funções do app.js: data, money, esc, id, round2, saveData, toast, goTo, getSales, PM, PAY_METHODS, payLabel,
-//    payExtraHtml, syncPayExtra, readPayExtra, validatePayments, enrichPayment, calcSaleFinance, buildReceivables,
-//    findCustomerForSale, receiptFromSale, createReceiptPdf, sendReceiptWhatsapp, cancelSale, parseMoneyInput,
-//    bindMoneyMask, nextProductCode, todayISO, dayText, localDateKey, hasFullAccess, currentUserName.
-// ============================================================================
+// Conceito: ENCOMENDAS — venda de produto que ainda não chegou.
+// A encomenda guarda cliente + itens + desconto + o que o cliente já pagou (sinal ou valor total),
+// SEM baixar estoque e SEM lançar nada no financeiro/caixa/lucro. Quando o produto chega e é dado entrada
+// no estoque, o botão "Entregar" carrega tudo em "Registrar venda": o sinal já vem preenchido nos pagamentos,
+// o saldo vem numa linha à parte, e ao confirmar a venda a encomenda passa para "Entregue".
+// Usa as funções e dados do app.js (data, saleCart, readPayments, saveData...).
 (function(){
 const $=x=>document.getElementById(x), r2=n=>Math.round(Number(n||0)*100)/100;
-const fmtIn=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-const DAY=864e5;
+const list=()=>data.preorders||(data.preorders=[]);
+let pending=null; // {id}: encomenda carregada em "Registrar venda" (para entregar ou editar)
+const num=o=>'Enc. '+String(o.number).padStart(4,'0');
+const paidOf=o=>r2((o.payments||[]).reduce((s,p)=>s+Number(p.amount||0),0));
+const restOf=o=>Math.max(0,r2(o.total-paidOf(o)));
+const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtOpt=v=>Number(v)>0?fmt(v):'';
+const isOn=()=>!!$('vendaEncomenda')&&$('vendaEncomenda').checked;
+window.ckrEncomendaOn=isOn;
 
-// ---------- utilidades de venda/encomenda ----------
-const saleMovs=sid=>data.movements.filter(m=>m.type==='venda'&&(m.saleId||m.id)===sid);
-const orderOf=sale=>{const m=sale.movements.find(x=>x.order&&x.order.isOrder);return m?m.order:null;};
-const paidOf=pays=>r2((pays||[]).reduce((s,p)=>s+Number(p.amount||0),0));
-function info(sale){ // dados calculados de uma venda (getSales)
- const ord=orderOf(sale),paid=paidOf(sale.payments),balance=Math.max(0,r2(sale.total-paid));
- return {ord,paid,balance};
+// Todas as unidades da encomenda já estão no estoque?
+function ready(o){
+ const need={};o.items.forEach(i=>{need[i.productId]=(need[i.productId]||0)+Number(i.quantity||0);});
+ return Object.keys(need).every(pid=>{const p=productById(pid);return !!p&&Number(p.stock||0)>=need[pid];});
 }
-function setOrder(saleId,patch){saleMovs(saleId).forEach(m=>{m.order=Object.assign({},m.order||{},patch);});}
-function addDaysKey(key,n){const [y,m,d]=String(key).split('-').map(Number);return localDateKey(new Date(y,m-1,d+n));}
-function daysTo(key){ // dias até a data (negativo = atrasada)
- if(!/^\d{4}-\d{2}-\d{2}$/.test(key||''))return null;
- const [y,m,d]=key.split('-').map(Number),[a,b,c]=todayISO().split('-').map(Number);
- return Math.round((new Date(y,m-1,d)-new Date(a,b-1,c))/DAY);
-}
-window.ckrIsOrderSale=function(saleId){const s=getSales().find(x=>x.id===saleId);return !!(s&&orderOf(s));};
 
-// Recalcula taxa, crédito da fábrica e lucro de TODOS os itens da venda a partir dos pagamentos atuais.
-// Pagamentos já gravados ficam "travados" (mantêm a taxa da época); só o pagamento novo usa a taxa atual.
-function recalcSale(saleId,payments){
- const movs=saleMovs(saleId).filter(m=>!m.canceled);if(!movs.length)return;
- const total=r2(movs.reduce((s,m)=>s+Number(m.total||0),0));
- const lines=movs.map(m=>({lineTotal:Number(m.total||0),quantity:Number(m.quantity||0),unitCost:Number(m.unitCost||0)}));
- const fin=calcSaleFinance(lines,total,payments.map(p=>({...p})));
- const locked=fin.payments.map(p=>({...p,locked:true}));
- movs.forEach((m,i)=>{
-  m.payments=locked.map(p=>({...p}));
-  m.profit=fin.items[i].profit;m.fee=fin.items[i].fee;m.factoryCredit=fin.items[i].factoryCredit;
+// ---------- modo "Encomenda" no formulário de venda ----------
+function sync(skipSummary){
+ const box=$('vendaEncomenda');if(!box)return;
+ if(editingSale&&box.checked)box.checked=false;
+ box.disabled=!!editingSale;
+ const on=box.checked,o=pending&&list().find(x=>x.id===pending.id&&x.status==='aberta');
+ if(pending&&!o)pending=null;
+ // Com a encomenda carregada, os campos de produto/qtd/preço ficam vazios (os itens já estão no carrinho): a validação é feita no envio.
+ $('formVenda').noValidate=!!pending;
+ $('vendaEncExtra').hidden=!on;
+ const so=$('filtroVendaEstoque');
+ if(so){if(on&&so.checked){so.checked=false;so.dispatchEvent(new Event('change'));}so.disabled=on;}
+ const lbl=$('confirmarVendaTexto');
+ if(lbl){if(on)lbl.textContent=pending?'Salvar alterações da encomenda':'Salvar encomenda (não baixa estoque)';else if(!editingSale)lbl.textContent='Confirmar venda e baixar estoque';}
+ const ban=$('vendaEncAviso');
+ ban.hidden=!o;
+ if(o){
+  $('vendaEncTitulo').textContent=(on?'Editando a encomenda ':'Entregando a encomenda ')+num(o)+' — '+o.client;
+  $('vendaEncTexto').textContent=on?'Ajuste itens, valores ou o que o cliente já pagou e salve. Nada é baixado do estoque.':'O produto precisa estar no estoque (menu Entrada de estoque). Complete o pagamento do saldo e confirme: a encomenda passa para “Entregue”.';
+ }
+ if(!skipSummary)updatePaymentSummary();
+}
+const baseRenderCart=window.renderCart;
+if(typeof baseRenderCart==='function')window.renderCart=function(){const r=baseRenderCart.apply(this,arguments);try{sync(true);}catch(_){}return r;};
+
+const baseUPS=window.updatePaymentSummary;
+if(typeof baseUPS==='function')window.updatePaymentSummary=function(){
+ const r=baseUPS.apply(this,arguments);
+ try{
+  if(isOn()){
+   const total=saleTotals().total,got=r2(readPayments().reduce((s,x)=>s+x.amount,0)),rem=r2(total-got),n=$('avisoPagamento');
+   n.classList.remove('payment-ok','payment-error');
+   if(rem<-0.009){n.textContent=`O valor recebido ultrapassa o total em ${money(-rem)}.`;n.classList.add('payment-error');}
+   else if(got<=0.009)n.textContent='Sem sinal: o valor total fica para receber na entrega. Se o cliente já pagou algo, adicione a forma de pagamento acima.';
+   else if(rem>0.009)n.textContent=`Já recebido: ${money(got)} · falta ${money(rem)} para receber na entrega.`;
+   else{n.textContent='Pagamento total recebido. Na entrega só falta baixar o estoque.';n.classList.add('payment-ok');}
+  }
+ }catch(_){}
+ return r;
+};
+
+// Se o usuário começar a editar uma venda, solta a encomenda que estava carregada.
+const baseStartEdit=window.startSaleEdit;
+if(typeof baseStartEdit==='function')window.startSaleEdit=function(){
+ const r=baseStartEdit.apply(this,arguments);
+ if(editingSale)pending=null;
+ try{sync();}catch(_){}
+ return r;
+};
+
+// ---------- salvar encomenda (chamado pelo submit de "Registrar venda") ----------
+window.ckrEncomendaSubmit=function(){
+ if(!isOn())return false;
+ const err=m=>{toast(m,true);return true;};
+ if(editingSale)return err('Termine ou cancele a edição da venda antes de salvar uma encomenda.');
+ if(!saleCart.length)return err('Adicione pelo menos um produto ao carrinho antes de salvar a encomenda.');
+ const client=$('vendaCliente').value.trim();
+ if(!client)return err('Informe o cliente da encomenda.');
+ const t=saleTotals();
+ if(!(t.total>0))return err('O total da encomenda precisa ser maior que zero.');
+ const pays=readPayments();
+ if(pays.some(p=>p.method===PM.PROM))return err('Na encomenda, informe só o que o cliente já pagou. A promissória do saldo é escolhida na entrega.');
+ if(pays.some(p=>!p.method||!(p.amount>0)))return err('Informe a forma e o valor de cada pagamento, ou remova a linha em branco.');
+ const got=r2(pays.reduce((s,p)=>s+p.amount,0));
+ if(got>t.total+0.009)return err(`O valor recebido (${money(got)}) é maior que o total (${money(t.total)}).`);
+ const perr=pays.length?validatePayments(pays,client):'';
+ if(perr)return err(perr);
+ const now=new Date().toISOString(),by=currentUserName();
+ const old=pending?list().find(x=>x.id===pending.id&&x.status==='aberta'):null;
+ let alloc=0;
+ const items=saleCart.map((it,i)=>{let lt;if(i===saleCart.length-1)lt=r2(t.total-alloc);else{lt=t.subtotal?r2(r2(it.quantity*it.price)*(t.total/t.subtotal)):0;alloc+=lt;}return {productId:it.productId,name:it.name,quantity:it.quantity,price:it.price,cost:Number(it.cost||0),lineTotal:lt};});
+ const date=saleDateISO('vendaData',old?old.date:null);
+ const payments=pays.map((p,i)=>({...p,id:id(),date:(old&&old.payments&&old.payments[i]&&old.payments[i].date)||date,by}));
+ const base={client,note:$('vendaObs').value.trim(),eta:$('vendaEncPrevisao').value||'',items,subtotal:t.subtotal,discountCash:t.discountCash,discountPercent:t.discountPercent,discount:r2(t.subtotal-t.total),total:t.total,payments};
+ let o;
+ if(old){Object.assign(old,base,{editedAt:now,editedBy:by});o=old;}
+ else{o={id:id(),number:list().reduce((n,x)=>Math.max(n,x.number||0),0)+1,date,status:'aberta',createdAt:now,createdBy:by,...base};list().push(o);}
+ pending=null;
+ saleCart=[];$('formVenda').reset();setSaleDateToday();$('linhasPagamento').innerHTML='';addPaymentRow();renderVendaProdutoSelect(false);
+ renderCart();updateSalePreview();
+ if(saveData()){toast(`Encomenda ${num(o)} ${old?'atualizada':'salva'}. Estoque e financeiro não foram alterados.`);goTo('encomendas');}
+ return true;
+};
+
+// ---------- entrega: a venda foi confirmada, encomenda vira "Entregue" ----------
+window.ckrEncomendaDone=function(saleId){
+ if(!pending||editingSale)return;
+ const o=list().find(x=>x.id===pending.id);
+ if(o&&o.status==='aberta'){o.status='entregue';o.saleId=saleId;o.deliveredAt=new Date().toISOString();o.deliveredBy=currentUserName();}
+ pending=null;
+};
+
+// ---------- carregar a encomenda em "Registrar venda" ----------
+function load(o,deliver){
+ if(editingSale){toast('Termine ou cancele a edição da venda antes de abrir uma encomenda.',true);return;}
+ if(saleCart.length&&!confirm('O carrinho de Registrar venda tem itens. Substituí-los pelos da encomenda?'))return;
+ const lines=[],missing=[];
+ o.items.forEach(it=>{const p=productById(it.productId);if(!p){missing.push(it.name);return;}lines.push({productId:p.id,name:p.name,quantity:it.quantity,price:it.price,cost:Number(p.cost||0)});});
+ if(missing.length)toast('Produto(s) não encontrado(s) no catálogo e ignorado(s): '+missing.join(', '),true);
+ if(!lines.length)return;
+ if(deliver&&!ready(o)&&!confirm('O estoque ainda não tem todas as unidades desta encomenda.\n\nAntes de confirmar a venda, dê entrada do produto em "Entrada de estoque". Abrir mesmo assim?'))return;
+ saleCart=lines;pending={id:o.id};
+ $('vendaEncomenda').checked=!deliver;
+ $('vendaCliente').value=o.client;$('vendaObs').value=o.note||'';
+ $('vendaDescontoReais').value=fmtOpt(o.discountCash);$('vendaDescontoPercentual').value=fmtOpt(o.discountPercent);
+ $('vendaEncPrevisao').value=o.eta||'';
+ $('vendaData').value=deliver?todayISO():localDateKey(o.date);
+ $('linhasPagamento').innerHTML='';
+ const pays=o.payments||[];
+ pays.forEach(pm=>{
+  const row=addPaymentRow();
+  row.querySelector('.pagamentoMetodo').value=pm.method||'';
+  row.querySelector('.pagamentoValor').value=fmt(pm.amount||0);
+  row.querySelector('.pagamentoParcelas').value=pm.installments||1;
+  row.querySelector('.pagamentoResponsavel').value=pm.responsible||'loja';
+  row.querySelector('.pagamentoBandeira').value=pm.brand||'vm';
+  row.querySelector('.pagamentoVencimento').value=pm.dueDate||'';
+  row.querySelector('.pagamentoExtendido').checked=pm.extended!==false;
+  updatePaymentRow(row);
  });
- return locked;
+ const rem=restOf(o);
+ if(deliver&&rem>0.009){const row=addPaymentRow();row.querySelector('.pagamentoValor').value=fmt(rem);}
+ else if(!pays.length)addPaymentRow();
+ $('reciboAcoes').hidden=true;
+ renderVendaProdutoSelect(false);renderCart();updateSalePreview();goTo('venda');
+ toast(deliver?`Encomenda ${num(o)} carregada. Escolha como o saldo foi pago e confirme a venda.`:`Encomenda ${num(o)} carregada para edição.`);
 }
 
-// ============================================================================
-// 1) BLOCO "ENCOMENDA" DENTRO DE "REGISTRAR VENDA" E DO PDV
-// ============================================================================
-const CFG={venda:{box:'ordBoxVenda',p:'ov'},pdv:{box:'ordBoxPdv',p:'op'}};
-const el=(pre,name)=>$(pre+name);
-function boxHtml(pre){return `
-<section class="ord-box" id="${pre}Box">
- <label class="check-filter ord-main"><input type="checkbox" id="${pre}On"><span><b>Encomenda</b> · sob-medida, produto sem estoque, pagamento em partes ou entrega</span></label>
- <div class="ord-body" id="${pre}Body" hidden>
-  <div class="form-two">
-   <label class="field">Pagamento
-    <select id="${pre}Pag"><option value="total">Pagamento total agora</option><option value="partes">Em partes (sinal agora + saldo depois)</option></select></label>
-   <label class="field" id="${pre}PctWrap">Sinal (%)<input id="${pre}Pct" type="text" inputmode="decimal" value="30" autocomplete="off"></label>
-  </div>
-  <p class="pay-hint" id="${pre}SinalInfo" hidden></p>
-  <div class="form-two">
-   <label class="field">Entrega
-    <select id="${pre}Modo"><option value="entrega">Entrega ao cliente</option><option value="retirada">Cliente retira na loja</option></select></label>
-   <label class="field">Situação
-    <select id="${pre}Status"><option value="pendente">Pendente (ainda não entregue)</option><option value="entregue">Entregue</option></select></label>
-  </div>
-  <div class="form-two">
-   <label class="field" id="${pre}PrevWrap">Previsão de entrega<input id="${pre}Prev" type="date"></label>
-   <label class="field" id="${pre}EntWrap" hidden>Data da entrega<input id="${pre}Ent" type="date"></label>
-   <label class="field" id="${pre}SaldoWrap">Saldo previsto para<input id="${pre}SaldoData" type="date"></label>
-  </div>
-  <label class="field" id="${pre}EndWrap">Endereço / local da entrega<input id="${pre}End" maxlength="220" placeholder="Rua, número, bairro — preenchido pelo cadastro do cliente quando houver"></label>
-  <label class="field">Detalhes da encomenda (medidas, cor, tecido...)<input id="${pre}Obs" maxlength="220" placeholder="Ex.: 1,58 x 1,98 · tecido cinza · base box baú"></label>
-  <div class="ord-actions"><button type="button" class="button button-light button-small" id="${pre}UsarSinal" hidden>Usar valor do sinal no pagamento</button></div>
- </div>
- <div class="ord-actions"><button type="button" class="button button-light button-small" id="${pre}NovoProd">＋ Cadastrar produto na hora (sob-medida / nunca comprado)</button></div>
-</section>`;}
-function setup(key){
- const c=CFG[key],host=$(c.box);if(!host||host.dataset.ready)return;host.dataset.ready='1';
- const pre=c.p;host.innerHTML=boxHtml(pre);
- bindPercentInput($(pre+'Pct'));
- const sync=()=>{
-  const on=$(pre+'On').checked,partes=$(pre+'Pag').value==='partes',ent=$(pre+'Status').value==='entregue';
-  $(pre+'Body').hidden=!on;
-  $(pre+'PctWrap').hidden=!partes;$(pre+'SaldoWrap').hidden=!partes;
-  $(pre+'PrevWrap').hidden=ent;$(pre+'EntWrap').hidden=!ent;
-  $(pre+'EndWrap').hidden=$(pre+'Modo').value!=='entrega';
-  if(ent&&!$(pre+'Ent').value)$(pre+'Ent').value=todayISO();
-  if(on&&!$(pre+'Prev').value)$(pre+'Prev').value=addDaysKey(todayISO(),20);
-  if(on&&$(pre+'Modo').value==='entrega'&&!$(pre+'End').value)fillAddress(key);
-  sinalInfo(key);
-  document.dispatchEvent(new CustomEvent('ckr-order-change',{detail:{prefix:key}}));
- };
- host.addEventListener('change',sync);
- host.addEventListener('input',e=>{if(e.target.id===pre+'Pct'){sinalInfo(key);document.dispatchEvent(new CustomEvent('ckr-order-change',{detail:{prefix:key}}));}});
- $(pre+'NovoProd').addEventListener('click',()=>openNewProduct(key));
- $(pre+'UsarSinal').addEventListener('click',()=>{if(window.ckrUseSinal)window.ckrUseSinal(key);});
- const cli=$(key==='venda'?'vendaCliente':'pdvCliente');
- if(cli)cli.addEventListener('change',()=>{if($(pre+'On').checked&&!$(pre+'End').value)fillAddress(key);});
+// ---------- receber pagamento (sinal extra) ----------
+let payId=null;
+function openPay(o){
+ payId=o.id;
+ $('encModalInfo').textContent=`${o.client} · ${num(o)} · total ${money(o.total)} · falta ${money(restOf(o))}`;
+ $('encModalValor').value=fmt(restOf(o));
+ $('encModalForma').innerHTML='<option value="">Selecione...</option>'+PAY_METHODS.filter(m=>m!==PM.PROM).map(m=>`<option>${esc(m)}</option>`).join('');
+ $('encModalData').value=todayISO();$('encModalErro').textContent='';$('encModal').hidden=false;
+ setTimeout(()=>{$('encModalValor').focus();$('encModalValor').select();},50);
 }
-function fillAddress(key){
- const cli=$(key==='venda'?'vendaCliente':'pdvCliente'),c=cli&&findCustomerForSale(cli.value.trim(),'');
- if(!c)return;
- const parts=[[c.street,c.number].filter(Boolean).join(', '),c.complement,c.neighborhood,[c.city,c.state].filter(Boolean).join('/')].filter(Boolean);
- if(parts.length)$(CFG[key].p+'End').value=parts.join(' - ');
-}
-function totalOf(key){try{return window.ckrTotalFn&&window.ckrTotalFn[key]?Number(window.ckrTotalFn[key]())||0:0;}catch(_){return 0;}}
-function pctOf(key){const v=parsePercentInput($(CFG[key].p+'Pct').value);return Math.min(100,Math.max(0,Number.isFinite(v)?v:0));}
-function sinalInfo(key){
- const pre=CFG[key].p,box=$(pre+'SinalInfo'),btn=$(pre+'UsarSinal');
- const partes=$(pre+'On').checked&&$(pre+'Pag').value==='partes',total=totalOf(key);
- btn.hidden=!partes;box.hidden=!partes;
- if(!partes)return;
- const pct=pctOf(key),sinal=r2(total*pct/100);
- box.textContent=total>0?`Sinal de ${fmtIn(pct)}%: ${money(sinal)} · saldo na entrega: ${money(r2(total-sinal))}`:'Adicione os produtos para calcular o sinal.';
-}
-window.ckrSinalValue=key=>r2(totalOf(key)*pctOf(key)/100);
-window.ckrUseSinal=function(key){
- const v=window.ckrSinalValue(key);if(!(v>0)){toast('Adicione os produtos antes de calcular o sinal.',true);return;}
- if(key==='pdv'){const e=$('pdvPagValor');e.value=fmtIn(v);e.dispatchEvent(new Event('input',{bubbles:true}));toast('Sinal no campo de pagamento. Escolha a forma e clique em Adicionar.');return;}
- let row=[...document.querySelectorAll('#linhasPagamento .payment-row')].find(r=>!r.querySelector('.pagamentoValor').value.trim());
- if(!row)row=addPaymentRow();
- const e=row.querySelector('.pagamentoValor');e.value=fmtIn(v);e.dispatchEvent(new Event('input',{bubbles:true}));
- toast('Sinal colocado no pagamento. Escolha a forma de pagamento.');
-};
-// Adiciona ao carrinho o produto recém-cadastrado (liga o modo Encomenda se ainda não estiver ligado).
-window.ckrAddOrderItem=function(key,p,qty,price,cost){
- const pre=CFG[key].p,on=$(pre+'On');
- if(on&&!on.checked){on.checked=true;on.dispatchEvent(new Event('change',{bubbles:true}));}
- return key==='venda'?(window.ckrAddItemVenda&&window.ckrAddItemVenda(p,qty,price,cost)):(window.ckrAddItemPdv&&window.ckrAddItemPdv(p,qty,price,cost));
-};
+function closePay(){$('encModal').hidden=true;payId=null;}
+bindMoneyMask($('encModalValor'));
+$('encModalFechar').addEventListener('click',closePay);
+$('encModal').addEventListener('click',e=>{if(e.target===$('encModal'))closePay();});
+$('encModalForm').addEventListener('submit',e=>{
+ e.preventDefault();
+ const o=list().find(x=>x.id===payId&&x.status==='aberta'),err=m=>{$('encModalErro').textContent=m;};
+ if(!o){closePay();return;}
+ const v=r2(parseMoneyInput($('encModalValor').value)),m=$('encModalForma').value;
+ if(!(v>0))return err('Informe o valor recebido.');
+ if(!m)return err('Escolha a forma de pagamento.');
+ if(v>restOf(o)+0.009)return err(`O valor é maior que o que falta receber (${money(restOf(o))}).`);
+ (o.payments=o.payments||[]).push({id:id(),date:saleDateISO('encModalData'),method:m,amount:v,installments:null,responsible:null,brand:null,dueDate:null,extended:null,by:currentUserName()});
+ if(saveData()){closePay();toast(`Recebimento de ${money(v)} registrado na encomenda ${num(o)}.`);}
+});
 
-// ---- API usada por app.js (Registrar venda) e modulos.js (PDV) ----
-window.ckrOrder={
- enabled:key=>!!($(CFG[key].p+'On')&&$(CFG[key].p+'On').checked),
- partial:key=>!!($(CFG[key].p+'On')&&$(CFG[key].p+'On').checked&&$(CFG[key].p+'Pag').value==='partes'),
- refresh:key=>sinalInfo(key),
- // Lê o bloco e devolve o objeto da encomenda (ou null se não for encomenda).
- read(key){
-  const pre=CFG[key].p;if(!this.enabled(key))return null;
-  const partial=this.partial(key),delivered=$(pre+'Status').value==='entregue',mode=$(pre+'Modo').value;
-  return {isOrder:true,partial,status:delivered?'entregue':'pendente',deliveryMode:mode,
-   expectedDate:delivered?'':($(pre+'Prev').value||''),deliveredAt:delivered?($(pre+'Ent').value||todayISO()):'',
-   address:mode==='entrega'?$(pre+'End').value.trim():'',notes:$(pre+'Obs').value.trim(),
-   balanceDueDate:partial?($(pre+'SaldoData').value||''):'',sinalPct:partial?pctOf(key):100};
- },
- // Valida a encomenda; devolve texto de erro ou ''.
- validate(key,ord,received,total,allowChange){
-  if(!ord)return '';
-  if(ord.deliveryMode==='entrega'&&ord.status==='pendente'&&!ord.expectedDate)return 'Informe a previsão de entrega da encomenda.';
-  if(ord.status==='entregue'&&!ord.deliveredAt)return 'Informe a data da entrega.';
-  if(ord.partial){
-   if(!(received>0.009))return 'Em pagamento em partes, receba pelo menos o sinal agora e informe a forma de pagamento.';
-   if(received>total+0.009)return `Os pagamentos ultrapassam o total em ${money(received-total)}.`;
-  }else if(received<total-0.009)return `Falta receber ${money(total-received)}.`;
-  else if(!allowChange&&received>total+0.009)return `Os pagamentos ultrapassam o total em ${money(received-total)}.`;
-  return '';
- },
- // Marca cada pagamento com a data em que foi recebido e o tipo.
- stamp(payments,ord,dateKey){
-  return payments.map(p=>({...p,paidAt:dateKey,kind:ord&&ord.partial?'sinal':'pagamento'}));
- },
- stockless:key=>!!($(CFG[key].p+'On')&&$(CFG[key].p+'On').checked),
- reset(key){
-  const pre=CFG[key].p;if(!$(pre+'On'))return;
-  $(pre+'On').checked=false;$(pre+'Pag').value='total';$(pre+'Pct').value='30';$(pre+'Modo').value='entrega';$(pre+'Status').value='pendente';
-  ['Prev','Ent','SaldoData','End','Obs'].forEach(k=>$(pre+k).value='');
-  $(pre+'Body').hidden=true;sinalInfo(key);
- },
- openNewProduct:key=>openNewProduct(key)
-};
-
-// ============================================================================
-// 2) CADASTRAR PRODUTO NA HORA DA VENDA (sob-medida ou nunca comprado)
-// ============================================================================
-function openNewProduct(key){
- let m=$('ordProdModal');
- if(!m){
-  m=document.createElement('div');m.id='ordProdModal';m.className='ord-modal';m.hidden=true;
-  m.innerHTML=`<div class="ord-modal-card" role="dialog" aria-modal="true" aria-labelledby="npTitulo">
-   <h3 id="npTitulo">Cadastrar produto na hora</h3>
-   <p class="pay-hint">O produto vai para o catálogo e já entra no carrinho. Itens sob encomenda não baixam estoque.</p>
-   <label class="field">Nome do produto<input id="npNome" maxlength="150" placeholder="Ex.: Cama box sob-medida 1,58 x 1,98"></label>
-   <div class="form-two"><label class="field">Código<input id="npCod" maxlength="40"></label>
-   <label class="field">Quantidade<input id="npQtd" type="number" min="1" step="1" value="1"></label></div>
-   <div class="form-two"><label class="field">Valor de venda (R$)<input id="npPreco" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label>
-   <label class="field">Custo estimado (R$)<input id="npCusto" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label></div>
-   <label class="field">Tipo
-    <select id="npTipo"><option value="mto">Sob-medida / sob encomenda (não passa pelo estoque)</option><option value="novo">Produto novo que ainda não comprei (vendo antes de receber)</option><option value="outro">Outro (digitar)…</option></select></label>
-   <label class="field" id="npTipoOutroWrap" hidden>Digite o tipo<input id="npTipoOutro" maxlength="80" placeholder="Ex.: Importado, Reforma, Brinde…"></label>
-   <div class="ord-actions"><button type="button" class="button button-primary" id="npSalvar">Cadastrar e adicionar</button><button type="button" class="button button-light" id="npCancelar">Cancelar</button></div>
-  </div>`;
-  document.body.appendChild(m);
-  bindMoneyMask($('npPreco'));bindMoneyMask($('npCusto'));
-  $('npTipo').addEventListener('change',()=>{const o=$('npTipo').value==='outro';$('npTipoOutroWrap').hidden=!o;if(o)setTimeout(()=>$('npTipoOutro').focus(),30);});
-  $('npCancelar').addEventListener('click',()=>{m.hidden=true;});
-  m.addEventListener('click',e=>{if(e.target===m)m.hidden=true;});
-  $('npSalvar').addEventListener('click',()=>{
-   const name=$('npNome').value.trim(),qty=Math.floor(Number($('npQtd').value)),price=round2(parseMoneyInput($('npPreco').value)),cost=round2(parseMoneyInput($('npCusto').value));
-   let code=$('npCod').value.trim();
-   if(!name){toast('Informe o nome do produto.',true);$('npNome').focus();return;}
-   if(!(qty>=1)){toast('Informe uma quantidade inteira maior que zero.',true);return;}
-   if(!(price>0)){toast('Informe o valor de venda.',true);$('npPreco').focus();return;}
-   const tipoSel=$('npTipo').value,tipoTxt=tipoSel==='outro'?$('npTipoOutro').value.trim():'';
-   if(tipoSel==='outro'&&!tipoTxt){toast('Digite o tipo do produto.',true);$('npTipoOutro').focus();return;}
-   if(code&&data.products.some(p=>(p.code||'').toLowerCase()===code.toLowerCase())){toast('Já existe produto com o código '+code+'.',true);return;}
-   if(!code)code=nextProductCode();
-   const p={id:id(),name,code,cost,price,stock:0,createdAt:todayISO(),nfNumber:'',madeToOrder:tipoSel==='mto'||tipoSel==='outro',typeLabel:tipoTxt,createdInSale:true};
-   data.products.push(p);
-   const k=m.dataset.key;
-   if(!window.ckrAddOrderItem||!window.ckrAddOrderItem(k,p,qty,price,cost)){toast('Não foi possível adicionar ao carrinho.',true);return;}
-   if(saveData()){m.hidden=true;toast(`${name} cadastrado e adicionado ao carrinho.`);}
-  });
- }
- m.dataset.key=key;
- $('npNome').value=(key==='venda'?$('vendaBuscaProduto'):$('pdvBusca')).value.trim().replace(/^\s*\d+\s*\*\s*/,'');
- $('npCod').value=nextProductCode();$('npQtd').value='1';$('npPreco').value='';$('npCusto').value='';$('npTipo').value='mto';$('npTipoOutro').value='';$('npTipoOutroWrap').hidden=true;
- m.hidden=false;setTimeout(()=>$('npNome').focus(),50);
+// ---------- comprovante em PDF ----------
+function pdf(o){
+ if(!window.jspdf||!window.jspdf.jsPDF){toast('A biblioteca de PDF não carregou. Verifique a internet e tente novamente.',true);return;}
+ const doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'});let y=18;
+ doc.setFont('helvetica','bold');doc.setFontSize(17);doc.text('CONCEITO - COMPROVANTE DE ENCOMENDA',15,y);y+=9;
+ doc.setFont('helvetica','normal');doc.setFontSize(10);
+ doc.text(`${num(o)}   |   Data: ${new Date(o.date).toLocaleDateString('pt-BR')}${o.eta?`   |   Previsão de chegada: ${brDate(o.eta)}`:''}`,15,y);y+=6;
+ doc.text(`Cliente: ${o.client}`,15,y);y+=9;
+ doc.setFont('helvetica','bold');doc.text('PRODUTO',15,y);doc.text('QTD.',108,y);doc.text('VALOR UNIT.',126,y);doc.text('VALOR TOTAL',166,y);y+=3;doc.line(15,y,195,y);y+=6;doc.setFont('helvetica','normal');
+ o.items.forEach(it=>{const nm=doc.splitTextToSize(it.name,88),h=Math.max(7,nm.length*5);if(y+h>265){doc.addPage();y=18;}doc.text(nm,15,y);doc.text(String(it.quantity),108,y);doc.text(money(it.price),126,y);doc.text(money(it.lineTotal),166,y);y+=h;});
+ y+=2;doc.line(15,y,195,y);y+=8;
+ if(y>235){doc.addPage();y=18;}
+ if(o.discount>0){doc.text('Subtotal:',135,y);doc.text(money(o.subtotal),195,y,{align:'right'});y+=6;doc.text('Desconto:',135,y);doc.text('- '+money(o.discount),195,y,{align:'right'});y+=7;}
+ doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('TOTAL:',125,y);doc.text(money(o.total),195,y,{align:'right'});y+=9;
+ doc.setFontSize(10);
+ if((o.payments||[]).length){doc.text('Pagamentos recebidos',15,y);y+=6;doc.setFont('helvetica','normal');
+  o.payments.forEach(p=>{if(y>270){doc.addPage();y=18;}doc.text(`${brDate(localDateKey(p.date))}  -  ${p.method}`,20,y);doc.text(money(p.amount),195,y,{align:'right'});y+=6;});
+  y+=2;doc.setFont('helvetica','bold');}
+ doc.text('TOTAL PAGO:',125,y);doc.text(money(paidOf(o)),195,y,{align:'right'});y+=7;
+ doc.setFontSize(13);doc.text('FALTA PAGAR:',125,y);doc.text(money(restOf(o)),195,y,{align:'right'});y+=11;
+ doc.setFont('helvetica','normal');doc.setFontSize(10);
+ const ls=doc.splitTextToSize('Produto sob encomenda: a entrega será combinada quando ele chegar. O valor restante é pago na entrega. Este comprovante não é documento fiscal.',175);
+ if(y+ls.length*5>280){doc.addPage();y=18;}doc.text(ls,15,y);y+=ls.length*5+3;
+ if(o.note){const nl=doc.splitTextToSize(`Observação: ${o.note}`,175);doc.text(nl,15,y);}
+ doc.save(`encomenda-${String(o.number).padStart(4,'0')}.pdf`);
 }
 
-// ============================================================================
-// 3) PAINEL "ENCOMENDAS"
-// ============================================================================
-function injectPanel(){
- if($('panel-encomendas'))return;
- const nav=document.querySelector('.nav-link[data-panel="pdv"]');
- if(nav&&!document.querySelector('.nav-link[data-panel="encomendas"]')){
-  const b=document.createElement('button');b.className='nav-link';b.dataset.panel='encomendas';
-  b.innerHTML='<span class="nav-icon">⛟</span> Encomendas <span class="nav-count" id="menuEncomendas">0</span>';
-  nav.insertAdjacentElement('afterend',b);
-  b.addEventListener('click',()=>goTo('encomendas'));
- }
- const ref=$('panel-orcamentos');
- const sec=document.createElement('section');sec.className='panel';sec.id='panel-encomendas';
- sec.innerHTML=`
- <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Encomendas e entregas</h1><p class="subtitle">Vendas sob-medida, sinal + saldo, entregas pendentes e cancelamentos.</p></div></div>
- <section class="stats-grid ord-stats" id="ordStats"></section>
- <section class="surface list-surface">
-  <div class="surface-heading responsive-heading"><div><h2>Encomendas</h2><p id="ordResumo"></p></div>
-   <div class="search-tools"><input id="ordBusca" type="search" placeholder="Buscar cliente, produto ou nº da venda"><select id="ordFiltro" aria-label="Filtrar"><option value="pendentes">Pendentes de entrega</option><option value="saldo">Com saldo a receber</option><option value="atrasadas">Atrasadas</option><option value="entregues">Entregues</option><option value="canceladas">Canceladas</option><option value="todas">Todas</option></select></div></div>
-  <div class="table-wrap"><table><thead><tr><th>VENDA</th><th>CLIENTE / ITENS</th><th>TOTAL</th><th>PAGO</th><th>SALDO</th><th>ENTREGA</th><th>AÇÕES</th></tr></thead><tbody id="ordLinhas"></tbody></table></div>
-  <div id="ordVazio" class="empty-state" style="display:none"><div class="empty-symbol">⛟</div><b>Nenhuma encomenda aqui</b><p>Ao registrar uma venda ou usar o PDV, marque a opção “Encomenda”.</p></div>
- </section>`;
- (ref&&ref.parentNode?ref.parentNode:document.querySelector('main')).insertBefore(sec,ref||null);
- $('ordBusca').addEventListener('input',render);$('ordFiltro').addEventListener('change',render);
- $('ordLinhas').addEventListener('click',onRowClick);
-}
-function statusOf(s,i){ // {txt, cls}
- if(s.canceled)return {txt:'Cancelada',cls:'cancelada',key:'canceladas'};
- const o=i.ord;if(!o)return {txt:'',cls:'',key:''};
- if(o.status==='entregue')return {txt:'Entregue',cls:'ativa',key:'entregues'};
- const d=daysTo(o.expectedDate);
- if(d!==null&&d<0)return {txt:`Atrasada ${-d} dia(s)`,cls:'cancelada',key:'pendentes',late:true};
- return {txt:d===0?'Entrega hoje':d===1?'Entrega amanhã':'Pendente',cls:'ord-pend',key:'pendentes'};
-}
-function orders(){
- return getSales().map(s=>({s,i:info(s)})).filter(x=>x.i.ord);
-}
+// ---------- painel Encomendas ----------
 function render(){
- if(!$('panel-encomendas'))return;
- const all=orders(),act=all.filter(x=>!x.s.canceled);
- const pend=act.filter(x=>x.i.ord.status!=='entregue'),late=pend.filter(x=>{const d=daysTo(x.i.ord.expectedDate);return d!==null&&d<0;});
- const saldo=r2(act.reduce((n,x)=>n+x.i.balance,0)),mon=todayISO().slice(0,7);
- const entMes=act.filter(x=>x.i.ord.status==='entregue'&&String(x.i.ord.deliveredAt||'').startsWith(mon)).length;
- const mc=$('menuEncomendas');if(mc)mc.textContent=pend.length;
- $('ordStats').innerHTML=[['Pendentes de entrega',pend.length,'icon-blue','⛟'],['Atrasadas',late.length,'icon-violet','!'],['Saldo a receber',money(saldo),'icon-green','$'],['Entregues no mês',entMes,'icon-blue','✓']]
-  .map(([t,v,ic,sy])=>`<article class="stat-card"><div class="stat-top"><span class="stat-icon ${ic}">${sy}</span><span class="stat-label">${t}</span></div><strong>${v}</strong></article>`).join('');
- const al=$('ordAlerta');
- if(al){const soon=pend.filter(x=>{const d=daysTo(x.i.ord.expectedDate);return d!==null&&d>=0&&d<=2;});
-  al.hidden=!(late.length||soon.length);
-  if(!al.hidden)$('ordAlertaTexto').textContent=[late.length?`${late.length} entrega(s) atrasada(s)`:'',soon.length?`${soon.length} entrega(s) nos próximos 2 dias`:'',saldo>0?`saldo a receber ${money(saldo)}`:''].filter(Boolean).join(' · ');}
- const f=$('ordFiltro').value,tokens=fold($('ordBusca').value).split(/\s+/).filter(Boolean);
- const rows=all.filter(x=>{
-  const st=statusOf(x.s,x.i);
-  if(f==='pendentes'&&!(st.key==='pendentes'))return false;
-  if(f==='saldo'&&!(x.i.balance>0.009&&!x.s.canceled))return false;
-  if(f==='atrasadas'&&!st.late)return false;
-  if(f==='entregues'&&st.key!=='entregues')return false;
-  if(f==='canceladas'&&st.key!=='canceladas')return false;
-  const hay=fold([x.s.client,x.s.id,x.s.items.map(i=>i.name).join(' '),x.i.ord.notes].join(' '));
-  return tokens.every(t=>hay.includes(t));
- }).sort((a,b)=>{ // pendentes primeiro, por previsão de entrega
-  const ka=a.i.ord.status==='pendente'&&!a.s.canceled?(a.i.ord.expectedDate||'9999'):'z'+a.s.date,kb=b.i.ord.status==='pendente'&&!b.s.canceled?(b.i.ord.expectedDate||'9999'):'z'+b.s.date;
-  return ka<kb?-1:ka>kb?1:0;
- });
- $('ordResumo').textContent=`${rows.length} encomenda(s) · saldo a receber das ativas: ${money(saldo)}`;
- $('ordLinhas').innerHTML=rows.map(({s,i})=>{
-  const st=statusOf(s,i),o=i.ord,done=o.status==='entregue';
-  const ent=s.canceled?'—':done?`${o.deliveryMode==='retirada'?'Retirada':'Entregue'} em ${dayText(o.deliveredAt)}`:`${o.deliveryMode==='retirada'?'Retirada':'Entrega'}: ${o.expectedDate?dayText(o.expectedDate):'sem data'}`;
-  const btn=(a,t,cls='')=>`<button type="button" class="row-action ${cls}" data-oa="${a}" data-sid="${esc(s.id)}">${t}</button>`;
-  const acts=s.canceled?btn('recibo','Recibo'):[
-   i.balance>0.009?btn('receber','Receber saldo'):'',
-   !done?btn('entregar','Marcar entregue'):btn('reabrir','Reabrir entrega'),
-   btn('editar','Editar entrega'),btn('recibo','Recibo PDF'),btn('whats','WhatsApp'),btn('cancelar','Cancelar','delete')].join('');
-  return `<tr class="${s.canceled?'row-canceled':''}">
-   <td>${esc(dateText(s.date))}<br><small>Venda ${esc(s.id)}</small></td>
-   <td><span class="product-name">${esc(s.client||'Sem cliente')}</span><ul class="sale-items">${s.items.map(x=>`<li>${x.quantity}× ${esc(x.name)}</li>`).join('')}</ul>${o.notes?`<small>${esc(o.notes)}</small>`:''}${o.address&&!s.canceled?`<br><small>📍 ${esc(o.address)}</small>`:''}</td>
-   <td class="${s.canceled?'sale-money-canceled':''}">${esc(money(s.total))}</td>
-   <td>${esc(money(i.paid))}</td>
-   <td><b style="color:${i.balance>0.009&&!s.canceled?'#dc2626':'inherit'}">${esc(money(s.canceled?0:i.balance))}</b>${i.balance>0.009&&!s.canceled&&o.balanceDueDate?`<br><small>previsto ${esc(dayText(o.balanceDueDate))}</small>`:''}</td>
-   <td><span class="pill ${st.cls}">${esc(st.txt)}</span><br><small>${esc(ent)}</small>${o.cancel?`<br><small>${o.cancel.retained>0?`retido ${esc(money(o.cancel.retained))}`:'valor devolvido'}${o.cancel.reason?' · '+esc(o.cancel.reason):''}</small>`:''}</td>
-   <td>${acts}</td></tr>`;
- }).join('');
- $('ordVazio').style.display=rows.length?'none':'block';
+ const L=list(),open=L.filter(o=>o.status==='aberta'),pronta=open.filter(ready);
+ const badge=$('menuEncomendas');if(badge){badge.textContent=open.length;badge.classList.toggle('alert',pronta.length>0);}
+ if(!$('encLista'))return;
+ const sum=a=>r2(a.reduce((s,x)=>s+x,0));
+ $('encStatAbertas').textContent=open.length;$('encStatAbertasNota').textContent=open.length?`Total encomendado: ${money(sum(open.map(o=>o.total)))}`:'Nenhuma encomenda esperando';
+ $('encStatRecebido').textContent=money(sum(open.map(paidOf)));
+ $('encStatReceber').textContent=money(sum(open.map(restOf)));
+ $('encStatProntas').textContent=pronta.length;$('encStatProntasNota').textContent=pronta.length?'Produto já no estoque: pode entregar':'Aguardando chegada do produto';
+ const f=$('encFiltro').value,q=fold($('encBusca').value);
+ let rows=L.filter(o=>f==='todas'||(f==='abertas'&&o.status==='aberta')||(f==='entregues'&&o.status==='entregue')||(f==='canceladas'&&o.status==='cancelada'));
+ if(q)rows=rows.filter(o=>fold(o.client+' '+num(o)+' '+o.items.map(i=>i.name).join(' ')).includes(q));
+ rows.sort((a,b)=>b.number-a.number);
+ const btn=(a,t,i,cls)=>`<button type="button" class="row-action${cls?' '+cls:''}" data-enc-act="${a}" data-enc-id="${esc(i)}">${t}</button>`;
+ const pill=o=>o.status==='entregue'?`<span class="pill ativa">Entregue</span>${o.saleId?`<br><small>Venda ${esc(o.saleId)}</small>`:''}`:o.status==='cancelada'?'<span class="pill cancelada">Cancelada</span>':`<span class="pill aguardando">Aguardando</span><br>${ready(o)?'<small class="enc-ok">Produto já no estoque</small>':'<small>Produto não chegou</small>'}`;
+ $('encLista').innerHTML=rows.map(o=>{
+  const pays=(o.payments||[]).map(p=>`${esc(p.method)} ${money(p.amount)} (${esc(brDate(localDateKey(p.date)))})`).join('<br>');
+  const actions=btn('pdf','Comprovante PDF',o.id)+(o.status==='aberta'?btn('entregar','Entregar (virar venda)',o.id,'enc-main')+(restOf(o)>0.009?btn('pagar','Receber pagamento',o.id):'')+btn('editar','Editar',o.id)+btn('cancelar','Cancelar',o.id,'delete'):'')+(o.status==='cancelada'?btn('reabrir','Reabrir',o.id):'');
+  return `<tr${o.status==='cancelada'?' class="row-canceled"':''}><td>${esc(num(o))}</td><td>${esc(new Date(o.date).toLocaleDateString('pt-BR'))}</td><td>${esc(o.client)}</td><td class="enc-items">${o.items.map(i=>`${i.quantity}× ${esc(i.name)}`).join('<br>')}</td><td>${money(o.total)}</td><td>${money(paidOf(o))}${pays?`<br><small>${pays}</small>`:''}</td><td><b>${o.status==='aberta'?money(restOf(o)):'—'}</b></td><td>${o.eta?esc(brDate(o.eta)):'—'}</td><td class="sale-status">${pill(o)}</td><td>${actions}</td></tr>`;
+ }).join('')||'<tr><td colspan="10" class="cart-empty">Nenhuma encomenda encontrada.</td></tr>';
 }
-function onRowClick(e){
- const b=e.target.closest('[data-oa]');if(!b)return;
- const sid=b.dataset.sid,a=b.dataset.oa,s=getSales().find(x=>x.id===sid);if(!s)return;
- if(a==='recibo'||a==='whats'){const r=receiptFromSale(s);if(a==='recibo')createReceiptPdf(r);else sendReceiptWhatsapp(r);return;}
- if(!hasFullAccess()&&a!=='receber'&&a!=='entregar'){toast('Seu perfil não tem permissão para esta ação.',true);return;}
- if(a==='receber')openReceive(sid,false);
- else if(a==='entregar')openReceive(sid,true);
- else if(a==='editar')openEdit(sid);
- else if(a==='cancelar')openCancel(sid);
- else if(a==='reabrir'){if(!confirm('Reabrir esta encomenda como pendente de entrega?'))return;setOrder(sid,{status:'pendente',deliveredAt:''});if(saveData())toast('Encomenda reaberta.');}
-}
-
-// ---------- modal genérico ----------
-function modal(id,html){
- let m=$(id);
- if(!m){m=document.createElement('div');m.id=id;m.className='ord-modal';m.hidden=true;document.body.appendChild(m);m.addEventListener('click',e=>{if(e.target===m)m.hidden=true;});}
- m.innerHTML=`<div class="ord-modal-card" role="dialog" aria-modal="true">${html}</div>`;m.hidden=false;return m;
-}
-
-// ---------- receber saldo e/ou marcar entregue ----------
-function payRowHtml(){
- return `<div class="payment-row-main"><label class="field">Forma de pagamento<select class="pagamentoMetodo"><option value="">Selecione...</option>${PAY_METHODS.map(m=>`<option>${esc(m)}</option>`).join('')}</select></label><label class="field">Valor (R$)<input class="pagamentoValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><button type="button" class="payment-remove" aria-label="Remover" title="Remover">×</button></div><div class="payment-card-options" hidden>${payExtraHtml()}</div>`;
-}
-function openReceive(sid,deliver){
- const s=getSales().find(x=>x.id===sid);if(!s)return;
- const i=info(s),bal=i.balance,client=s.client;
- const m=modal('ordRecModal',`
-  <h3>${deliver?'Entregar encomenda':'Receber pagamento'} · Venda ${esc(s.id)}</h3>
-  <p class="pay-hint">${esc(s.client||'Sem cliente')} · total ${money(s.total)} · já pago ${money(i.paid)} · <b>saldo ${money(bal)}</b></p>
-  <div id="orcPays" ${bal>0.009?'':'hidden'}>
-   <label class="field">Data do recebimento<input id="orcData" type="date" value="${todayISO()}"></label>
-   <div id="orcLinhas" class="payment-lines"></div>
-   <div class="ord-actions"><button type="button" class="button button-light button-small" id="orcAdd">＋ Adicionar forma</button><button type="button" class="button button-light button-small" id="orcTudo">Receber o saldo todo</button></div>
-   <p class="payment-notice" id="orcAviso"></p>
-  </div>
-  ${bal>0.009?'':'<p class="payment-notice payment-ok">Esta encomenda já está quitada.</p>'}
-  <label class="check-filter ord-main"><input type="checkbox" id="orcEntregue" ${deliver?'checked':''}><span>Marcar como entregue</span></label>
-  <div class="form-two" id="orcEntBox" ${deliver?'':'hidden'}>
-   <label class="field">Data da entrega<input id="orcEntData" type="date" value="${todayISO()}"></label>
-   <label class="field">Custo real da produção (opcional)<input id="orcCusto" type="text" inputmode="numeric" autocomplete="off" placeholder="${fmtIn(s.movements.reduce((n,x)=>n+Number(x.costTotal||0),0))}"></label>
-  </div>
-  <p class="pay-hint" id="orcCustoHint" ${deliver?'':'hidden'}>Se o custo final for diferente do estimado, informe aqui para o lucro ficar certo.</p>
-  <div class="ord-actions"><button type="button" class="button button-primary" id="orcOk">Confirmar</button><button type="button" class="button button-light" id="orcCancela">Fechar</button></div>`);
- const lines=$('orcLinhas');
- bindMoneyMask($('orcCusto'));
- const readRows=()=>[...lines.children].map(row=>{
-  const method=row.querySelector('.pagamentoMetodo').value,amount=r2(parseMoneyInput(row.querySelector('.pagamentoValor').value));
-  return readPayExtra(row.querySelector('.payment-card-options'),method,amount);
- }).filter(x=>x.method||x.amount>0);
- const refresh=()=>{
-  lines.querySelectorAll('.payment-row').forEach(row=>syncPayExtra(row.querySelector('.payment-card-options'),row.querySelector('.pagamentoMetodo').value,r2(parseMoneyInput(row.querySelector('.pagamentoValor').value))));
-  const got=r2(readRows().reduce((n,x)=>n+x.amount,0)),left=r2(bal-got),av=$('orcAviso');if(!av)return;
-  av.className='payment-notice'+(left<-0.009?' payment-error':left<=0.009?' payment-ok':'');
-  av.textContent=left>0.009?`Recebendo ${money(got)} · continua faltando ${money(left)}.`:left<-0.009?`O valor ultrapassa o saldo em ${money(-left)}.`:'Saldo quitado com este recebimento.';
- };
- const addRow=(method,amount)=>{
-  const row=document.createElement('div');row.className='payment-row';row.innerHTML=payRowHtml();lines.appendChild(row);
-  bindMoneyMask(row.querySelector('.pagamentoValor'));
-  ['pagamentoMetodo','pagamentoResponsavel','pagamentoBandeira','pagamentoVencimento','pagamentoExtendido'].forEach(c=>row.querySelector('.'+c).addEventListener('change',refresh));
-  ['pagamentoValor','pagamentoParcelas'].forEach(c=>row.querySelector('.'+c).addEventListener('input',refresh));
-  row.querySelector('.pagamentoValor').addEventListener('money-mask-updated',refresh);
-  row.querySelector('.payment-remove').addEventListener('click',()=>{row.remove();refresh();});
-  if(method)row.querySelector('.pagamentoMetodo').value=method;
-  if(amount>0)row.querySelector('.pagamentoValor').value=fmtIn(amount);
-  refresh();return row;
- };
- if(bal>0.009){
-  addRow('',0);
-  $('orcAdd').addEventListener('click',()=>addRow('',0));
-  $('orcTudo').addEventListener('click',()=>{lines.innerHTML='';addRow('',bal);});
+$('encFiltro').addEventListener('change',render);$('encBusca').addEventListener('input',render);
+$('encLista').addEventListener('click',e=>{
+ const b=e.target.closest('[data-enc-act]');if(!b)return;
+ const o=list().find(x=>x.id===b.dataset.encId);if(!o)return;
+ const full=()=>{if(hasFullAccess())return true;toast('Seu perfil não tem permissão para esta ação.',true);return false;};
+ switch(b.dataset.encAct){
+  case 'pdf':pdf(o);break;
+  case 'entregar':if(o.status==='aberta')load(o,true);break;
+  case 'pagar':if(o.status==='aberta')openPay(o);break;
+  case 'editar':if(full()&&o.status==='aberta')load(o,false);break;
+  case 'cancelar':
+   if(!full()||o.status!=='aberta')break;
+   if(!confirm(`Cancelar a encomenda ${num(o)} de ${o.client}?`+(paidOf(o)>0?`\n\nO cliente já pagou ${money(paidOf(o))}. Combine a devolução com ele, se for o caso. Esse valor não entrou no caixa do sistema.`:'')))break;
+   o.status='cancelada';o.canceledAt=new Date().toISOString();if(pending&&pending.id===o.id)pending=null;
+   if(saveData())toast('Encomenda cancelada.');break;
+  case 'reabrir':if(full()){o.status='aberta';o.canceledAt='';if(saveData())toast('Encomenda reaberta.');}break;
  }
- $('orcEntregue').addEventListener('change',()=>{const on=$('orcEntregue').checked;$('orcEntBox').hidden=!on;$('orcCustoHint').hidden=!on;});
- $('orcCancela').addEventListener('click',()=>{m.hidden=true;});
- $('orcOk').addEventListener('click',()=>{
-  const pays=bal>0.009?readRows():[],got=r2(pays.reduce((n,x)=>n+x.amount,0)),wantDeliver=$('orcEntregue').checked;
-  if(!pays.length&&!wantDeliver){toast('Informe um pagamento ou marque como entregue.',true);return;}
-  if(pays.length){
-   const perr=validatePayments(pays,client);if(perr){toast(perr,true);return;}
-   if(got>bal+0.009){toast(`O valor ultrapassa o saldo (${money(bal)}).`,true);return;}
-  }
-  const left=r2(bal-got);
-  if(wantDeliver&&left>0.009&&!confirm(`Ainda faltam ${money(left)}. Entregar mesmo assim, deixando o saldo em aberto?`))return;
-  const day=($('orcData')&&$('orcData').value)||todayISO(),entDay=$('orcEntData').value||todayISO();
-  if(pays.length){
-   const ses=(data.cashSessions||[]).find(x=>!x.closedAt),add=pays.map(p=>({...p,paidAt:day,kind:'saldo',sessionId:ses?ses.id:''})),all=[...(s.payments||[]).map(p=>({...p,locked:true})),...add];
-   recalcSale(sid,all);
-   const customer=findCustomerForSale(client,'');
-   const novas=buildReceivables(sid,client,customer,add,day);novas.forEach(r=>{r.fromBalance=true;});
-   (data.receivables||(data.receivables=[])).push(...novas);
-  }
-  const patch={};
-  if(wantDeliver){patch.status='entregue';patch.deliveredAt=entDay;}
-  if(left<=0.009)patch.balanceDueDate='';
-  setOrder(sid,patch);
-  const real=r2(parseMoneyInput($('orcCusto').value));
-  if(wantDeliver&&real>0)applyRealCost(sid,real);
-  if(saveData()){m.hidden=true;toast(wantDeliver?'Encomenda entregue.':`Recebimento de ${money(got)} registrado.`);}
- });
-}
-// Troca o custo estimado pelo custo real (distribuído proporcionalmente entre os itens) e recalcula o lucro.
-function applyRealCost(sid,real){
- const movs=saleMovs(sid).filter(m=>!m.canceled),est=movs.reduce((n,m)=>n+Number(m.costTotal||0),0);
- if(!movs.length)return;
- let used=0;
- movs.forEach((m,idx)=>{
-  const share=idx===movs.length-1?r2(real-used):r2(est>0?real*Number(m.costTotal||0)/est:real/movs.length);used+=share;
-  m.costTotal=share;m.unitCost=Number(m.quantity)?share/m.quantity:share;m.costReal=true;
- });
- recalcSale(sid,movs[0].payments||[]);
-}
+});
+$('vendaEncomenda').addEventListener('change',()=>sync());
+$('cancelarEncVenda').addEventListener('click',()=>{pending=null;sync();toast('Encomenda desvinculada. O carrinho continua como está.');});
 
-// ---------- editar dados de entrega ----------
-function openEdit(sid){
- const s=getSales().find(x=>x.id===sid);if(!s)return;const o=info(s).ord;
- const m=modal('ordEditModal',`
-  <h3>Editar entrega · Venda ${esc(s.id)}</h3>
-  <div class="form-two"><label class="field">Entrega<select id="oeModo"><option value="entrega">Entrega ao cliente</option><option value="retirada">Cliente retira na loja</option></select></label>
-  <label class="field">Situação<select id="oeStatus"><option value="pendente">Pendente</option><option value="entregue">Entregue</option></select></label></div>
-  <div class="form-two"><label class="field">Previsão de entrega<input id="oePrev" type="date"></label><label class="field">Data da entrega<input id="oeEnt" type="date"></label></div>
-  <label class="field">Saldo previsto para<input id="oeSaldo" type="date"></label>
-  <label class="field">Endereço / local<input id="oeEnd" maxlength="220"></label>
-  <label class="field">Detalhes da encomenda<input id="oeObs" maxlength="220"></label>
-  <div class="ord-actions"><button type="button" class="button button-primary" id="oeOk">Salvar</button><button type="button" class="button button-light" id="oeFecha">Fechar</button></div>`);
- $('oeModo').value=o.deliveryMode||'entrega';$('oeStatus').value=o.status||'pendente';$('oePrev').value=o.expectedDate||'';$('oeEnt').value=o.deliveredAt||'';$('oeSaldo').value=o.balanceDueDate||'';$('oeEnd').value=o.address||'';$('oeObs').value=o.notes||'';
- $('oeFecha').addEventListener('click',()=>{m.hidden=true;});
- $('oeOk').addEventListener('click',()=>{
-  const st=$('oeStatus').value;
-  if(st==='entregue'&&!$('oeEnt').value)$('oeEnt').value=todayISO();
-  setOrder(sid,{deliveryMode:$('oeModo').value,status:st,expectedDate:st==='pendente'?$('oePrev').value:(o.expectedDate||''),deliveredAt:st==='entregue'?$('oeEnt').value:'',balanceDueDate:$('oeSaldo').value,address:$('oeEnd').value.trim(),notes:$('oeObs').value.trim()});
-  if(saveData()){m.hidden=true;toast('Dados da entrega atualizados.');}
- });
-}
-
-// ---------- cancelar encomenda (devolver ou reter o valor pago) ----------
-function openCancel(sid){
- const s=getSales().find(x=>x.id===sid);if(!s||s.canceled)return;
- const i=info(s),paid=i.paid,cx=window.ckrCaixa,accs=cx?cx.accounts():[];
- const first=(s.payments||[]).find(p=>p.method);
- const defAcc=!first?'nubank':first.method==='Dinheiro'?'dinheiro':first.method==='Pix'?cx&&cx.pixAcc():'blu';
- const m=modal('ordCancelModal',`
-  <h3>Cancelar encomenda · Venda ${esc(s.id)}</h3>
-  <p class="pay-hint">${esc(s.client||'Sem cliente')} · total ${money(s.total)} · já recebido <b>${money(paid)}</b>. Produtos de estoque voltam ao estoque; itens sob encomenda não mexem no estoque.</p>
-  ${paid>0.009?`
-  <label class="check-filter ord-main"><input type="radio" name="ocModo" value="devolver" checked><span>Devolver todo o valor pago (${money(paid)}) ao cliente</span></label>
-  <label class="check-filter ord-main"><input type="radio" name="ocModo" value="reter"><span>Reter parte do valor (multa / sinal não reembolsável)</span></label>
-  <div class="form-two" id="ocReterBox" hidden>
-   <label class="field">Valor retido (R$)<input id="ocReter" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label>
-   <label class="field">Entra em qual caixa?<select id="ocConta">${accs.map(a=>`<option value="${a.k}"${a.k===defAcc?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label>
-  </div>`:'<p class="payment-notice">Nenhum valor foi recebido, então não há o que devolver.</p>'}
-  <label class="field">Motivo do cancelamento<input id="ocMotivo" maxlength="160" placeholder="Ex.: cliente desistiu"></label>
-  <div class="ord-actions"><button type="button" class="button button-primary" id="ocOk" style="background:#dc2626">Cancelar encomenda</button><button type="button" class="button button-light" id="ocFecha">Voltar</button></div>`);
- if(paid>0.009){
-  bindMoneyMask($('ocReter'));
-  m.querySelectorAll('input[name=ocModo]').forEach(r=>r.addEventListener('change',()=>{$('ocReterBox').hidden=m.querySelector('input[name=ocModo]:checked').value!=='reter';}));
- }
- $('ocFecha').addEventListener('click',()=>{m.hidden=true;});
- $('ocOk').addEventListener('click',()=>{
-  let retained=0,acc='';
-  if(paid>0.009&&m.querySelector('input[name=ocModo]:checked').value==='reter'){
-   retained=r2(parseMoneyInput($('ocReter').value));acc=$('ocConta').value;
-   if(!(retained>0)||retained>paid+0.009){toast(`Informe o valor retido (até ${money(paid)}).`,true);return;}
-  }
-  const reason=$('ocMotivo').value.trim();
-  if(!confirm(`Confirmar o cancelamento da venda ${s.id}?\n${retained>0?`Retido: ${money(retained)} · devolvido: ${money(paid-retained)}`:paid>0.009?`Devolver ${money(paid)} ao cliente.`:'Sem valores recebidos.'}`))return;
-  setOrder(sid,{status:'cancelado',cancel:{at:new Date().toISOString(),by:currentUserName(),reason,paid,retained:retained,refunded:r2(paid-retained)}});
-  m.hidden=true;
-  cancelSale(sid,{skipConfirm:true});
-  if(retained>0&&cx){ // o valor retido continua no caixa como entrada manual
-   cx.push(acc,retained,'entrada',todayISO(),`Valor retido do cancelamento da venda ${sid}${reason?' · '+reason:''}`);saveData();
-  }
- });
-}
-window.ckrOrder.openCancel=openCancel;
-
-// ============================================================================
-// 4) INTEGRAÇÃO
-// ============================================================================
-function boot(){
- injectPanel();setup('venda');setup('pdv');
- const base=window.renderAll;
- window.renderAll=function(){base.apply(this,arguments);try{render();}catch(e){console.error(e);}try{sinalInfo('venda');sinalInfo('pdv');}catch(_){}};
- const baseGo=window.goTo;
- window.goTo=function(name){baseGo.apply(this,arguments);if(name==='encomendas')render();};
- render();
-}
-boot();
+// ---------- integração ----------
+const baseRenderAll=window.renderAll;
+window.renderAll=function(){baseRenderAll();render();try{sync(true);}catch(_){}};
+render();sync(true);
 })();
