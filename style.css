@@ -441,35 +441,3 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 /* Foto do produto no orçamento */
 .qphoto-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.qphoto-drop{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;flex:1 1 160px;border:1.5px dashed #9fb2e8;border-radius:11px;background:#f5f8ff;color:#345ee8;font-weight:700;font-size:14px;cursor:pointer;padding:0 14px}.qphoto-drop:hover{background:#eaf0ff}.qphoto-prev{width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid #e1e6f0;background:#fff}.qphoto-prev[hidden],.qphoto .button[hidden]{display:none}.q-thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-left:6px;border:1px solid #e1e6f0}
 .qphoto-auto{margin:2px 0 10px}.qphoto-auto small{display:block;font-size:12px;color:#6b7690;margin-bottom:6px}.qphoto-strip{display:flex;gap:6px;flex-wrap:wrap}.qphoto-strip img{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #e1e6f0;background:#fff}.p-thumb{width:30px;height:30px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:8px;border:1px solid #e1e6f0}
-/* ===== Encomendas (sob-medida, pagamento em partes e entrega) ===== */
-.ord-box{border:1px dashed #c9d5f2;border-radius:14px;padding:13px 14px;display:grid;gap:12px;background:#f8faff}
-.ord-main{font-size:13.5px}
-.ord-body{display:grid;gap:12px}.ord-body[hidden]{display:none}
-.ord-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
-.ord-stats{margin-bottom:17px}
-.pill.ord-pend{background:#fff4e0;color:#b36a05}
-.mto-tag{display:inline-block;padding:1px 7px;border-radius:999px;background:#edf2ff;color:#2454dd;font-size:10.5px;font-weight:700;vertical-align:middle}
-.ord-modal{position:fixed;inset:0;z-index:1200;background:rgba(16,26,44,.5);display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;overflow:auto}
-.ord-modal[hidden]{display:none}
-.ord-modal-card{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:640px;display:grid;gap:13px;box-shadow:0 20px 60px rgba(16,26,44,.3)}
-.ord-modal-card h3{margin:0;font-size:17px}
-#panel-encomendas td .sale-items{margin:4px 0}
-#panel-encomendas .search-tools input,#panel-encomendas .search-tools select{padding:9px 12px;border:1px solid #d9dfe9;border-radius:10px;font:inherit;font-size:13px;background:#fff;max-width:100%}
-
-/* ===== Correção: PDV/Encomenda saindo da tela + modal centralizado ===== */
-.pdv-grid{grid-template-columns:minmax(0,1.3fr) minmax(300px,.9fr)}
-.pdv-grid>.surface{grid-template-columns:minmax(0,1fr);min-width:0}
-@media(max-width:900px){.pdv-grid{grid-template-columns:minmax(0,1fr)}}
-.ord-box,.ord-body,.ord-actions{min-width:0;max-width:100%}
-.ord-box .check-filter,.ord-main{white-space:normal;align-items:flex-start;line-height:1.35}
-.ord-box .check-filter input{flex:0 0 auto;margin-top:2px}
-.ord-box .form-two{grid-template-columns:repeat(2,minmax(0,1fr))}
-.ord-box .field input,.ord-box .field select{min-width:0;max-width:100%;text-overflow:ellipsis}
-.ord-actions .button{white-space:normal;text-align:center;max-width:100%}
-.pdv-pay{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
-@media(max-width:520px){.ord-box .form-two{grid-template-columns:minmax(0,1fr)}.pdv-pay{grid-template-columns:minmax(0,1fr)}}
-.ord-modal{align-items:center;justify-content:center;padding:12px}
-.ord-modal-card{margin:auto;max-height:calc(100dvh - 24px);overflow-y:auto;min-width:0}
-.ord-modal-card .form-two{grid-template-columns:repeat(2,minmax(0,1fr))}
-.ord-modal-card .field select{min-width:0;text-overflow:ellipsis}
-@media(max-width:520px){.ord-modal-card{padding:16px}.ord-modal-card .form-two{grid-template-columns:minmax(0,1fr)}}
