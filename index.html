@@ -95,6 +95,32 @@
     </div>
   </div>
 
+  <div id="novoProdModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="novoProdTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">PRODUTO</p><h2 id="novoProdTitulo">Cadastrar novo produto</h2><p>Ao salvar, o produto já fica selecionado na venda.</p></div><button type="button" id="novoProdFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="novoProdForm" autocomplete="off">
+        <label for="novoProdNome">NOME DO PRODUTO</label><input id="novoProdNome" required maxlength="120" placeholder="Ex.: Colchão Queen Premium">
+        <label for="novoProdCodigo">CÓDIGO / REFERÊNCIA</label><input id="novoProdCodigo" maxlength="60" placeholder="Automático (ou digite)">
+        <label for="novoProdCusto">PREÇO DE CUSTO (R$)</label><input id="novoProdCusto" inputmode="numeric" value="0,00" placeholder="0,00">
+        <label for="novoProdPreco">PREÇO DE VENDA (R$)</label><input id="novoProdPreco" inputmode="numeric" value="0,00" placeholder="0,00">
+        <label for="novoProdEstoque">ESTOQUE INICIAL</label><input id="novoProdEstoque" type="number" min="0" step="1" value="0">
+        <p class="pay-hint">Para encomenda (produto que ainda não chegou), deixe o estoque em 0.</p>
+        <p id="novoProdErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Cadastrar e selecionar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="encEntradaModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="encEntradaTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">ENCOMENDAS</p><h2 id="encEntradaTitulo">Produto ainda não está no estoque</h2><p id="encEntradaInfo"></p></div><button type="button" id="encEntradaFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <p class="pay-hint">Dê entrada do produto e depois entregue a encomenda. Como o produto chegou?</p>
+      <button type="button" class="button button-primary full-button" id="encEntradaXml">⇩ Importar XML da nota</button>
+      <button type="button" class="button button-light full-button" id="encEntradaManual" style="margin-top:10px">↙ Entrada manual de estoque</button>
+      <button type="button" class="button button-light full-button" id="encEntradaForcar" style="margin-top:10px">Entregar mesmo assim</button>
+    </div>
+  </div>
+
   <div id="ckrUsersModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="ckrUsersTitle">
     <div class="users-card">
       <div class="users-heading"><div><p class="auth-eyebrow">ADMINISTRAÇÃO</p><h2 id="ckrUsersTitle">Gerenciar usuários</h2><p>Somente o ADMIN pode criar, editar e remover usuários.</p></div><button type="button" id="ckrCloseUsers" class="users-close" aria-label="Fechar">×</button></div>
@@ -541,7 +567,7 @@
           <div class="notice warning-notice"><span class="notice-icon">!</span><p><b>Importante:</b> o computador e o celular têm dados separados. Restaurar um backup substitui os dados do destino; não combina automaticamente duas bases. Faça backup antes de importar.</p></div>
         </section>
         <section class="panel" id="panel-pdv">
-          <div class="page-heading"><div><p class="eyebrow">FRENTE DE CAIXA</p><h1>PDV</h1><p class="subtitle">Venda rápida com leitor de código de barras, troco e cupom não fiscal.</p></div></div>
+          <div class="page-heading"><div><p class="eyebrow">FRENTE DE CAIXA</p><h1>PDV</h1><p class="subtitle">Venda rápida com leitor de código de barras, troco e cupom não fiscal. <b>(Encomendas só em Registrar venda.)</b></p></div></div>
           <section class="surface form-surface" id="pdvFechado">
             <div class="surface-heading"><div><h2>Caixa fechado</h2><p>Informe o troco inicial para começar a vender.</p></div></div>
             <div class="form-grid"><label class="field">Troco inicial (R$)<input id="pdvAbertura" type="text" inputmode="numeric" autocomplete="off" value="0,00"></label><div class="form-actions"><button class="button button-primary" id="pdvAbrir" type="button">Abrir caixa</button></div></div>
@@ -767,6 +793,7 @@
             <div class="surface-heading"><div><h2>Selecionar notas</h2><p>Você confere cada item antes de confirmar. Notas já importadas são ignoradas.</p></div></div>
             <div class="form-grid"><label class="field field-wide">Arquivos XML<input id="xmlArquivos" type="file" accept=".xml,text/xml,application/xml" multiple></label><label class="field">Margem para produtos novos (%)<input id="xmlMargem" type="text" inputmode="decimal" placeholder="Ex.: 100"></label><label class="check-filter"><input type="checkbox" id="xmlAtualizaCusto" checked disabled><span>Custo da nota entra como novo lote (PEPS)</span></label><label class="check-filter"><input type="checkbox" id="xmlRateio" checked><span>Ratear frete, seguro e outras despesas do total da nota entre os itens</span></label></div>
           </section>
+          <div id="xmlEncAviso" class="sale-edit-banner" hidden><div><b id="xmlEncTitulo"></b><p id="xmlEncTexto"></p></div><button type="button" class="button button-light button-small" id="xmlEncCancelar">Desvincular</button></div>
           <div id="xmlRevisao"></div>
           <div id="xmlAcoes" class="form-actions" hidden style="margin-bottom:17px"><button class="button button-primary" id="xmlConfirmar" type="button">Confirmar entrada no estoque</button><button class="button button-light" id="xmlCancelar" type="button">Cancelar</button></div>
           <section class="surface list-surface" style="margin-bottom:17px">
@@ -799,9 +826,9 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=29"></script>
-  <script src="modulos.js?v=19"></script>
-  <script src="encomendas.js?v=1"></script>
+  <script src="app.js?v=30"></script>
+  <script src="modulos.js?v=20"></script>
+  <script src="encomendas.js?v=2"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
   <script src="impostos.js?v=11"></script>
