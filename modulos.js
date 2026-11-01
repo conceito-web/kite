@@ -262,7 +262,8 @@ const margin=()=>parsePercentInput($('xmlMargem').value);
 const rateioOn=()=>$('xmlRateio').checked;
 function xmlRow(ni,it,ii){
  const n=xmlNotes[ni],lp=linkedProduct(n,it),p=lp||matchProduct(it),cost=rateioOn()?it.costRateio:it.cost;
- const opts='<option value="">Cadastrar como novo</option><option value="skip">Ignorar este item</option>'+data.products.slice().sort(byName).map(q=>`<option value="${esc(q.id)}"${p&&p.id===q.id?' selected':''}>${esc(q.name)}</option>`).join('');
+ const encIds=(window.ckrEncXmlProducts&&window.ckrEncXmlProducts())||[],optP=q=>`<option value="${esc(q.id)}"${p&&p.id===q.id?' selected':''}>${esc(q.name)}</option>`;
+ const opts='<option value="">Cadastrar como novo</option><option value="skip">Ignorar este item</option>'+(encIds.length?`<optgroup label="⧖ Produtos da encomenda">${data.products.filter(q=>encIds.includes(q.id)).sort(byName).map(optP).join('')}</optgroup><optgroup label="Demais produtos">${data.products.filter(q=>!encIds.includes(q.id)).sort(byName).map(optP).join('')}</optgroup>`:data.products.slice().sort(byName).map(optP).join(''));
  return `<tr data-xn="${ni}" data-xi="${ii}"><td>${esc(it.name)}<br><small>${esc(it.code||it.ean)}</small><br><small class="xml-share"></small></td><td>${it.qty} ${esc(it.un)}</td><td><select class="xml-act">${opts}</select>${lp?'<br><small class="xml-linked">✓ vínculo lembrado</small>':''}</td><td><input class="xml-cost" inputmode="numeric" value="${brl(cost)}"></td><td><input class="xml-price" inputmode="numeric" value="${brl(p?p.price:r2(cost*(1+margin()/100)))}"${p?' disabled':''}></td></tr>`;
 }
 function applyRateio(){
@@ -327,7 +328,7 @@ $('xmlConfirmar').addEventListener('click',async()=>{
  });
  done.forEach(n=>imports().push({key:n.key,number:n.number,serie:n.serie,supplier:n.supplier,cnpj:n.cnpj,date:n.date,total:n.total,importedAt:new Date().toISOString(),importedBy:currentUserName(),items:rows.filter(x=>x.n===n).length}));
  xmlNotes=[];$('xmlArquivos').value='';
- if(saveData()){xmlRender();toast(`Entrada feita: ${rows.length} item(ns), ${novos} produto(s) novo(s).`);}
+ if(saveData()){xmlRender();toast(`Entrada feita: ${rows.length} item(ns), ${novos} produto(s) novo(s).`);try{window.ckrEncomendaAfterXml&&window.ckrEncomendaAfterXml();}catch(_){}}
 });
 
 // ================= EXPORTAR PARA O CONTADOR =================
