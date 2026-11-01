@@ -198,7 +198,7 @@ function renderSelects(){
 function renderVendaProdutoSelect(){
  const el=document.getElementById('vendaProduto'),current=el.value;
  const soPos=document.getElementById('filtroVendaEstoque')&&document.getElementById('filtroVendaEstoque').checked;
- el.innerHTML='<option value="">Selecione um produto...</option>'+data.products.filter(p=>!soPos||Number(p.stock)>0||p.id===current).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — estoque: ${Number(p.stock)}</option>`).join('');
+ el.innerHTML='<option value="">Selecione um produto...</option><option value="__novo__">＋ NOVO (cadastrar produto)</option>'+data.products.filter(p=>!soPos||Number(p.stock)>0||p.id===current).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — estoque: ${Number(p.stock)}</option>`).join('');
  if(data.products.some(p=>p.id===current))el.value=current;
 }
 (function(){
@@ -213,6 +213,7 @@ function renderVendaProdutoSelect(){
   const soPos=document.getElementById('filtroVendaEstoque').checked;
   items=data.products.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).filter(p=>(!soPos||Number(p.stock)>0)&&words.every(w=>fold(p.name).includes(w)||fold(p.code||'').includes(w))).slice(0,30);
   list.innerHTML=items.length?items.map((p,i)=>`<button type="button" data-i="${i}"><span>${esc(p.name)}</span><small>${Number(p.stock)>0?'estoque: '+Number(p.stock):'sem estoque'} · ${money(p.price)}</small></button>`).join(''):'<div class="empty">Nenhum produto encontrado</div>';
+  list.innerHTML+=`<button type="button" data-novo="1"><span>＋ NOVO produto</span><small>cadastrar${box.value.trim()?' “'+esc(box.value.trim())+'”':''}</small></button>`;
   list.hidden=false;active=-1;
  }
  function pick(i){
@@ -235,8 +236,46 @@ function renderVendaProdutoSelect(){
   }
  });
  list.addEventListener('mousedown',e=>e.preventDefault());
- list.addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(b)pick(Number(b.dataset.i));});
+ list.addEventListener('click',e=>{const nb=e.target.closest('button[data-novo]');if(nb){close();window.ckrNovoProduto&&window.ckrNovoProduto(box.value.trim());return;}const b=e.target.closest('button[data-i]');if(b)pick(Number(b.dataset.i));});
  document.addEventListener('click',e=>{if(!e.target.closest('.product-search'))close();});
+})();
+// ===== "NOVO" em Registrar venda: cadastro rápido de produto sem sair da tela =====
+(function(){
+ const $n=k=>document.getElementById(k),modal=$n('novoProdModal'),sel=$n('vendaProduto');
+ if(!modal||!sel)return;
+ ['novoProdCusto','novoProdPreco'].forEach(k=>bindMoneyMask($n(k)));
+ const err=m=>{$n('novoProdErro').textContent=m;};
+ const close=()=>{modal.hidden=true;};
+ function open(name){
+  $n('novoProdNome').value=name||'';$n('novoProdCodigo').value='';$n('novoProdCusto').value='0,00';$n('novoProdPreco').value='0,00';$n('novoProdEstoque').value='0';err('');
+  modal.hidden=false;setTimeout(()=>{const f=$n('novoProdNome');f.focus();f.select();},50);
+ }
+ window.ckrNovoProduto=open;
+ // escolher "NOVO" no select abre o cadastro e volta o select para "Selecione..."
+ sel.addEventListener('change',()=>{if(sel.value!=='__novo__')return;sel.value='';updateSalePreview();open($n('vendaBuscaProduto').value.trim());});
+ $n('novoProdFechar').addEventListener('click',close);
+ modal.addEventListener('click',e=>{if(e.target===modal)close();});
+ $n('novoProdForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const name=$n('novoProdNome').value.trim();let code=$n('novoProdCodigo').value.trim();
+  const cost=parseMoneyInput($n('novoProdCusto').value),price=parseMoneyInput($n('novoProdPreco').value),stock=Number($n('novoProdEstoque').value);
+  if(!name)return err('Informe o nome do produto.');
+  if(!Number.isFinite(cost)||!Number.isFinite(price)||cost<0||price<0)return err('Confira o preço de custo e o preço de venda.');
+  if(!Number.isInteger(stock)||stock<0)return err('O estoque inicial precisa ser um número inteiro (0 ou mais).');
+  if(data.products.some(p=>fold(p.name)===fold(name))&&!confirm('Já existe um produto com esse nome. Cadastrar mesmo assim?'))return;
+  if(!code)code=nextProductCode();
+  if(data.products.some(p=>(p.code||'').toLowerCase()===code.toLowerCase()))return err('Já existe um produto com esse código.');
+  const p={id:id(),name,code,cost,price,stock:0,createdAt:todayISO(),nfNumber:''};
+  data.products.push(p);
+  if(stock>0){stockIn(p,stock,cost);recordMovement('entrada',p,stock,cost*stock,'Estoque inicial · cadastro rápido em Registrar venda',{unitCost:cost,nfNumber:''});}
+  if(!saveData())return;
+  close();
+  const so=$n('filtroVendaEstoque');if(so&&so.checked&&stock<=0){so.checked=false;so.dispatchEvent(new Event('change'));}
+  renderVendaProdutoSelect();sel.value=p.id;$n('vendaBuscaProduto').value=p.name;updateSalePreview();
+  $n('vendaQuantidade').focus();
+  toast(`Produto “${p.name}” cadastrado e selecionado.`);
+ });
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!modal.hidden)close();});
 })();
 function renderHistory(){
  const filter=document.getElementById('filtroTipo').value;
