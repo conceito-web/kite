@@ -791,7 +791,7 @@
           <div class="page-heading"><div><p class="eyebrow">ESTOQUE</p><h1>Importar XML</h1><p class="subtitle">Dê entrada no estoque a partir dos XML de NF-e recebidos dos fornecedores.</p></div></div>
           <section class="surface form-surface">
             <div class="surface-heading"><div><h2>Selecionar notas</h2><p>Você confere cada item antes de confirmar. Notas já importadas são ignoradas.</p></div></div>
-            <div class="form-grid"><label class="field field-wide">Arquivos XML<input id="xmlArquivos" type="file" accept=".xml,text/xml,application/xml" multiple></label><label class="field">Margem para produtos novos (%)<input id="xmlMargem" type="text" inputmode="decimal" placeholder="Ex.: 100"></label><label class="check-filter"><input type="checkbox" id="xmlAtualizaCusto" checked disabled><span>Custo da nota entra como novo lote (PEPS)</span></label><label class="check-filter"><input type="checkbox" id="xmlRateio" checked><span>Ratear frete, seguro e outras despesas do total da nota entre os itens</span></label></div>
+            <div class="form-grid"><label class="field field-wide">Arquivos XML<input id="xmlArquivos" type="file" accept=".xml,text/xml,application/xml" multiple></label><label class="field">Margem para produtos novos (%)<input id="xmlMargem" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><label class="check-filter"><input type="checkbox" id="xmlAtualizaCusto" checked disabled><span>Custo da nota entra como novo lote (PEPS)</span></label><label class="check-filter"><input type="checkbox" id="xmlRateio" checked><span>Ratear frete, seguro e outras despesas do total da nota entre os itens</span></label></div>
           </section>
           <div id="xmlEncAviso" class="sale-edit-banner" hidden><div><b id="xmlEncTitulo"></b><p id="xmlEncTexto"></p></div><button type="button" class="button button-light button-small" id="xmlEncCancelar">Desvincular</button></div>
           <div id="xmlRevisao"></div>
@@ -827,7 +827,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=30"></script>
-  <script src="modulos.js?v=20"></script>
+  <script src="modulos.js?v=21"></script>
   <script src="encomendas.js?v=2"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=5"></script>
