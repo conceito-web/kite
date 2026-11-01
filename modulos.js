@@ -259,6 +259,12 @@ function linkedProduct(n,it){for(const k of linkKeys(n,it)){const l=links()[k],p
 function saveLink(n,it,p){const ks=linkKeys(n,it);if(!ks.length)return;const group=id();ks.forEach((k,i)=>{links()[k]={productId:p.id,group,primary:i===0,supplier:n.supplier||'',itemName:it.name||'',itemCode:it.code||it.ean||''};});}
 function matchProduct(it){const c=fold(it.code),nm=fold(it.name);return data.products.find(p=>p.code&&(fold(p.code)===c||(it.ean&&fold(p.code)===it.ean)))||data.products.find(p=>fold(p.name)===nm)||null;}
 const margin=()=>parsePercentInput($('xmlMargem').value);
+bindMoneyMask($('xmlMargem')); // 0,00: os dígitos entram pela direita, como no resto do sistema (sem teto de 100%)
+$('xmlMargem').placeholder='0,00';
+// só libera "Confirmar entrada no estoque" com a margem preenchida
+const margemOk=()=>!!$('xmlMargem').value.trim();
+function syncMargem(){const b=$('xmlConfirmar');b.disabled=!margemOk();b.title=margemOk()?'':'Preencha a margem para produtos novos (%) para confirmar.';}
+$('xmlMargem').addEventListener('input',syncMargem);$('xmlMargem').addEventListener('money-mask-updated',syncMargem);$('xmlMargem').addEventListener('blur',syncMargem);syncMargem();
 const rateioOn=()=>$('xmlRateio').checked;
 function xmlRow(ni,it,ii){
  const n=xmlNotes[ni],lp=linkedProduct(n,it),p=lp||matchProduct(it),cost=rateioOn()?it.costRateio:it.cost;
@@ -280,7 +286,7 @@ function xmlRender(){
  $('xmlRevisao').innerHTML=xmlNotes.map((n,ni)=>`<section class="surface list-surface xml-note"><h3>${esc(n.supplier||'Fornecedor')} · NF ${esc(n.number)}/${esc(n.serie)}</h3><p class="subtitle">${esc(n.file)} · emitida em ${n.date?esc(new Date(n.date).toLocaleDateString('pt-BR')):'—'} · total ${money(n.total)}${n.dup?' · <b>já importada, será ignorada</b>':''}</p>${n.dup?'':`<p class="subtitle xml-rateio-note" data-ni="${ni}" hidden></p>`}${n.dup?'':`<div class="table-wrap"><table class="xml-table"><thead><tr><th>ITEM DA NOTA</th><th>QTD.</th><th>ENTRA COMO</th><th>CUSTO UNIT.</th><th>PREÇO DE VENDA</th></tr></thead><tbody>${n.items.map((it,ii)=>xmlRow(ni,it,ii)).join('')}</tbody></table></div>`}</section>`).join('');
  document.querySelectorAll('.xml-cost,.xml-price').forEach(i=>bindMoneyMask(i));
  applyRateio();
- $('xmlAcoes').hidden=!xmlNotes.some(n=>!n.dup);
+ $('xmlAcoes').hidden=!xmlNotes.some(n=>!n.dup);syncMargem();
 }
 function xmlHist(){
  $('xmlHist').innerHTML=imports().slice().reverse().map(n=>`<tr><td>${esc(dateText(n.importedAt))}</td><td>${esc(n.supplier||'—')}</td><td>${esc(n.number)}/${esc(n.serie)}</td><td>${money(n.total)}</td><td>${n.items}</td></tr>`).join('');
@@ -309,6 +315,7 @@ $('xmlArquivos').addEventListener('change',async e=>{
 $('xmlLinks').addEventListener('click',e=>{const b=e.target.closest('[data-link-group]');if(!b)return;if(!confirm('Remover este vínculo? Na próxima nota o sistema volta a sugerir pelo código/nome.'))return;Object.keys(links()).forEach(k=>{if(links()[k].group===b.dataset.linkGroup)delete links()[k];});if(saveData())toast('Vínculo removido.');});
 $('xmlCancelar').addEventListener('click',()=>{xmlNotes=[];$('xmlArquivos').value='';xmlRender();});
 $('xmlConfirmar').addEventListener('click',async()=>{
+ if(!margemOk()){toast('Preencha a margem para produtos novos (%) antes de confirmar a entrada.',true);$('xmlMargem').focus();return;}
  const rows=[...document.querySelectorAll('#xmlRevisao tr[data-xn]')].map(tr=>({tr,n:xmlNotes[+tr.dataset.xn],it:xmlNotes[+tr.dataset.xn].items[+tr.dataset.xi],act:tr.querySelector('.xml-act').value,cost:parseMoneyInput(tr.querySelector('.xml-cost').value),price:parseMoneyInput(tr.querySelector('.xml-price').value)})).filter(x=>x.act!=='skip');
  const bad=rows.find(x=>x.act===''&&(x.price<=0||!x.it.name));
  if(bad){toast(`Informe o preço de venda de "${bad.it.name}".`,true);return;}
