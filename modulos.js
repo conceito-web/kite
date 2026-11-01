@@ -288,8 +288,10 @@ function xmlRender(){
  applyRateio();
  $('xmlAcoes').hidden=!xmlNotes.some(n=>!n.dup);syncMargem();
 }
+// "Data da nota" mostra a data de emissão da própria nota (lê o texto AAAA-MM-DD, sem deslocar o dia por fuso)
+function noteDate(n){const mt=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(n.date||''));return mt?`${mt[3]}/${mt[2]}/${mt[1]}`:'—';}
 function xmlHist(){
- $('xmlHist').innerHTML=imports().slice().reverse().map(n=>`<tr><td>${esc(dateText(n.importedAt))}</td><td>${esc(n.supplier||'—')}</td><td>${esc(n.number)}/${esc(n.serie)}</td><td>${money(n.total)}</td><td>${n.items}</td></tr>`).join('');
+ $('xmlHist').innerHTML=imports().slice().reverse().map(n=>`<tr><td>${esc(dateText(n.importedAt))}</td><td>${esc(noteDate(n))}</td><td>${esc(n.supplier||'—')}</td><td>${esc(n.number)}/${esc(n.serie)}</td><td>${money(n.total)}</td><td>${n.items}</td></tr>`).join('');
  $('xmlHistVazio').style.display=imports().length?'none':'block';
  const ls=Object.values(links()).filter(l=>l.primary).sort((x,y)=>(x.supplier+x.itemName).localeCompare(y.supplier+y.itemName,'pt-BR'));
  $('xmlLinks').innerHTML=ls.map(l=>{const p=productById(l.productId);return `<tr><td>${esc(l.supplier||'—')}</td><td>${esc(l.itemName)}<br><small>${esc(l.itemCode)}</small></td><td>${p?esc(p.name):'<i>produto excluído</i>'}</td><td><button type="button" class="row-action delete" data-link-group="${esc(l.group)}">Remover</button></td></tr>`;}).join('');
