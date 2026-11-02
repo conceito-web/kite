@@ -26,6 +26,9 @@ const signed=v=>(v<0?'−':'')+money(Math.abs(v));
 const isCard=m=>m===PM.CREDIT||m===PM.BLU||m===PM.DEBIT;
 const CASH='Dinheiro',PIX='Pix';
 const addDays=(day,n)=>{const p=String(day).split('-').map(Number);return localDateKey(new Date(p[0],p[1]-1,p[2]+n));};
+// 1º dia útil (seg–sex) DEPOIS da data informada (feriados não são considerados).
+const nextBiz=day=>{let d=addDays(day,1);for(let i=0;i<10;i++){const p=d.split('-').map(Number),w=new Date(p[0],p[1]-1,p[2]).getDay();if(w!==0&&w!==6)return d;d=addDays(d,1);}return d;};
+const maxD=(a,b)=>a>b?a:b;
 const dias=deb=>{const v=Number(conf()[deb?'debitDays':'creditDays']);return Number.isFinite(v)&&v>=0?Math.floor(v):(deb?1:30);};
 const pixAcc=()=>{const k=conf().pixAccount;return ACCS.some(a=>a.k===k)?k:'nubank';};
 const monthStart=()=>{const n=new Date();return localDateKey(new Date(n.getFullYear(),n.getMonth(),1));};
@@ -41,38 +44,56 @@ function ensureStart(){
  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(_){}
 }
 
-// ---------- entradas automáticas (vendas no cartão e em dinheiro) ----------
+// ---------- entradas automáticas (vendas no cartão, dinheiro, Pix e encomendas) ----------
+// REGRA DO 1º DIA ÚTIL: venda no CARTÃO (Registrar venda e PDV) só entra no Caixa no 1º dia útil (seg–sex) depois da venda; dinheiro e Pix entram na hora.
+// ENCOMENDA aberta: o que o cliente já pagou (qualquer forma) entra no Caixa no 1º dia útil, mas fica BLOQUEADO até a entrega.
+function entryFor(k,day,ts,client,payments,opt){
+ const hoje=todayISO(),ov=conf().parcelas||{},dFab=nextBiz(day),dNon=opt.locked?dFab:day;
+ let fab=0,cash=0,pix=0;const parcs=[];
+ payments.forEach((p,pi)=>{
+  if(!p)return;
+  if(opt.locked&&p.fee==null&&typeof enrichPayment==='function')p=enrichPayment(p);
+  const amt=Number(p.amount||0),card=isCard(p.method),eff=card?dFab:dNon;
+  if(eff>hoje)return;   // ainda não chegou o 1º dia útil: não entra no sistema
+  if(p.method===CASH){cash+=amt;return;}
+  if(p.method===PIX){pix+=amt;return;}
+  if(!card)return;
+  if((p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica'){fab+=amt-Number(p.factoryCredit||0);return;}
+  // cartão loja / débito: valor líquido (sem taxa) dividido em parcelas, cada uma com sua data de entrada
+  const deb=p.method===PM.DEBIT,n=deb?1:Math.max(1,Math.min(60,Math.floor(Number(p.installments)||1))),net=r2(amt-Number(p.fee||0));
+  if(!(net>0))return;
+  const cents=Math.round(net*100),q=Math.floor(cents/n);
+  for(let i=1;i<=n;i++){
+   const pkey=k+':'+pi+':'+i,o=ov[pkey]||null,defDate=maxD(addDays(day,deb?dias(true):dias(false)*i),eff),defAmt=r2((i<n?q:cents-q*(n-1))/100);
+   const date=(o&&o.date)||defDate,amount=(o&&o.amount!=null)?r2(o.amount):defAmt;
+   if(!(amount>0))continue;
+   parcs.push({pkey,saleKey:k,client,saleDay:day,method:p.method,i,n,date,amount,defDate,defAmt,edited:!!o,locked:!!opt.locked});
+  }
+ });
+ fab=r2(fab);cash=r2(cash);pix=r2(pix);
+ if(fab+cash+pix<=0.004&&!parcs.length)return null;
+ return {key:k,date:day,dFab,dNon,ts,client,fab,cash,pix,blu:fab,parcs,locked:!!opt.locked};
+}
 function autoEntries(){
- const start=conf().start||'',first=new Map(),ov=conf().parcelas||{};
+ const start=conf().start||'',first=new Map(),out=[];
  data.movements.forEach(m=>{
   if(m.type!=='venda'||m.canceled)return;
   const k=m.saleId||m.id;if(!first.has(k))first.set(k,m);   // os pagamentos ficam repetidos em cada item da venda: conta uma vez só
  });
- const out=[];
  first.forEach((m,k)=>{
   const day=localDateKey(m.date);if(!day||(start&&day<start))return;
-  let fab=0,cash=0,pix=0;const parcs=[];
-  (m.payments||[]).forEach((p,pi)=>{
-   if(!p)return;
-   const amt=Number(p.amount||0);
-   if(p.method===CASH){cash+=amt;return;}
-   if(p.method===PIX){pix+=amt;return;}
-   if(!isCard(p.method))return;
-   if((p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica'){fab+=amt-Number(p.factoryCredit||0);return;}
-   // cartão loja / débito: valor líquido (sem taxa) dividido em parcelas, cada uma com sua data de entrada
-   const deb=p.method===PM.DEBIT,n=deb?1:Math.max(1,Math.min(60,Math.floor(Number(p.installments)||1))),net=r2(amt-Number(p.fee||0));
-   if(!(net>0))return;
-   const cents=Math.round(net*100),q=Math.floor(cents/n);
-   for(let i=1;i<=n;i++){
-    const pkey=k+':'+pi+':'+i,o=ov[pkey]||null,defDate=addDays(day,deb?dias(true):dias(false)*i),defAmt=r2((i<n?q:cents-q*(n-1))/100);
-    const date=(o&&o.date)||defDate,amount=(o&&o.amount!=null)?r2(o.amount):defAmt;
-    if(!(amount>0))continue;
-    parcs.push({pkey,saleKey:k,client:m.client||'',saleDay:day,method:p.method,i,n,date,amount,defDate,defAmt,edited:!!o});
-   }
+  const e=entryFor(k,day,String(m.date||''),m.client||'',m.payments||[],{});
+  if(e)out.push(e);
+ });
+ // encomendas em aberto: pagamentos recebidos entram no 1º dia útil, bloqueados até a entrega
+ (data.preorders||[]).forEach(o=>{
+  if(!o||o.status!=='aberta')return;
+  (o.payments||[]).forEach((p,pi)=>{
+   if(!p||!(Number(p.amount)>0))return;
+   const day=localDateKey(p.date)||localDateKey(o.date);if(!day||(start&&day<start))return;
+   const e=entryFor('enc-'+o.id+'-'+pi,day,String(p.date||o.createdAt||''),o.client||'',[p],{locked:true});
+   if(e){e.label='Encomenda '+String(o.number||0).padStart(4,'0');e.parcs.forEach(x=>{x.label=e.label;});out.push(e);}
   });
-  fab=r2(fab);cash=r2(cash);pix=r2(pix);
-  if(fab+cash+pix<=0.004&&!parcs.length)return;
-  out.push({key:k,date:day,ts:String(m.date||''),client:m.client||'',fab,cash,pix,blu:fab,parcs});
  });
  return out;
 }
@@ -91,18 +112,23 @@ function expenseEntries(){
 function balances(){
  const b={blu:0,nubank:0,dinheiro:0,agenda:0},auto=autoEntries(),exp=expenseEntries(),pa=pixAcc(),hoje=todayISO(),parcs=[];
  let fab=0,cash=0,pix=0,lojaRec=0,lojaPend=0;
+ const lock={blu:0,nubank:0,dinheiro:0,agenda:0},lockRows=[];   // valores de encomenda (ainda não entregue): contam no saldo, mas não podem ser usados
  auto.forEach(a=>{
-  b.blu+=a.fab;b.dinheiro+=a.cash;b[pa]+=a.pix;fab+=a.fab;cash+=a.cash;pix+=a.pix;
+  b.blu+=a.fab;b.dinheiro+=a.cash;b[pa]+=a.pix;
+  const l={label:a.label||'',client:a.client,amts:{blu:0,nubank:0,dinheiro:0,agenda:0}};
+  if(a.locked){l.amts.blu+=a.fab;l.amts.dinheiro+=a.cash;l.amts[pa]+=a.pix;}else{fab+=a.fab;cash+=a.cash;pix+=a.pix;}
   a.parcs.forEach(p=>{
    p.due=p.date<=hoje;   // venceu: já está no Caixa BLU; senão fica na Caixa AGENDA BLU
-   if(p.due){b.blu+=p.amount;lojaRec+=p.amount;}else{b.agenda+=p.amount;lojaPend+=p.amount;}
+   if(p.due){b.blu+=p.amount;if(a.locked)l.amts.blu+=p.amount;else lojaRec+=p.amount;}else{b.agenda+=p.amount;if(a.locked)l.amts.agenda+=p.amount;else lojaPend+=p.amount;}
    parcs.push(p);
   });
+  if(a.locked){Object.keys(l.amts).forEach(k=>{l.amts[k]=r2(l.amts[k]);lock[k]+=l.amts[k];});lockRows.push(l);}
  });
+ Object.keys(lock).forEach(k=>lock[k]=r2(lock[k]));
  exp.forEach(x=>{b[x.acc]+=x.amount;});
  ledger().forEach(e=>{if(e.account in b)b[e.account]+=Number(e.amount||0);});
  Object.keys(b).forEach(k=>b[k]=r2(b[k]));
- return {b,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda)};
+ return {b,lock,lockRows,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda)};
 }
 
 // Saldo disponivel do credito com a fabrica (leitura; nao entra no saldo total)
@@ -122,20 +148,22 @@ function renderCard(S){
   if(a.k==='dinheiro')sub+=` · vendas em dinheiro ${money(S.cash)}`;
   if(a.k==='agenda')sub+=` · a receber ${money(S.lojaPend)}`;
   if(a.k===S.pa)sub+=` · Pix ${money(S.pix)}`;
-  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button></div></div>`;
+  const lk=S.lock[a.k]||0;
+  if(lk>0.004)sub+=` · bloqueado (encomenda) ${money(lk)} · disponível ${signed(r2(S.b[a.k]-lk))}`;
+  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button>${lk>0.004?`<button type="button" class="row-action" data-cx="lock" data-acc="${a.k}">⚠ ${money(lk)} de encomenda · saiba mais</button>`:''}</div></div>`;
  }).join('')+(()=>{const fs=fabSaldo();return `<div class="cx-acc"><div class="cx-acc-top"><div><b>Crédito com a fábrica</b><small>Saldo disponível · não entra no saldo total</small></div><strong class="${fs<0?'cx-neg':''}">${signed(fs)}</strong></div></div>`;})();
  const fabPct=100-getSettings().factoryCreditPct;
- $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
+ $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Regra do 1º dia útil:</b> vendas no cartão (Registrar venda e PDV) só entram aqui no 1º dia útil (seg–sex) depois da venda; o que o cliente já pagou numa <b>encomenda</b> também entra no 1º dia útil, mas fica <b>bloqueado</b> (botão ⚠ na conta) até a entrega. <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
 }
 function rowsAll(S){
  const rows=[];
  S.auto.forEach(a=>{
-  const desc=`Venda #${String(a.key).slice(-6)}${a.client?' · '+a.client:''}`;
-  if(a.fab>0)rows.push({acc:'blu',date:a.date,ts:a.ts,amount:a.fab,auto:true,desc,sub:`cartão fábrica ${money(a.fab)}`});
-  if(a.cash>0)rows.push({acc:'dinheiro',date:a.date,ts:a.ts,amount:a.cash,auto:true,desc,sub:'pago em dinheiro'});
-  if(a.pix>0)rows.push({acc:S.pa,date:a.date,ts:a.ts,amount:a.pix,auto:true,desc,sub:'pago em Pix'});
+  const desc=a.locked?`${a.label}${a.client?' · '+a.client:''}`:`Venda #${String(a.key).slice(-6)}${a.client?' · '+a.client:''}`,lk=a.locked?' · BLOQUEADO até a entrega':'';
+  if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
+  if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,desc,sub:'pago em dinheiro'+lk});
+  if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,desc,sub:'pago em Pix'+lk});
   a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,desc,
-   sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}`}));
+   sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${lk}`}));
  });
  S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,desc:x.desc,sub:x.sub}));
  ledger().forEach(e=>{
@@ -186,7 +214,7 @@ function renderAgenda(S){
  const list=(f==='pend'?pend:f==='rec'?rec:S.parcs.slice()).sort((x,y)=>f==='rec'?String(y.date).localeCompare(String(x.date)):String(x.date).localeCompare(String(y.date))).slice(0,300);
  $('cxAgLinhas').innerHTML=list.map(p=>`<tr>
   <td><input type="date" value="${esc(p.date)}" data-pdate="${esc(p.pkey)}" ${INP}></td>
-  <td><span class="product-name">Venda #${esc(String(p.saleKey).slice(-6))}${p.client?' · '+esc(p.client):''}</span><small class="fin-sub">vendida em ${dayText(p.saleDay)} · ${esc(p.method)}</small></td>
+  <td><span class="product-name">${p.label?esc(p.label):'Venda #'+esc(String(p.saleKey).slice(-6))}${p.client?' · '+esc(p.client):''}</span><small class="fin-sub">${p.label?'paga':'vendida'} em ${dayText(p.saleDay)} · ${esc(p.method)}${p.locked?' · bloqueado até a entrega':''}</small></td>
   <td>${p.i}/${p.n}</td>
   <td><input type="text" inputmode="decimal" value="${fmtIn(p.amount)}" data-pamt="${esc(p.pkey)}" style="width:110px;padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px"></td>
   <td>${p.due?'<span class="pill" style="background:#e8f7f0;color:#1b9869">Entrou no Caixa BLU</span>':'<span class="pill cxauto">A receber</span>'}${p.edited?'<small class="fin-sub">editada por você</small>':''}</td>
@@ -241,14 +269,14 @@ function fillSelects(){
  $('cxFiltro').innerHTML='<option value="">Todas as contas</option>'+o;
 }
 function syncForm(){
- const op=$('cxOp').value,S=balances().b;
+ const op=$('cxOp').value,B=balances(),S=B.b,LK=B.lock;
  $('cxDeBox').hidden=!(op==='transf'||op==='saida');
  $('cxParaBox').hidden=!(op==='transf'||op==='entrada'||op==='ajuste');
  $('cxDeLbl').textContent=op==='saida'?'Saiu de qual conta?':'De';
  $('cxParaLbl').textContent=op==='transf'?'Para':op==='entrada'?'Entrou em qual conta?':'Conta';
  $('cxValorLbl').textContent=op==='ajuste'?'Saldo correto da conta (R$)':'Valor (R$)';
  $('cxHint').textContent=op==='ajuste'?`Saldo atual no sistema: ${signed(S[$('cxPara').value]||0)}. Digite quanto realmente tem na conta; o sistema lança só a diferença.`
-  :op==='transf'?`Saldo disponível em ${accName($('cxDe').value)}: ${signed(S[$('cxDe').value]||0)}.`:'';
+  :op==='transf'?`Saldo disponível em ${accName($('cxDe').value)}: ${signed(r2((S[$('cxDe').value]||0)-(LK[$('cxDe').value]||0)))}${(LK[$('cxDe').value]||0)>0.004?` (mais ${money(LK[$('cxDe').value])} bloqueados de encomenda)`:''}.`:'';
 }
 function openForm(op,from,to){
  if(denied())return;
@@ -269,7 +297,7 @@ function push(account,amount,kind,date,note,pair){
 function save(ev){
  ev.preventDefault();if(denied())return;
  const op=$('cxOp').value,de=$('cxDe').value,para=$('cxPara').value,raw=$('cxValor').value.trim(),v=r2(parseMoneyInput(raw)),
-  date=$('cxData').value||todayISO(),note=$('cxDesc').value.trim(),bal=balances().b;
+  date=$('cxData').value||todayISO(),note=$('cxDesc').value.trim(),BS=balances(),bal=BS.b,lkd=BS.lock;
  if(op==='ajuste'){
   if(!raw){toast('Informe o saldo correto da conta.',true);$('cxValor').focus();return;}
   const diff=r2(v-bal[para]);
@@ -279,19 +307,27 @@ function save(ev){
   if(!(v>0)){toast('Informe um valor maior que zero.',true);$('cxValor').focus();return;}
   if(op==='transf'){
    if(de===para){toast('Escolha contas diferentes para transferir.',true);return;}
+   if(lkd[de]>0.004&&v>r2(bal[de]-lkd[de])+0.009){toast(`Só ${money(Math.max(0,r2(bal[de]-lkd[de])))} de ${accName(de)} pode ser usado: ${money(lkd[de])} são de encomenda ainda não entregue.`,true);return;}
    if(v>bal[de]+0.009&&!confirm(`${accName(de)} tem só ${signed(bal[de])}. Transferir ${money(v)} mesmo assim? A conta ficará negativa.`))return;
    const pair=id();push(de,-v,'transf',date,note,pair);push(para,v,'transf',date,note,pair);
   }else if(op==='entrada')push(para,v,'entrada',date,note);
   else{
+   if(lkd[de]>0.004&&v>r2(bal[de]-lkd[de])+0.009){toast(`Só ${money(Math.max(0,r2(bal[de]-lkd[de])))} de ${accName(de)} pode ser usado: ${money(lkd[de])} são de encomenda ainda não entregue.`,true);return;}
    if(v>bal[de]+0.009&&!confirm(`${accName(de)} tem só ${signed(bal[de])}. Lançar saída de ${money(v)} mesmo assim?`))return;
    push(de,-v,'saida',date,note);
   }
  }
  if(saveData()){closeForm();toast('Caixa atualizado.');}
 }
+function showLock(k){
+ const S=balances(),rows=S.lockRows.filter(r=>r.amts[k]>0.004);
+ if(!rows.length){toast('Nenhum valor de encomenda bloqueado nesta conta.');return;}
+ alert(`${accName(k)}: ${money(S.lock[k])} ainda NÃO podem ser usados.\n\nEsse valor é de venda por ENCOMENDA (o produto ainda não foi entregue ao cliente), por isso fica bloqueado.\n\n`+rows.map(r=>`• ${r.label}${r.client?' · '+r.client:''}: ${money(r.amts[k])}`).join('\n')+`\n\nQuando a venda for efetivada em Encomendas ▸ "Entregar (virar venda)", o valor é liberado e este aviso some.`);
+}
 function onCardClick(ev){
  const b=ev.target.closest('[data-cx]');if(!b)return;
  const k=b.dataset.acc;
+ if(b.dataset.cx==='lock'){showLock(k);return;}
  if(b.dataset.cx==='transf')openForm('transf',k,k==='blu'?'nubank':k==='nubank'?'blu':'nubank');
  else openForm('ajuste',null,k);
 }
