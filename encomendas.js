@@ -41,7 +41,7 @@ function sync(skipSummary){
  ban.hidden=!o;
  if(o){
   $('vendaEncTitulo').textContent=(on?'Editando a encomenda ':'Entregando a encomenda ')+num(o)+' — '+o.client;
-  $('vendaEncTexto').textContent=on?'Ajuste itens, valores ou o que o cliente já pagou e salve. Nada é baixado do estoque.':'O produto precisa estar no estoque (Entrada de estoque ou Importar XML). Complete o pagamento do saldo e confirme: a encomenda passa para “Entregue”.';
+  $('vendaEncTexto').textContent=on?'Ajuste itens, valores ou o que o cliente já pagou e salve. Nada é baixado do estoque.':'O produto precisa estar no estoque (menu Entrada de estoque). Complete o pagamento do saldo e confirme: a encomenda passa para “Entregue”.';
  }
  if(!skipSummary)updatePaymentSummary();
 }
@@ -103,7 +103,7 @@ window.ckrEncomendaSubmit=function(){
  pending=null;
  saleCart=[];$('formVenda').reset();setSaleDateToday();$('linhasPagamento').innerHTML='';addPaymentRow();renderVendaProdutoSelect(false);
  renderCart();updateSalePreview();
- if(saveData()){toast(`Encomenda ${num(o)} ${old?'atualizada':'salva'}. Estoque e financeiro não foram alterados.`);goTo('encomendas');}
+ if(saveData()){toast(`Encomenda ${num(o)} ${old?'atualizada':'salva'}. Estoque não foi alterado; o valor pago entra no Caixa no 1º dia útil (bloqueado até a entrega).`);goTo('encomendas');}
  return true;
 };
 
@@ -116,14 +116,14 @@ window.ckrEncomendaDone=function(saleId){
 };
 
 // ---------- carregar a encomenda em "Registrar venda" ----------
-function load(o,deliver,force){
+function load(o,deliver){
  if(editingSale){toast('Termine ou cancele a edição da venda antes de abrir uma encomenda.',true);return;}
  if(saleCart.length&&!confirm('O carrinho de Registrar venda tem itens. Substituí-los pelos da encomenda?'))return;
  const lines=[],missing=[];
  o.items.forEach(it=>{const p=productById(it.productId);if(!p){missing.push(it.name);return;}lines.push({productId:p.id,name:p.name,quantity:it.quantity,price:it.price,cost:Number(p.cost||0)});});
  if(missing.length)toast('Produto(s) não encontrado(s) no catálogo e ignorado(s): '+missing.join(', '),true);
  if(!lines.length)return;
- if(deliver&&!force&&!ready(o)&&!confirm('O estoque ainda não tem todas as unidades desta encomenda.\n\nAntes de confirmar a venda, dê entrada do produto (Entrada de estoque ou Importar XML). Abrir mesmo assim?'))return;
+ if(deliver&&!ready(o)&&!confirm('O estoque ainda não tem todas as unidades desta encomenda.\n\nAntes de confirmar a venda, dê entrada do produto em "Entrada de estoque". Abrir mesmo assim?'))return;
  saleCart=lines;pending={id:o.id};
  $('vendaEncomenda').checked=!deliver;
  $('vendaCliente').value=o.client;$('vendaObs').value=o.note||'';
@@ -150,52 +150,6 @@ function load(o,deliver,force){
  renderVendaProdutoSelect(false);renderCart();updateSalePreview();goTo('venda');
  toast(deliver?`Encomenda ${num(o)} carregada. Escolha como o saldo foi pago e confirme a venda.`:`Encomenda ${num(o)} carregada para edição.`);
 }
-
-// ---------- entrada do produto (manual ou por XML) para poder entregar ----------
-let xmlCtx=null; // {id}: encomenda aguardando a entrada do produto pelo "Importar XML"
-const gotoPanel=n=>{if(typeof canAccessPanel==='function'&&!canAccessPanel(n)){toast('Seu perfil não tem acesso a esta tela.',true);return false;}goTo(n);return true;};
-function missingList(o){
- const need={},names={};o.items.forEach(i=>{need[i.productId]=(need[i.productId]||0)+Number(i.quantity||0);names[i.productId]=i.name;});
- return Object.keys(need).map(pid=>{const p=productById(pid),have=p?Number(p.stock||0):0;return have>=need[pid]?null:`${need[pid]}× ${names[pid]} (faltam ${need[pid]-have})`;}).filter(Boolean);
-}
-let entradaId=null;
-function openEntrada(o){
- entradaId=o.id;
- $('encEntradaInfo').textContent=`${num(o)} · ${o.client} — falta no estoque: ${missingList(o).join('; ')}`;
- $('encEntradaModal').hidden=false;
-}
-const closeEntrada=()=>{$('encEntradaModal').hidden=true;entradaId=null;};
-const openOne=()=>list().find(x=>x.id===entradaId&&x.status==='aberta');
-$('encEntradaFechar').addEventListener('click',closeEntrada);
-$('encEntradaModal').addEventListener('click',e=>{if(e.target===$('encEntradaModal'))closeEntrada();});
-$('encEntradaXml').addEventListener('click',()=>{const o=openOne();closeEntrada();if(!o)return;if(gotoPanel('xml')){xmlCtx={id:o.id};xmlBanner();toast('Selecione o XML da nota. Em “Entra como”, escolha o produto da encomenda.');}});
-$('encEntradaManual').addEventListener('click',()=>{closeEntrada();if(gotoPanel('entrada'))toast('Dê entrada do produto e volte em Encomendas para entregar.');});
-$('encEntradaForcar').addEventListener('click',()=>{const o=openOne();closeEntrada();if(o)load(o,true,true);});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('encEntradaModal').hidden)closeEntrada();});
-
-// produtos da encomenda ficam em destaque na lista "Entra como" do Importar XML
-window.ckrEncXmlProducts=function(){const o=xmlCtx&&list().find(x=>x.id===xmlCtx.id&&x.status==='aberta');return o?[...new Set(o.items.map(i=>i.productId))]:[];};
-function xmlBanner(){
- const box=$('xmlEncAviso');if(!box)return;
- const o=xmlCtx&&list().find(x=>x.id===xmlCtx.id&&x.status==='aberta');
- if(!o){xmlCtx=null;box.hidden=true;return;}
- box.hidden=false;
- $('xmlEncTitulo').textContent=`Entrada para a encomenda ${num(o)} — ${o.client}`;
- $('xmlEncTexto').textContent=`Produto(s) esperado(s): ${o.items.map(i=>`${i.quantity}× ${i.name}`).join('; ')}. Em “Entra como”, escolha o produto da encomenda. Ao confirmar a entrada, a encomenda abre em Registrar venda para entregar.`;
-}
-$('xmlEncCancelar').addEventListener('click',()=>{xmlCtx=null;xmlBanner();toast('Encomenda desvinculada do Importar XML.');});
-// chamado pelo Importar XML depois de confirmar a entrada
-window.ckrEncomendaAfterXml=function(){
- const o=xmlCtx&&list().find(x=>x.id===xmlCtx.id&&x.status==='aberta');
- if(!o)return;
- if(ready(o)){
-  xmlCtx=null;xmlBanner();
-  if(confirm(`O produto da encomenda ${num(o)} já está no estoque.\n\nAbrir a encomenda em Registrar venda para entregar agora?`))load(o,true);
-  else toast('Entrada feita. Use “Entregar (virar venda)” em Encomendas quando quiser.');
- }else{
-  toast('Entrada feita, mas ainda falta: '+missingList(o).join('; ')+'. Confira se escolheu o produto da encomenda em “Entra como”.',true);
- }
-};
 
 // ---------- receber pagamento (sinal extra) ----------
 let payId=null;
@@ -279,12 +233,12 @@ $('encLista').addEventListener('click',e=>{
  const full=()=>{if(hasFullAccess())return true;toast('Seu perfil não tem permissão para esta ação.',true);return false;};
  switch(b.dataset.encAct){
   case 'pdf':pdf(o);break;
-  case 'entregar':if(o.status==='aberta'){if(ready(o))load(o,true);else openEntrada(o);}break;
+  case 'entregar':if(o.status==='aberta')load(o,true);break;
   case 'pagar':if(o.status==='aberta')openPay(o);break;
   case 'editar':if(full()&&o.status==='aberta')load(o,false);break;
   case 'cancelar':
    if(!full()||o.status!=='aberta')break;
-   if(!confirm(`Cancelar a encomenda ${num(o)} de ${o.client}?`+(paidOf(o)>0?`\n\nO cliente já pagou ${money(paidOf(o))}. Combine a devolução com ele, se for o caso. Esse valor não entrou no caixa do sistema.`:'')))break;
+   if(!confirm(`Cancelar a encomenda ${num(o)} de ${o.client}?`+(paidOf(o)>0?`\n\nO cliente já pagou ${money(paidOf(o))}. Combine a devolução com ele, se for o caso. Esse valor sai do Caixa do sistema ao cancelar.`:'')))break;
    o.status='cancelada';o.canceledAt=new Date().toISOString();if(pending&&pending.id===o.id)pending=null;
    if(saveData())toast('Encomenda cancelada.');break;
   case 'reabrir':if(full()){o.status='aberta';o.canceledAt='';if(saveData())toast('Encomenda reaberta.');}break;
@@ -295,6 +249,6 @@ $('cancelarEncVenda').addEventListener('click',()=>{pending=null;sync();toast('E
 
 // ---------- integração ----------
 const baseRenderAll=window.renderAll;
-window.renderAll=function(){baseRenderAll();render();try{sync(true);}catch(_){}try{xmlBanner();}catch(_){}};
+window.renderAll=function(){baseRenderAll();render();try{sync(true);}catch(_){}};
 render();sync(true);
 })();
