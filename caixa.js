@@ -112,7 +112,8 @@ function expenseEntries(){
 function balances(){
  const b={blu:0,nubank:0,dinheiro:0,agenda:0},auto=autoEntries(),exp=expenseEntries(),pa=pixAcc(),hoje=todayISO(),parcs=[];
  let fab=0,cash=0,pix=0,lojaRec=0,lojaPend=0;
- const lock={blu:0,nubank:0,dinheiro:0,agenda:0},lockRows=[],lockFab=0,lockFabRows=[];   // valores de encomenda (ainda não entregue): contam no saldo, mas não podem ser usados
+ const lock={blu:0,nubank:0,dinheiro:0,agenda:0},lockRows=[],lockFabRows=[];
+ let lockFab=0;   // valores de encomenda (ainda não entregue): contam no saldo, mas não podem ser usados
  auto.forEach(a=>{
   b.blu+=a.fab;b.dinheiro+=a.cash;b[pa]+=a.pix;
   const l={label:a.label||'',client:a.client,amts:{blu:0,nubank:0,dinheiro:0,agenda:0}};
