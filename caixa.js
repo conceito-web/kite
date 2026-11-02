@@ -152,7 +152,7 @@ function renderCard(S){
   if(a.k===S.pa)sub+=` · Pix ${money(S.pix)}`;
   const lk=S.lock[a.k]||0;
   if(lk>0.004)sub+=` · bloqueado (encomenda) ${money(lk)} · disponível ${signed(r2(S.b[a.k]-lk))}`;
-  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button>${lk>0.004?`<button type="button" class="row-action" data-cx="lock" data-acc="${a.k}">⚠ ${money(lk)} de encomenda · saiba mais</button>`:''}</div></div>`;
+  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button><button type="button" class="row-action" data-cx="extrato" data-acc="${a.k}">Extrato</button>${lk>0.004?`<button type="button" class="row-action" data-cx="lock" data-acc="${a.k}">⚠ ${money(lk)} de encomenda · saiba mais</button>`:''}</div></div>`;
  }).join('')+(()=>{const fs=fabSaldo();return `<div class="cx-acc"><div class="cx-acc-top"><div><b>Crédito com a fábrica</b><small>Saldo disponível · não entra no saldo total</small></div><strong class="${fs<0?'cx-neg':''}">${signed(fs)}</strong></div>${S.lockFab>0.004?`<div class="cx-acc-btns"><button type="button" class="row-action" data-cx="lockfab">⚠ ${money(S.lockFab)} de encomenda · saiba mais</button></div>`:''}</div>`;})();
  const fabPct=100-getSettings().factoryCreditPct;
  $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Regra do 1º dia útil:</b> vendas no cartão (Registrar venda e PDV) só entram aqui no 1º dia útil (seg–sex) depois da venda; o que o cliente já pagou numa <b>encomenda</b> também entra no 1º dia útil, mas fica <b>bloqueado</b> (botão ⚠ na conta) até a entrega. <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
@@ -161,20 +161,20 @@ function rowsAll(S){
  const rows=[];
  S.auto.forEach(a=>{
   const desc=a.locked?`${a.label}${a.client?' · '+a.client:''}`:`Venda #${String(a.key).slice(-6)}${a.client?' · '+a.client:''}`,lk=a.locked?' · BLOQUEADO até a entrega':'';
-  if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
-  if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,desc,sub:'pago em dinheiro'+lk});
-  if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,desc,sub:'pago em Pix'+lk});
-  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,desc,
+  if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
+  if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk});
+  if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk});
+  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,cat:'Parcelas do cartão loja (já sem taxa)',desc,
    sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${lk}`}));
  });
- S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,desc:x.desc,sub:x.sub}));
+ S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,cat:'Despesas pagas',desc:x.desc,sub:x.sub}));
  ledger().forEach(e=>{
   let desc=KIND[e.kind]||'Lançamento',sub=e.note||'';
   if(e.kind==='transf'){
    const o=ledger().find(x=>x.pair===e.pair&&x.id!==e.id);
    desc=Number(e.amount)<0?`Transferência para ${accName(o?o.account:'')}`:`Transferência de ${accName(o?o.account:'')}`;
   }
-  rows.push({acc:e.account,date:e.date,ts:e.createdAt||'',amount:Number(e.amount||0),auto:false,id:e.id,desc,sub});
+  rows.push({acc:e.account,date:e.date,ts:e.createdAt||'',amount:Number(e.amount||0),auto:false,cat:e.kind==='transf'?'Transferências entre contas':(KIND[e.kind]||'Lançamento manual'),id:e.id,desc,sub});
  });
  return rows.sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.ts).localeCompare(String(a.ts)));
 }
@@ -331,10 +331,43 @@ function showLockFab(){
  if(!(S.lockFab>0.004)){toast('Nenhum crédito de encomenda pendente.');return;}
  alert(`Crédito com a fábrica: ${money(S.lockFab)} vêm de ENCOMENDAS ainda não entregues.\n\n`+S.lockFabRows.map(r=>`• ${r.label}${r.client?' · '+r.client:''}: ${money(r.amt)}`).join('\n')+`\n\nO crédito só vira saldo da fábrica quando a encomenda for entregue (Entregar > virar venda).`);
 }
+// ---------- extrato por conta: mostra de onde veio cada valor e como chegou no saldo ----------
+function closeExtrato(){const m=document.getElementById('cxExtModal');if(m)m.remove();document.removeEventListener('keydown',extEsc);}
+function extEsc(ev){if(ev.key==='Escape')closeExtrato();}
+function showExtrato(k){
+ closeExtrato();
+ const S=balances(),rows=rowsAll(S).filter(r=>r.acc===k);
+ const asc=rows.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.ts).localeCompare(String(b.ts)));
+ let run=0;asc.forEach(r=>{run=r2(run+r.amount);r.run=run;});
+ const cats=new Map();rows.forEach(r=>{const c=r.cat||'Outros';cats.set(c,r2((cats.get(c)||0)+r.amount));});
+ const soma=r2(rows.reduce((n,r)=>n+r.amount,0)),dif=r2(S.b[k]-soma),lk=S.lock[k]||0,list=asc.slice().reverse().slice(0,500);
+ const cls=v=>v<0?'cx-neg':'cx-pos',td='padding:7px 8px;border-bottom:1px solid #e6eaf1;font-size:13px;vertical-align:top';
+ const resumo=[...cats.entries()].map(([c,v])=>`<tr><td style="${td}">${esc(c)}</td><td style="${td};text-align:right"><b class="${cls(v)}">${signed(v)}</b></td></tr>`).join('');
+ const linhas=list.map(r=>`<tr><td style="${td};white-space:nowrap">${dayText(r.date)}</td><td style="${td}"><b>${esc(r.desc)}</b>${r.sub?`<br><small style="color:#6b7587">${esc(r.sub)}</small>`:''}<br><small style="color:#6b7587">${esc(r.cat||'')}</small></td><td style="${td};text-align:right;white-space:nowrap"><b class="${cls(r.amount)}">${signed(r.amount)}</b></td><td style="${td};text-align:right;white-space:nowrap;color:#6b7587">${signed(r.run)}</td></tr>`).join('');
+ const m=document.createElement('div');m.id='cxExtModal';
+ m.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px';
+ m.innerHTML=`<div role="dialog" aria-modal="true" style="background:#fff;color:#1c2433;border-radius:14px;width:100%;max-width:760px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid #e6eaf1">
+   <div><h2 style="margin:0;font-size:18px">Extrato · ${esc(accName(k))}</h2><p style="margin:4px 0 0;color:#6b7587;font-size:13px">Saldo atual: <b class="${cls(S.b[k])}">${signed(S.b[k])}</b>${lk>0.004?` · bloqueado (encomenda) ${money(lk)} · disponível ${signed(r2(S.b[k]-lk))}`:''}</p></div>
+   <button type="button" class="button button-light button-small" data-ext-close>Fechar</button></div>
+  <div style="overflow:auto;padding:14px 18px">
+   <h3 style="margin:0 0 6px;font-size:14px">Como chegou neste valor</h3>
+   <table style="width:100%;border-collapse:collapse"><tbody>${resumo||`<tr><td style="${td}">Nenhuma movimentação nesta conta.</td><td style="${td}"></td></tr>`}
+    ${Math.abs(dif)>0.004?`<tr><td style="${td}">Diferença não detalhada</td><td style="${td};text-align:right"><b class="${cls(dif)}">${signed(dif)}</b></td></tr>`:''}
+    <tr><td style="${td}"><b>= Saldo da conta</b></td><td style="${td};text-align:right"><b class="${cls(S.b[k])}">${signed(S.b[k])}</b></td></tr></tbody></table>
+   <h3 style="margin:18px 0 6px;font-size:14px">Movimentações (${rows.length})</h3>
+   <table style="width:100%;border-collapse:collapse"><thead><tr style="text-align:left;color:#6b7587;font-size:11px"><th style="padding:6px 8px">DATA</th><th style="padding:6px 8px">ORIGEM</th><th style="padding:6px 8px;text-align:right">VALOR</th><th style="padding:6px 8px;text-align:right">SALDO</th></tr></thead><tbody>${linhas||''}</tbody></table>
+   ${rows.length>500?'<p style="color:#6b7587;font-size:12px">Mostrando as 500 mais recentes. O resumo acima considera todas.</p>':''}
+  </div></div>`;
+ m.addEventListener('click',ev=>{if(ev.target===m||ev.target.closest('[data-ext-close]'))closeExtrato();});
+ document.addEventListener('keydown',extEsc);
+ document.body.appendChild(m);
+}
 function onCardClick(ev){
  const b=ev.target.closest('[data-cx]');if(!b)return;
  const k=b.dataset.acc;
  if(b.dataset.cx==='lockfab'){showLockFab();return;}
+ if(b.dataset.cx==='extrato'){showExtrato(k);return;}
  if(b.dataset.cx==='lock'){showLock(k);return;}
  if(b.dataset.cx==='transf')openForm('transf',k,k==='blu'?'nubank':k==='nubank'?'blu':'nubank');
  else openForm('ajuste',null,k);
