@@ -1050,3 +1050,49 @@ const baseRender=window.renderAll;
 window.renderAll=function(){baseRender();render();try{stripPaint('venda');}catch(_){}renderQuotes();xmlHist();ctPreview();renderProm();renderFactory();renderPedidos();pedSync();if(!taxasDirty)loadTaxasForm();};
 render();xmlHist();ctPreview();renderProm();renderFactory();loadTaxasForm();pedReset();renderPedidos();renderQuotes();
 })();
+
+// ================= PRODUTOS: PDF da lista "Só com estoque" =================
+(function(){
+ const chk=$('filtroEstoquePositivo'),btn=$('prodPdfBtn');
+ const sync=()=>{btn.hidden=!chk.checked;};
+ chk.addEventListener('change',sync);sync();
+ btn.addEventListener('click',()=>{
+  if(!window.jspdf||!window.jspdf.jsPDF){toast('A biblioteca de PDF não carregou. Verifique a internet e tente novamente.',true);return;}
+  const q=fold($('buscaProduto').value).trim();
+  const items=data.products.filter(p=>Number(p.stock)>0&&(!q||fold(p.name+' '+(p.code||'')).includes(q))).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  if(!items.length){toast('Nenhum produto com estoque para imprimir.',true);return;}
+  const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,L=12,R=W-12;
+  const xCode=110,xQtd=150,xPrice=R;   // colunas: produto | código | estoque | preço
+  let y=0;
+  const head=()=>{
+   doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setFillColor(235,238,245);doc.rect(L,y-4.5,R-L,7,'F');
+   doc.text('PRODUTO',L+1,y);doc.text('CÓDIGO',xCode,y);doc.text('ESTOQUE',xQtd,y,{align:'right'});doc.text('PREÇO DE VENDA',xPrice-1,y,{align:'right'});
+   y+=7;doc.setFont('helvetica','normal');
+  };
+  const top=()=>{
+   y=16;doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text('Conceito — Produtos com estoque',L,y);
+   y+=6;doc.setFont('helvetica','normal');doc.setFontSize(9);
+   doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} · ${items.length} ${items.length===1?'produto':'produtos'}${q?' · busca: "'+$('buscaProduto').value.trim()+'"':''}`,L,y);
+   y+=9;head();
+  };
+  top();
+  doc.setFontSize(9);
+  items.forEach((p,i)=>{
+   const nm=doc.splitTextToSize(String(p.name||''),xCode-L-4),h=Math.max(1,nm.length)*4.2+1.8;
+   if(y+h>284){doc.addPage();top();doc.setFontSize(9);}
+   if(i%2===0){doc.setFillColor(248,249,252);doc.rect(L,y-3.8,R-L,h,'F');}
+   doc.text(nm,L+1,y);
+   doc.text(String(p.code||'—'),xCode,y);
+   doc.text(String(Number(p.stock)),xQtd,y,{align:'right'});
+   doc.text(money(p.price),xPrice-1,y,{align:'right'});
+   y+=h;
+  });
+  if(y+10>284){doc.addPage();y=16;}
+  y+=2;doc.setDrawColor(150);doc.line(L,y-3,R,y-3);doc.setFont('helvetica','bold');
+  doc.text('TOTAL DE PEÇAS',L+1,y+1);doc.text(String(items.reduce((s,p)=>s+Number(p.stock||0),0)),xQtd,y+1,{align:'right'});
+  const n=doc.getNumberOfPages();doc.setFont('helvetica','normal');doc.setFontSize(8);
+  for(let i=1;i<=n;i++){doc.setPage(i);doc.text(`Página ${i} de ${n}`,R,291,{align:'right'});}
+  doc.save(`produtos-com-estoque-${localDateKey(new Date())}.pdf`);
+  toast('PDF gerado.');
+ });
+})();
