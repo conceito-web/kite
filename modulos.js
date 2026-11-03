@@ -414,8 +414,8 @@ function renderProm(){
  const urgent=late.length+soon.length,badge=$('menuPromissorias');badge.textContent=urgent;badge.classList.toggle('alert',urgent>0);
  const al=$('promAlerta');al.hidden=!urgent;
  if(urgent)$('promAlertaTexto').textContent=[late.length?`${late.length} parcela(s) de promissória vencida(s) (${money(sumRem(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sumRem(soon))})`:''].filter(Boolean).join(' · ');
- const q=fold($('promBusca').value).trim(),f=$('promStatus').value;
- const rows=receivables().filter(r=>{const st=recStatus(r);if(st.k==='cancelada')return false;if(q&&!fold(r.client+' '+r.saleId).includes(q))return false;return f==='todas'||(f==='abertas'&&!r.paid)||(f==='vencidas'&&st.late)||(f==='avencer'&&st.urgent&&!st.late)||(f==='recebidas'&&r.paid);}).sort((x,y)=>x.dueDate.localeCompare(y.dueDate)||String(x.client).localeCompare(String(y.client),'pt-BR'));
+ const q=fold($('promBusca').value).trim(),f=$('promStatus').value,dDe=$('promDe').value,dAte=$('promAte').value;
+ const rows=receivables().filter(r=>{const st=recStatus(r);if(st.k==='cancelada')return false;if(q&&!fold(r.client+' '+r.saleId).includes(q))return false;if(dDe&&r.dueDate<dDe)return false;if(dAte&&r.dueDate>dAte)return false;return f==='todas'||(f==='abertas'&&!r.paid)||(f==='vencidas'&&st.late)||(f==='avencer'&&st.urgent&&!st.late)||(f==='recebidas'&&(r.paid||recGot(r)>0.004));}).sort((x,y)=>x.dueDate.localeCompare(y.dueDate)||String(x.client).localeCompare(String(y.client),'pt-BR'));
  $('promRows').innerHTML=rows.map(r=>{
   const st=recStatus(r),got=recGot(r),part=!r.paid&&got>0.004,hasPay=Array.isArray(r.recPayments)&&r.recPayments.length>0;
   const amountCell=money(r.amount)+(part?`<br><small>Recebido ${money(got)} · falta ${money(recRem(r))}</small>`:'');
@@ -529,7 +529,7 @@ $('recForm').addEventListener('submit',recSalvar);
 $('recFechar').addEventListener('click',recFechar);
 $('recModal').addEventListener('click',e=>{if(e.target===$('recModal'))recFechar();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('recModal').hidden)recFechar();});
-['promBusca'].forEach(k=>$(k).addEventListener('input',renderProm));$('promStatus').addEventListener('change',renderProm);
+['promBusca'].forEach(k=>$(k).addEventListener('input',renderProm));['promDe','promAte'].forEach(k=>$(k).addEventListener('change',renderProm));$('promLimparData').addEventListener('click',()=>{$('promDe').value='';$('promAte').value='';renderProm();});$('promStatus').addEventListener('change',renderProm);
 setInterval(renderProm,600000);
 
 // ================= TAXAS E CRÉDITO DA FÁBRICA =================
