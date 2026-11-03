@@ -1053,7 +1053,9 @@ render();xmlHist();ctPreview();renderProm();renderFactory();loadTaxasForm();pedR
 
 // ================= PRODUTOS: PDF da lista "Só com estoque" =================
 (function(){
- const chk=$('filtroEstoquePositivo'),btn=$('prodPdfBtn');
+ const chk=$('filtroEstoquePositivo');
+ let btn=$('prodPdfBtn');
+ if(!btn){btn=document.createElement('button');btn.type='button';btn.id='prodPdfBtn';btn.className='button button-light';btn.textContent='Imprimir PDF';btn.hidden=true;chk.closest('label').insertAdjacentElement('afterend',btn);}   // cria o botão mesmo se o index.html for o antigo
  const sync=()=>{btn.hidden=!chk.checked;};
  chk.addEventListener('change',sync);sync();
  btn.addEventListener('click',()=>{
