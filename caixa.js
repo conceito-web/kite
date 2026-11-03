@@ -334,74 +334,75 @@ function showLockFab(){
 // ---------- extrato por conta: mostra de onde veio cada valor e como chegou no saldo ----------
 function closeExtrato(){const m=document.getElementById('cxExtModal');if(m)m.remove();document.removeEventListener('keydown',extEsc);}
 function extEsc(ev){if(ev.key==='Escape')closeExtrato();}
-function showExtrato(k){
+// ---------- janela de extrato (com filtro por data) usada por todas as contas e pelo crédito com a fábrica ----------
+function extModal(o){
  closeExtrato();
- const S=balances(),rows=rowsAll(S).filter(r=>r.acc===k);
- const asc=rows.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.ts).localeCompare(String(b.ts)));
- let run=0;asc.forEach(r=>{run=r2(run+r.amount);r.run=run;});
- const cats=new Map();rows.forEach(r=>{const c=r.cat||'Outros';cats.set(c,r2((cats.get(c)||0)+r.amount));});
- const soma=r2(rows.reduce((n,r)=>n+r.amount,0)),dif=r2(S.b[k]-soma),lk=S.lock[k]||0,list=asc.slice().reverse().slice(0,500);
+ const asc=o.rows.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.ts||'').localeCompare(String(b.ts||'')));
+ let run=0;asc.forEach(r=>{r.dk=/^\d{4}-\d{2}-\d{2}$/.test(String(r.date))?String(r.date):localDateKey(r.date);run=r2(run+r.amount);r.run=run;});
  const cls=v=>v<0?'cx-neg':'cx-pos',td='padding:7px 8px;border-bottom:1px solid #e6eaf1;font-size:13px;vertical-align:top';
- const resumo=[...cats.entries()].map(([c,v])=>`<tr><td style="${td}">${esc(c)}</td><td style="${td};text-align:right"><b class="${cls(v)}">${signed(v)}</b></td></tr>`).join('');
- const linhas=list.map(r=>`<tr><td style="${td};white-space:nowrap">${dayText(r.date)}</td><td style="${td}"><b>${esc(r.desc)}</b>${r.sub?`<br><small style="color:#6b7587">${esc(r.sub)}</small>`:''}<br><small style="color:#6b7587">${esc(r.cat||'')}</small></td><td style="${td};text-align:right;white-space:nowrap"><b class="${cls(r.amount)}">${signed(r.amount)}</b></td><td style="${td};text-align:right;white-space:nowrap;color:#6b7587">${signed(r.run)}</td></tr>`).join('');
+ const inp='padding:6px 8px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px';
  const m=document.createElement('div');m.id='cxExtModal';
  m.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px';
  m.innerHTML=`<div role="dialog" aria-modal="true" style="background:#fff;color:#1c2433;border-radius:14px;width:100%;max-width:760px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3)">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid #e6eaf1">
-   <div><h2 style="margin:0;font-size:18px">Extrato · ${esc(accName(k))}</h2><p style="margin:4px 0 0;color:#6b7587;font-size:13px">Saldo atual: <b class="${cls(S.b[k])}">${signed(S.b[k])}</b>${lk>0.004?` · bloqueado (encomenda) ${money(lk)} · disponível ${signed(r2(S.b[k]-lk))}`:''}</p></div>
+   <div><h2 style="margin:0;font-size:18px">${esc(o.title)}</h2><p style="margin:4px 0 0;color:#6b7587;font-size:13px">${o.sub}</p></div>
    <button type="button" class="button button-light button-small" data-ext-close>Fechar</button></div>
-  <div style="overflow:auto;padding:14px 18px">
-   <h3 style="margin:0 0 6px;font-size:14px">Como chegou neste valor</h3>
-   <table style="width:100%;border-collapse:collapse"><tbody>${resumo||`<tr><td style="${td}">Nenhuma movimentação nesta conta.</td><td style="${td}"></td></tr>`}
-    ${Math.abs(dif)>0.004?`<tr><td style="${td}">Diferença não detalhada</td><td style="${td};text-align:right"><b class="${cls(dif)}">${signed(dif)}</b></td></tr>`:''}
-    <tr><td style="${td}"><b>= Saldo da conta</b></td><td style="${td};text-align:right"><b class="${cls(S.b[k])}">${signed(S.b[k])}</b></td></tr></tbody></table>
-   <h3 style="margin:18px 0 6px;font-size:14px">Movimentações (${rows.length})</h3>
-   <table style="width:100%;border-collapse:collapse"><thead><tr style="text-align:left;color:#6b7587;font-size:11px"><th style="padding:6px 8px">DATA</th><th style="padding:6px 8px">ORIGEM</th><th style="padding:6px 8px;text-align:right">VALOR</th><th style="padding:6px 8px;text-align:right">SALDO</th></tr></thead><tbody>${linhas||''}</tbody></table>
-   ${rows.length>500?'<p style="color:#6b7587;font-size:12px">Mostrando as 500 mais recentes. O resumo acima considera todas.</p>':''}
-  </div></div>`;
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:10px 18px;border-bottom:1px solid #e6eaf1;font-size:12px;color:#6b7587">
+   <label style="display:grid;gap:3px">De<input type="date" id="cxExtDe" style="${inp}"></label>
+   <label style="display:grid;gap:3px">Até<input type="date" id="cxExtAte" style="${inp}"></label>
+   <button type="button" class="row-action" id="cxExtMes">Este mês</button>
+   <button type="button" class="row-action" id="cxExtLimpa">Limpar filtro</button></div>
+  <div id="cxExtBody" style="overflow:auto;padding:14px 18px"></div></div>`;
+ const body=m.querySelector('#cxExtBody'),eDe=m.querySelector('#cxExtDe'),eAte=m.querySelector('#cxExtAte');
+ function draw(){
+  const de=eDe.value,ate=eAte.value,filtro=!!(de||ate);
+  const rows=asc.filter(r=>(!de||r.dk>=de)&&(!ate||r.dk<=ate));
+  const ant=de?r2(asc.filter(r=>r.dk<de).reduce((n,r)=>n+r.amount,0)):0;
+  const periodo=r2(rows.reduce((n,r)=>n+r.amount,0));
+  const fim=ate?(asc.filter(r=>r.dk<=ate).slice(-1)[0]||{run:0}).run:o.saldo;
+  const cats=new Map();rows.forEach(r=>{const c=r.cat||'Outros';cats.set(c,r2((cats.get(c)||0)+r.amount));});
+  const linha=(t,v,b)=>`<tr><td style="${td}">${b?`<b>${t}</b>`:t}</td><td style="${td};text-align:right"><b class="${cls(v)}">${signed(v)}</b></td></tr>`;
+  let resumo=[...cats.entries()].map(([c,v])=>linha(esc(c),v)).join('');
+  if(!rows.length)resumo=`<tr><td style="${td}">Nenhuma movimentação ${filtro?'neste período':'nesta conta'}.</td><td style="${td}"></td></tr>`;
+  if(filtro){
+   resumo=(de?linha('Saldo anterior ao período',ant):'')+resumo+linha('Total do período',periodo,true)+(ate?linha('= Saldo ao fim do período',fim,true):linha('= Saldo atual',o.saldo,true));
+  }else{
+   const dif=r2(o.saldo-periodo);
+   resumo+=(Math.abs(dif)>0.004&&o.mostraDif?linha('Diferença não detalhada',dif):'')+linha(esc(o.rotuloSaldo),o.saldo,true);
+  }
+  const lista=rows.slice().reverse().slice(0,500).map(r=>`<tr><td style="${td};white-space:nowrap">${esc(new Date(r.dk+'T12:00:00').toLocaleDateString('pt-BR'))}</td><td style="${td}"><b>${esc(r.desc)}</b>${r.sub?`<br><small style="color:#6b7587">${esc(r.sub)}</small>`:''}<br><small style="color:#6b7587">${esc(r.cat||'')}</small></td><td style="${td};text-align:right;white-space:nowrap"><b class="${cls(r.amount)}">${signed(r.amount)}</b></td><td style="${td};text-align:right;white-space:nowrap;color:#6b7587">${signed(r.run)}</td></tr>`).join('');
+  body.innerHTML=`<h3 style="margin:0 0 6px;font-size:14px">${filtro?'Resumo do período':'Como chegou neste valor'}</h3>
+   <table style="width:100%;border-collapse:collapse;min-width:0"><tbody>${resumo}</tbody></table>
+   <h3 style="margin:18px 0 6px;font-size:14px">Movimentações (${rows.length}${filtro?' de '+asc.length:''})</h3>
+   <table style="width:100%;border-collapse:collapse;min-width:0"><thead><tr style="text-align:left;color:#6b7587;font-size:11px"><th style="padding:6px 8px">DATA</th><th style="padding:6px 8px">ORIGEM</th><th style="padding:6px 8px;text-align:right">VALOR</th><th style="padding:6px 8px;text-align:right">SALDO</th></tr></thead><tbody>${lista}</tbody></table>
+   ${rows.length>500?'<p style="color:#6b7587;font-size:12px">Mostrando as 500 mais recentes. O resumo acima considera todas.</p>':''}`;
+ }
+ eDe.addEventListener('change',draw);eAte.addEventListener('change',draw);
+ m.querySelector('#cxExtLimpa').addEventListener('click',()=>{eDe.value='';eAte.value='';draw();});
+ m.querySelector('#cxExtMes').addEventListener('click',()=>{const n=new Date();eDe.value=localDateKey(new Date(n.getFullYear(),n.getMonth(),1));eAte.value=localDateKey(new Date(n.getFullYear(),n.getMonth()+1,0));draw();});
  m.addEventListener('click',ev=>{if(ev.target===m||ev.target.closest('[data-ext-close]'))closeExtrato();});
  document.addEventListener('keydown',extEsc);
- document.body.appendChild(m);
+ document.body.appendChild(m);draw();
 }
-
-// ---------- extrato do crédito com a fábrica: créditos (vendas no cartão fábrica e manuais) e usos, com saldo corrido ----------
+function showExtrato(k){
+ const S=balances(),rows=rowsAll(S).filter(r=>r.acc===k),lk=S.lock[k]||0,cls=v=>v<0?'cx-neg':'cx-pos';
+ extModal({title:'Extrato · '+accName(k),rows,saldo:S.b[k],mostraDif:true,rotuloSaldo:'= Saldo da conta',
+  sub:`Saldo atual: <b class="${cls(S.b[k])}">${signed(S.b[k])}</b>${lk>0.004?` · bloqueado (encomenda) ${money(lk)} · disponível ${signed(r2(S.b[k]-lk))}`:''}`});
+}
 function showExtratoFab(){
- closeExtrato();
- const vendas=new Map();
+ const vendas=new Map(),rows=[];
  (data.movements||[]).forEach(mv=>{
   if(mv.type!=='venda'||mv.canceled)return;
   const k=mv.saleId||mv.id;let x=vendas.get(k);
   if(!x){x={key:k,date:mv.date,client:mv.client||'',credit:0};vendas.set(k,x);}
   x.credit+=Number(mv.factoryCredit||0);
  });
- const rows=[];
  vendas.forEach(x=>{const v=r2(x.credit);if(v>0.004)rows.push({date:x.date,amount:v,cat:'Venda no cartão fábrica',desc:`Venda #${String(x.key).slice(-6)}${x.client?' · '+x.client:''}`,sub:''});});
  (data.factoryCreditsManual||[]).forEach(e=>rows.push({date:e.date,amount:Number(e.amount||0),cat:'Crédito lançado manualmente',desc:e.note||'Crédito lançado manualmente',sub:e.by?'por '+e.by:''}));
  (data.factoryLedger||[]).forEach(e=>rows.push({date:e.date,amount:-Number(e.amount||0),cat:e.orderId?'Uso em pedido à fábrica':'Uso de crédito',desc:e.note||'Uso de crédito',sub:e.by?'por '+e.by:''}));
- const asc=rows.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
- let run=0;asc.forEach(r=>{run=r2(run+r.amount);r.run=run;});
- const cats=new Map();rows.forEach(r=>{cats.set(r.cat,r2((cats.get(r.cat)||0)+r.amount));});
- const saldo=fabSaldo(),S=balances(),list=asc.slice().reverse().slice(0,500);
- const cls=v=>v<0?'cx-neg':'cx-pos',td='padding:7px 8px;border-bottom:1px solid #e6eaf1;font-size:13px;vertical-align:top';
- const resumo=[...cats.entries()].map(([c,v])=>`<tr><td style="${td}">${esc(c)}</td><td style="${td};text-align:right"><b class="${cls(v)}">${signed(v)}</b></td></tr>`).join('');
- const linhas=list.map(r=>`<tr><td style="${td};white-space:nowrap">${esc(new Date(r.date).toLocaleDateString('pt-BR'))}</td><td style="${td}"><b>${esc(r.desc)}</b>${r.sub?`<br><small style="color:#6b7587">${esc(r.sub)}</small>`:''}<br><small style="color:#6b7587">${esc(r.cat)}</small></td><td style="${td};text-align:right;white-space:nowrap"><b class="${cls(r.amount)}">${signed(r.amount)}</b></td><td style="${td};text-align:right;white-space:nowrap;color:#6b7587">${signed(r.run)}</td></tr>`).join('');
- const m=document.createElement('div');m.id='cxExtModal';
- m.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px';
- m.innerHTML=`<div role="dialog" aria-modal="true" style="background:#fff;color:#1c2433;border-radius:14px;width:100%;max-width:760px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3)">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid #e6eaf1">
-   <div><h2 style="margin:0;font-size:18px">Extrato · Crédito com a fábrica</h2><p style="margin:4px 0 0;color:#6b7587;font-size:13px">Saldo disponível: <b class="${cls(saldo)}">${signed(saldo)}</b>${S.lockFab>0.004?` · ${money(S.lockFab)} de encomendas ainda não entregues (não incluído)`:''}</p></div>
-   <button type="button" class="button button-light button-small" data-ext-close>Fechar</button></div>
-  <div style="overflow:auto;padding:14px 18px">
-   <h3 style="margin:0 0 6px;font-size:14px">Como chegou neste valor</h3>
-   <table style="width:100%;border-collapse:collapse;min-width:0"><tbody>${resumo||`<tr><td style="${td}">Nenhuma movimentação de crédito.</td><td style="${td}"></td></tr>`}
-    <tr><td style="${td}"><b>= Saldo disponível</b></td><td style="${td};text-align:right"><b class="${cls(saldo)}">${signed(saldo)}</b></td></tr></tbody></table>
-   <h3 style="margin:18px 0 6px;font-size:14px">Movimentações (${rows.length})</h3>
-   <table style="width:100%;border-collapse:collapse;min-width:0"><thead><tr style="text-align:left;color:#6b7587;font-size:11px"><th style="padding:6px 8px">DATA</th><th style="padding:6px 8px">ORIGEM</th><th style="padding:6px 8px;text-align:right">VALOR</th><th style="padding:6px 8px;text-align:right">SALDO</th></tr></thead><tbody>${linhas}</tbody></table>
-   ${rows.length>500?'<p style="color:#6b7587;font-size:12px">Mostrando as 500 mais recentes. O resumo acima considera todas.</p>':''}
-  </div></div>`;
- m.addEventListener('click',ev=>{if(ev.target===m||ev.target.closest('[data-ext-close]'))closeExtrato();});
- document.addEventListener('keydown',extEsc);
- document.body.appendChild(m);
+ const saldo=fabSaldo(),S=balances(),cls=v=>v<0?'cx-neg':'cx-pos';
+ extModal({title:'Extrato · Crédito com a fábrica',rows,saldo,mostraDif:false,rotuloSaldo:'= Saldo disponível',
+  sub:`Saldo disponível: <b class="${cls(saldo)}">${signed(saldo)}</b>${S.lockFab>0.004?` · ${money(S.lockFab)} de encomendas ainda não entregues (não incluído)`:''}`});
 }
 function onCardClick(ev){
  const b=ev.target.closest('[data-cx]');if(!b)return;
