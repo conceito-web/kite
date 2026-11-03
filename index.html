@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=29">
+  <link rel="stylesheet" href="style.css?v=30">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -641,7 +641,7 @@
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">✓</span><span class="stat-label">Recebido no mês</span></div><strong id="promRecebido">R$ 0,00</strong><div class="stat-foot" id="promRecebidoNota"></div></article>
           </div>
           <section class="surface list-surface">
-            <div class="surface-heading responsive-heading"><div><h2>Parcelas</h2><p id="promSubtitulo">Todas as parcelas</p></div><div class="search-tools"><select id="promStatus" aria-label="Filtrar situação"><option value="abertas">Em aberto</option><option value="vencidas">Vencidas</option><option value="avencer">A vencer em breve</option><option value="recebidas">Recebidas</option><option value="todas">Todas</option></select><div class="search-box"><span>⌕</span><input id="promBusca" type="search" placeholder="Buscar cliente ou venda..."></div></div></div>
+            <div class="surface-heading responsive-heading"><div><h2>Parcelas</h2><p id="promSubtitulo">Todas as parcelas</p></div><div class="search-tools"><select id="promStatus" aria-label="Filtrar situação"><option value="abertas">Em aberto</option><option value="vencidas">Vencidas</option><option value="avencer">A vencer em breve</option><option value="recebidas">Recebidas</option><option value="todas">Todas</option></select><label class="date-range">Vencimento de <input id="promDe" type="date"></label><label class="date-range">até <input id="promAte" type="date"></label><button type="button" class="text-button" id="promLimparData">Limpar datas</button><div class="search-box"><span>⌕</span><input id="promBusca" type="search" placeholder="Buscar cliente ou venda..."></div></div></div>
             <div class="table-wrap"><table><thead><tr><th>VENCIMENTO</th><th>CLIENTE</th><th>VENDA</th><th>PARCELA</th><th>VALOR</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="promRows"></tbody></table></div>
             <div id="promVazio" class="empty-state"><div class="empty-symbol">◔</div><b>Nenhuma parcela encontrada</b><p>Vendas feitas na forma "Promissória" aparecem aqui com os vencimentos.</p></div>
           </section>
@@ -827,7 +827,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=31"></script>
-  <script src="modulos.js?v=23"></script>
+  <script src="modulos.js?v=24"></script>
   <script src="encomendas.js?v=3"></script>
   <script src="despesas.js?v=4"></script>
   <script src="caixa.js?v=10"></script>
