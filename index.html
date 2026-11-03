@@ -561,10 +561,10 @@
           <div class="page-heading"><div><p class="eyebrow">SEGURANÇA DOS DADOS</p><h1>Backup e transferência</h1><p class="subtitle">Faça uma cópia e transfira seus dados manualmente entre dispositivos.</p></div></div>
           <div class="backup-grid">
             <section class="surface backup-card"><div class="backup-icon blue-bg">↓</div><p class="eyebrow">ETAPA 01</p><h2>Exportar backup</h2><p>Gere um arquivo com seus produtos, estoques e movimentações deste dispositivo.</p><button id="fazerBackup" class="button button-primary full-button" type="button">Baixar arquivo de backup</button></section>
-            <section class="surface backup-card"><div class="backup-icon violet-bg">↑</div><p class="eyebrow">ETAPA 02</p><h2>Restaurar backup</h2><p>Importe um arquivo de backup. <b>Os dados atuais deste navegador serão substituídos.</b></p><label class="field file-field">Escolher arquivo JSON<input id="arquivoBackup" type="file" accept=".json,application/json"></label><button id="restaurarBackup" class="button button-light full-button" type="button">Restaurar dados</button></section>
+            <section class="surface backup-card" id="cardRestaurar"><div class="backup-icon violet-bg">↑</div><p class="eyebrow">ETAPA 02</p><h2>Restaurar backup</h2><p>Importe um arquivo de backup. <b>Os dados atuais deste navegador serão substituídos.</b></p><label class="field file-field">Escolher arquivo JSON<input id="arquivoBackup" type="file" accept=".json,application/json"></label><button id="restaurarBackup" class="button button-light full-button" type="button">Restaurar dados</button></section>
           </div>
-          <section class="surface danger-zone"><div><h2>Apagar dados locais</h2><p>Remove todos os produtos, entradas e vendas deste navegador. Esta ação não pode ser desfeita sem backup.</p></div><button id="apagarTudo" class="button button-danger-light" type="button">Apagar todos os dados</button></section>
-          <div class="notice warning-notice"><span class="notice-icon">!</span><p><b>Importante:</b> o computador e o celular têm dados separados. Restaurar um backup substitui os dados do destino; não combina automaticamente duas bases. Faça backup antes de importar.</p></div>
+          <section class="surface danger-zone" id="zonaApagar"><div><h2>Apagar dados locais</h2><p>Remove todos os produtos, entradas e vendas deste navegador. Esta ação não pode ser desfeita sem backup.</p></div><button id="apagarTudo" class="button button-danger-light" type="button">Apagar todos os dados</button></section>
+          <div class="notice warning-notice" id="avisoRestaurar"><span class="notice-icon">!</span><p><b>Importante:</b> o computador e o celular têm dados separados. Restaurar um backup substitui os dados do destino; não combina automaticamente duas bases. Faça backup antes de importar.</p></div>
         </section>
         <section class="panel" id="panel-pdv">
           <div class="page-heading"><div><p class="eyebrow">FRENTE DE CAIXA</p><h1>PDV</h1><p class="subtitle">Venda rápida com leitor de código de barras, troco e cupom não fiscal. <b>(Encomendas só em Registrar venda.)</b></p></div></div>
@@ -826,11 +826,11 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=30"></script>
+  <script src="app.js?v=31"></script>
   <script src="modulos.js?v=23"></script>
   <script src="encomendas.js?v=3"></script>
   <script src="despesas.js?v=4"></script>
-  <script src="caixa.js?v=8"></script>
+  <script src="caixa.js?v=9"></script>
   <script src="impostos.js?v=11"></script>
 </body>
 </html>
