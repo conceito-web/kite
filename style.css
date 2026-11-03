@@ -455,3 +455,5 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 #encLista .enc-ok{color:#1b9869}
 #encLista .row-action.enc-main{background:#1f6feb;color:#fff;border-color:#1f6feb}
 body[data-ckr-role="usuario"] #encLista [data-enc-act="editar"],body[data-ckr-role="usuario"] #encLista [data-enc-act="cancelar"],body[data-ckr-role="usuario"] #encLista [data-enc-act="reabrir"]{display:none}
+.date-range{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted,#667085);white-space:nowrap}
+.date-range input{padding:8px 10px;border:1px solid var(--line,#d0d5dd);border-radius:10px;font:inherit;background:transparent;color:inherit}
