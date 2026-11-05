@@ -772,11 +772,11 @@
               <p class="payment-notice" id="pedSaldoInfo" style="align-self:end"></p>
             </div>
             <p class="payment-notice payment-ok" id="pedRestoInfo" style="margin-bottom:12px"></p>
-            <div id="pedRestoBox" class="form-grid">
-              <label class="field">Forma de pagamento do restante<select id="pedForma"></select></label>
-              <label class="field">Prazo<select id="pedPrazo"><option value="0">À vista</option><option value="30" selected>30 dias</option><option value="30/60">30/60</option><option value="30/60/90">30/60/90</option><option value="30/60/90/120">30/60/90/120</option><option value="custom">Personalizado…</option></select></label>
-              <label class="field" id="pedPrazoCustomBox" hidden>Dias das parcelas<input id="pedPrazoCustom" type="text" autocomplete="off" placeholder="Ex.: 30/45/60"></label>
+            <div id="pedRestoBox" hidden>
+              <div id="pedPagamentos"></div>
+              <div class="form-actions" style="margin:4px 0 0"><button class="button button-light button-small" id="pedAddPag" type="button">+ Adicionar outra forma de pagamento</button></div>
             </div>
+            <p class="payment-notice" id="pedFalta" style="margin:10px 0 0;font-weight:600"></p>
             <p class="pay-hint" id="pedPreview" style="margin:10px 0 0;font-size:12px;color:#637087;line-height:1.7"></p>
             <div class="form-actions" style="margin-top:16px"><button class="button button-primary" id="pedSalvar" type="button">Salvar pedido</button><button class="button button-light" id="pedPdf" type="button">PDF para a fábrica</button><button class="button button-light" id="pedLimpar" type="button">Limpar</button></div>
           </section>
