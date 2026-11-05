@@ -645,6 +645,13 @@ const parseTerms=raw=>[...new Set(String(raw).split(/[^\d]+/).filter(Boolean).ma
 // Boleto: prazo conta a partir da data da nota (quando o pedido foi entregue); demais formas, a partir da data do pedido
 const pedIsBoleto=(o,p)=>(p.method||o.payMethod)==='Boleto';
 const pedBaseFor=(o,p)=>(o.invoiceDate&&pedIsBoleto(o,p))?o.invoiceDate:o.date;
+// Número do pedido: pedidos novos recebem o próximo número; os antigos são numerados pela ordem de criação (e o número fica guardado)
+function pedEnsureNums(){
+ const all=orders();let max=Math.max(0,...all.map(o=>o.num||0));
+ all.filter(o=>!o.num).sort((a,b)=>String(a.createdAt||a.date).localeCompare(String(b.createdAt||b.date))).forEach(o=>{o.num=++max;});
+ return max;
+}
+const pedNextNum=()=>pedEnsureNums()+1;
 const termsText=t=>(t.length===1&&t[0]===0)?'À vista':t.join('/')+' dias';
 const fmtBR=v=>v>0?v.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
 function pedItemRow(prod){
@@ -802,7 +809,7 @@ function pedCollect(){
  return {date,now,filled,total,credit,rest,hasRest,pays,installments};
 }
 function pedMakeOrder(c){
- return {date:c.date,items:c.filled.map(i=>({productId:i.pid,name:i.name,qty:i.qty,unit:i.unit,total:i.total})),total:c.total,creditUsed:c.credit,remainder:c.hasRest?c.rest:0,
+ return {num:pedNextNum(),date:c.date,items:c.filled.map(i=>({productId:i.pid,name:i.name,qty:i.qty,unit:i.unit,total:i.total})),total:c.total,creditUsed:c.credit,remainder:c.hasRest?c.rest:0,
   payMethod:[...new Set(c.pays.map(p=>p.method))].join(' + '),payments:c.pays.map(p=>({method:p.method,amount:p.amount,terms:p.terms})),
   terms:[...new Set(c.installments.map(i=>i.days))].sort((a,b)=>a-b),installments:c.installments,note:$('pedObs').value.trim()};
 }
@@ -811,7 +818,7 @@ $('pedSalvar').addEventListener('click',()=>{
  const o={id:id(),...pedMakeOrder(c),delivered:$('pedEntregue').checked,deliveredAt:$('pedEntregue').checked?c.now:'',by:currentUserName(),createdAt:c.now};
  orders().push(o);
  if(c.credit>0.004)ledger().push({id:id(),date:c.now,amount:c.credit,note:`Pedido de ${brDate(c.date)}${o.note?' · '+o.note:''}`,by:currentUserName(),orderId:o.id});
- if(saveData()){pedReset();toast('Pedido registrado.');}
+ if(saveData()){pedReset();toast(`Pedido nº ${o.num} registrado.`);}
 });
 // ---- PDF para a fábrica: conferência de valores antes de fechar o pedido ----
 function pedDraft(){
@@ -824,7 +831,7 @@ function buildOrderPdf(o){
  const room=h=>{if(y+h>272){doc.addPage();y=18;}};
  doc.setFont('helvetica','bold');doc.setFontSize(17);doc.text('CONCEITO - PEDIDO À FÁBRICA',15,y);y+=7;
  doc.setFontSize(11);doc.text('Conferência de valores antes do fechamento',15,y);y+=8;
- doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(`Data do pedido: ${brDate(o.date)}`,15,y);y+=6;
+ doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(`${o.num?'Pedido nº '+o.num+' - ':''}Data do pedido: ${brDate(o.date)}`,15,y);y+=6;
  if(o.note){const ls=doc.splitTextToSize(`Observação: ${o.note}`,180);doc.text(ls,15,y);y+=ls.length*5;}
  y+=4;
  doc.setFont('helvetica','bold');doc.text('PRODUTO',15,y);doc.text('QTD.',122,y,{align:'right'});doc.text('VALOR UNIT.',160,y,{align:'right'});doc.text('VALOR TOTAL',195,y,{align:'right'});y+=3;doc.line(15,y,195,y);y+=6;doc.setFont('helvetica','normal');
@@ -869,6 +876,7 @@ function pedStatus(p,lim){
  return {k:'aberta',t:`Vence em ${d} dia(s)`,late:false,urgent:false};
 }
 function renderPedidos(){
+ pedEnsureNums();
  const f=factoryStats(),lim=getSettings().promissory.remindDays,q=fold($('pedBusca').value);
  const all=orders().slice().sort((a,b)=>b.date.localeCompare(a.date)||String(b.createdAt).localeCompare(String(a.createdAt)));
  const open=[];all.forEach(o=>o.installments.forEach(p=>{if(!p.paid)open.push({o,p,st:pedStatus(p,lim)});}));
@@ -882,11 +890,11 @@ function renderPedidos(){
  const proxima=soon.length?` (próximo: ${brDate(soon[0].p.dueDate)})`:'';
  const txt=[late.length?`${late.length} boleto(s)/parcela(s) da fábrica vencido(s) (${money(sum(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sum(soon))})${proxima}`:''].filter(Boolean).join(' · ');
  $('pedAlerta').hidden=!urgent;$('pedAlertaPainel').hidden=!urgent;$('pedAlertaTexto').textContent=txt;$('pedAlertaPainelTexto').textContent=txt;
- $('pedAgenda').innerHTML=open.map(({o,p,st})=>`<tr><td><b>${esc(brDate(p.dueDate))}</b></td><td><span class="pill ${st.k}">${esc(st.t)}</span></td><td><b>${money(p.amount)}</b></td><td>${p.n}/${p.of} · ${esc(p.method||o.payMethod||'')} · ${keyDiff(pedBaseFor(o,p),p.dueDate)} dias</td><td>Pedido de ${esc(brDate(o.date))}<br><small>${esc(o.items.map(i=>i.name).join(', '))}</small></td><td><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">Marcar paga</button></td></tr>`).join('');
+ $('pedAgenda').innerHTML=open.map(({o,p,st})=>`<tr><td><b>${esc(brDate(p.dueDate))}</b></td><td><span class="pill ${st.k}">${esc(st.t)}</span></td><td><b>${money(p.amount)}</b></td><td>${p.n}/${p.of} · ${esc(p.method||o.payMethod||'')} · ${keyDiff(pedBaseFor(o,p),p.dueDate)} dias</td><td><b>Pedido nº ${o.num}</b> · ${esc(brDate(o.date))}${o.invoiceNumber?` · NF ${esc(o.invoiceNumber)}`:''}<br><small>${esc(o.items.map(i=>i.name).join(', '))}</small></td><td><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">Marcar paga</button></td></tr>`).join('');
  $('pedAgendaVazio').style.display=open.length?'none':'block';
  $('pedProdutos').innerHTML=data.products.map(p=>`<option value="${esc(p.name)}"></option>`).join('');
  const fe=$('pedFiltroEntrega').value;
- const list=all.filter(o=>(fe==='todos'||(fe==='aguardando'&&!o.delivered)||(fe==='entregues'&&o.delivered))&&(!q||fold([brDate(o.date),o.payMethod,o.note,o.items.map(i=>i.name).join(' ')].join(' ')).includes(q)));
+ const list=all.filter(o=>(fe==='todos'||(fe==='aguardando'&&!o.delivered)||(fe==='entregues'&&o.delivered))&&(!q||fold([brDate(o.date),o.num,o.invoiceNumber,o.payMethod,o.note,o.items.map(i=>i.name).join(' ')].join(' ')).includes(q)));
  $('pedLista').innerHTML=list.map(o=>{
   const prods=o.items.map(i=>`${i.qty}× ${esc(i.name)} (${money(i.unit)})`).join('<br>');
   const ds=`data-oid="${esc(o.id)}"`;
@@ -899,7 +907,7 @@ function renderPedidos(){
   const difHtml=(o.installments.length&&Math.abs(dif)>0.009)?`<span class="p"><span class="pill vencida">Parcelas somam ${money(somaP)}: ${dif>0?'acima':'abaixo'} do restante do pedido em ${money(Math.abs(dif))}</span></span>`:'';
   const restoTxt=o.remainder>0?((o.payments&&o.payments.length)?o.payments.map(x=>`${money(x.amount)} · <b>${esc(x.method)}</b>`).join('<br>'):`${money(o.remainder)} · <b>${esc(o.payMethod)}</b>`):'—';
   const prazoTxt=(o.payments&&o.payments.length)?o.payments.map(x=>termsText(x.terms)).join('<br>'):(o.terms.length?termsText(o.terms):'—');
-  return `<tr><td>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${restoTxt}</td><td>${prazoTxt}</td><td>${o.delivered?`<span class="pill recebida">Entregue</span>${o.deliveredAt?`<br><small>${esc(dateText(o.deliveredAt))}</small>`:''}${o.invoiceDate?`<br><small>Nota: ${esc(brDate(o.invoiceDate))}</small>`:''}<br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Desmarcar</button>`:`<span class="pill aberta">Aguardando</span><br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Marcar entregue</button>`}</td><td><button type="button" class="row-action" data-ped-pdf="${esc(o.id)}">PDF</button><button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="7"><div class="ped-parc">${parc}${difHtml}</div></td></tr>`;
+  return `<tr><td><b>Nº ${o.num}</b><br>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${restoTxt}</td><td>${prazoTxt}</td><td>${o.delivered?`<span class="pill recebida">Entregue</span>${o.deliveredAt?`<br><small>${esc(dateText(o.deliveredAt))}</small>`:''}${o.invoiceDate?`<br><small>Nota: ${esc(brDate(o.invoiceDate))}${o.invoiceNumber?` · nº ${esc(o.invoiceNumber)}`:''}</small>`:''}<br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Desmarcar</button>`:`<span class="pill aberta">Aguardando</span><br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Marcar entregue</button>`}</td><td><button type="button" class="row-action" data-ped-pdf="${esc(o.id)}">PDF</button><button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="7"><div class="ped-parc">${parc}${difHtml}</div></td></tr>`;
  }).join('');
  $('pedLista').querySelectorAll('.pedInstVal').forEach(el=>bindMoneyMask(el));
  $('pedVazio').style.display=list.length?'none':'block';
@@ -926,11 +934,11 @@ $('pedLista').addEventListener('change',e=>{
   if(saveData())toast('Valor da parcela atualizado.');
  }
 });
-// Ao marcar entregue: pede a data da nota e recalcula os boletos em aberto a partir dela (mantendo os prazos: 30/60/90...)
+// Ao marcar entregue: pede a data (e o número) da nota e recalcula os boletos em aberto a partir dela (mantendo os prazos: 30/60/90...)
 function pedAskInvoiceDate(o){
  const ov=document.createElement('div');ov.className='ped-modal';
  const bol=o.installments.filter(p=>!p.paid&&pedIsBoleto(o,p));
- ov.innerHTML=`<div class="ped-modal-box" role="dialog" aria-modal="true"><h3>Marcar pedido como entregue</h3><p class="ped-modal-sub">Pedido de ${esc(brDate(o.date))} · ${money(o.total)}</p><label class="field">Data da nota<input type="date" class="pedNotaData" value="${localDateKey(new Date())}"></label><p class="ped-modal-prev"></p><div class="form-actions"><button class="button button-primary pedNotaOk" type="button">Confirmar entrega</button><button class="button button-light pedNotaCancel" type="button">Cancelar</button></div></div>`;
+ ov.innerHTML=`<div class="ped-modal-box" role="dialog" aria-modal="true"><h3>Marcar pedido como entregue</h3><p class="ped-modal-sub">Pedido nº ${o.num} de ${esc(brDate(o.date))} · ${money(o.total)}</p><label class="field">Data da nota<input type="date" class="pedNotaData" value="${localDateKey(new Date())}"></label><label class="field" style="margin-top:10px">Número da nota (opcional)<input type="text" class="pedNotaNum" autocomplete="off" placeholder="Ex.: 12345"></label><p class="ped-modal-prev"></p><div class="form-actions"><button class="button button-primary pedNotaOk" type="button">Confirmar entrega</button><button class="button button-light pedNotaCancel" type="button">Cancelar</button></div></div>`;
  document.body.appendChild(ov);
  const inp=ov.querySelector('.pedNotaData'),prev=ov.querySelector('.ped-modal-prev');
  const fechar=()=>ov.remove();
@@ -942,7 +950,7 @@ function pedAskInvoiceDate(o){
  ov.querySelector('.pedNotaCancel').addEventListener('click',fechar);
  ov.querySelector('.pedNotaOk').addEventListener('click',()=>{
   const nota=inp.value;if(!nota){toast('Informe a data da nota.',true);return;}
-  o.delivered=true;o.deliveredAt=new Date().toISOString();o.invoiceDate=nota;
+  o.delivered=true;o.deliveredAt=new Date().toISOString();o.invoiceDate=nota;o.invoiceNumber=ov.querySelector('.pedNotaNum').value.trim();
   let n=0;
   o.installments.forEach(p=>{if(!p.paid&&pedIsBoleto(o,p)){p.baseDue=p.dueDate;p.dueDate=addDaysKey(nota,p.days);n++;}});
   fechar();
@@ -955,7 +963,7 @@ $('pedLista').addEventListener('click',e=>{
  const d=e.target.closest('[data-ped-del]'),p=e.target.closest('[data-ped-pay]'),en=e.target.closest('[data-ped-ent]');
  if(d){
   const o=orders().find(x=>x.id===d.dataset.pedDel);if(!o)return;
-  if(!confirm(`Excluir o pedido de ${brDate(o.date)} (${money(o.total)})?${o.creditUsed>0?` O crédito de ${money(o.creditUsed)} volta para o saldo.`:''}`))return;
+  if(!confirm(`Excluir o pedido nº ${o.num} de ${brDate(o.date)} (${money(o.total)})?${o.creditUsed>0?` O crédito de ${money(o.creditUsed)} volta para o saldo.`:''}`))return;
   data.factoryOrders=orders().filter(x=>x.id!==o.id);data.factoryLedger=ledger().filter(x=>x.orderId!==o.id);
   if(saveData())toast('Pedido excluído.');
  }else if(en){
@@ -964,7 +972,7 @@ $('pedLista').addEventListener('click',e=>{
   const volta=o.installments.some(p=>p.baseDue&&!p.paid);
   if(!confirm(volta?'Desmarcar a entrega? Os boletos em aberto voltam às datas anteriores à nota.':'Desmarcar a entrega?'))return;
   o.installments.forEach(p=>{if(p.baseDue){if(!p.paid){p.dueDate=p.baseDue;p.days=keyDiff(o.date,p.dueDate);}delete p.baseDue;}});
-  o.delivered=false;o.deliveredAt='';o.invoiceDate='';
+  o.delivered=false;o.deliveredAt='';o.invoiceDate='';o.invoiceNumber='';
   if(saveData())toast('Entrega desmarcada.');
  }else if(p)pedTogglePay(p);
 });
