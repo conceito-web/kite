@@ -638,8 +638,13 @@ $('fabCredLinhas').addEventListener('click',e=>{
 const PED_PAY=['Pix','Boleto','Transferência','Dinheiro','Cartão de crédito','Cartão de débito','Outro'];
 // Pagamento imediato: as parcelas já ficam como pagas. Boleto, cartão de crédito e outro: ficam em aberto, com lembrete.
 const PED_IMEDIATO=['Pix','Dinheiro','Transferência','Cartão de débito'];
-$('pedForma').innerHTML='<option value="">Selecione...</option>'+PED_PAY.map(x=>`<option>${esc(x)}</option>`).join('');
+const PED_PRAZOS=[['0','À vista'],['30','30 dias'],['30/60','30/60'],['30/60/90','30/60/90'],['30/60/90/120','30/60/90/120'],['custom','Personalizado…']];
 const addDaysKey=(key,n)=>{const [y,mo,d]=key.split('-').map(Number);return localDateKey(new Date(y,mo-1,d+n));};
+const keyDiff=(a,b)=>{const [y1,m1,d1]=a.split('-').map(Number),[y2,m2,d2]=b.split('-').map(Number);return Math.round((new Date(y2,m2-1,d2)-new Date(y1,m1-1,d1))/86400000);};
+const parseTerms=raw=>[...new Set(String(raw).split(/[^\d]+/).filter(Boolean).map(Number))].filter(n=>n>=0&&n<=720).sort((a,b)=>a-b);
+// Boleto: prazo conta a partir da data da nota (quando o pedido foi entregue); demais formas, a partir da data do pedido
+const pedIsBoleto=(o,p)=>(p.method||o.payMethod)==='Boleto';
+const pedBaseFor=(o,p)=>(o.invoiceDate&&pedIsBoleto(o,p))?o.invoiceDate:o.date;
 const termsText=t=>(t.length===1&&t[0]===0)?'À vista':t.join('/')+' dias';
 const fmtBR=v=>v>0?v.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
 function pedItemRow(prod){
@@ -667,9 +672,41 @@ function pedState(){
  const total=r2(items.reduce((s,i)=>s+i.total,0)),f=factoryStats(),use=$('pedUsarCredito').checked;
  const credit=use?r2(parseMoneyInput($('pedCredito').value)):0;
  const rest=Math.max(0,r2(total-Math.min(credit,total)));
- const sel=$('pedPrazo').value,raw=sel==='custom'?$('pedPrazoCustom').value:sel;
- const terms=[...new Set(String(raw).split(/[^\d]+/).filter(Boolean).map(Number))].filter(n=>n>=0&&n<=720).sort((a,b)=>a-b);
- return {items,total,f,use,credit,rest,terms};
+ return {items,total,f,use,credit,rest};
+}
+// ---- Formas de pagamento do restante (uma ou mais linhas) ----
+function pedPays(){
+ return [...$('pedPagamentos').querySelectorAll('.ped-pag')].map(r=>{
+  const method=r.querySelector('.pagForma').value,imm=PED_IMEDIATO.includes(method);
+  const sel=r.querySelector('.pagPrazo').value,raw=sel==='custom'?r.querySelector('.pagCustom').value:sel;
+  return {row:r,method,imm,terms:imm?[0]:parseTerms(raw),amount:r2(parseMoneyInput(r.querySelector('.pagValor').value))};
+ });
+}
+function pedPagRow(){
+ const d=document.createElement('div');d.className='ped-pag';
+ d.innerHTML=`<label class="field">Forma de pagamento<select class="pagForma"><option value="">Selecione...</option>${PED_PAY.map(x=>`<option>${esc(x)}</option>`).join('')}</select></label><label class="field">Valor (R$)<input class="pagValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><label class="field pagPrazoBox">Prazo<select class="pagPrazo">${PED_PRAZOS.map(([v,t])=>`<option value="${v}"${v==='30'?' selected':''}>${t}</option>`).join('')}</select></label><label class="field pagCustomBox" hidden>Dias das parcelas<input class="pagCustom" type="text" autocomplete="off" placeholder="Ex.: 30/45/60"></label><button type="button" class="cart-remove pagDel" aria-label="Remover forma de pagamento">×</button>`;
+ $('pedPagamentos').appendChild(d);
+ const v=d.querySelector('.pagValor');
+ v.addEventListener('input',()=>{v.dataset.manual='1';pedSync();});   // registrado ANTES da máscara
+ bindMoneyMask(v);
+ v.addEventListener('change',pedAutoAdd);
+ d.querySelector('.pagForma').addEventListener('change',e=>{
+  const rows=[...$('pedPagamentos').querySelectorAll('.ped-pag')];
+  // Escolheu Pix na última linha: digita o valor do Pix e abre outra linha para a forma/prazo do que sobrar
+  if(e.target.value==='Pix'&&rows[rows.length-1]===d){v.value='';v.dataset.manual='1';pedPagRow();}
+  pedSync();
+ });
+ d.querySelector('.pagPrazo').addEventListener('change',pedSync);
+ d.querySelector('.pagCustom').addEventListener('input',pedSync);
+ d.querySelector('.pagDel').addEventListener('click',()=>{d.remove();pedSync();});
+ return d;
+}
+// Se digitou um valor menor que o restante, abre automaticamente outra forma de pagamento para o que falta
+function pedAutoAdd(){
+ const s=pedState(),pays=pedPays();if(!pays.length||s.rest<=0.004)return;
+ const falta=r2(s.rest-pays.reduce((a,p)=>a+p.amount,0)),last=pays[pays.length-1].row;
+ if(falta>0.004&&last.querySelector('.pagValor').dataset.manual)pedPagRow();
+ pedSync();
 }
 function pedSync(){
  let s=pedState();
@@ -678,14 +715,38 @@ function pedSync(){
  $('pedTotal').textContent=money(s.total);$('pedItensVazio').hidden=s.items.length>0;
  $('pedCreditoBox').hidden=!s.use;
  $('pedSaldoInfo').textContent=`Saldo disponível: ${money(s.f.bal)}`;
- $('pedPrazoCustomBox').hidden=$('pedPrazo').value!=='custom';
- const hasRest=s.rest>0.004;
+ const hasRest=s.rest>0.004,box=$('pedPagamentos');
  $('pedRestoBox').hidden=!hasRest;
  $('pedRestoInfo').textContent=s.total<=0?'Adicione os produtos para ver o total.':(hasRest?`Crédito usado: ${money(Math.min(s.credit,s.total))} · Restante a pagar: ${money(s.rest)}`:`Pedido totalmente pago com o crédito da fábrica (${money(s.total)}).`);
+ if(!hasRest){box.innerHTML='';$('pedFalta').textContent='';$('pedPreview').innerHTML='';return;}
+ if(!box.querySelector('.ped-pag'))pedPagRow();
+ let rows=[...box.querySelectorAll('.ped-pag')];
+ const last=rows[rows.length-1],lv=last.querySelector('.pagValor');
+ if(!lv.dataset.manual){   // a última linha sem valor digitado recebe sozinha o que falta
+  const others=r2(rows.slice(0,-1).reduce((a,r)=>a+r2(parseMoneyInput(r.querySelector('.pagValor').value)),0));
+  lv.value=fmtBR(Math.max(0,r2(s.rest-others)));
+ }
+ const pays=pedPays();
+ pays.forEach(p=>{
+  p.row.querySelector('.pagPrazoBox').hidden=p.imm;
+  p.row.querySelector('.pagCustomBox').hidden=p.imm||p.row.querySelector('.pagPrazo').value!=='custom';
+  p.row.querySelector('.pagDel').hidden=pays.length<2;
+ });
+ const sum=r2(pays.reduce((a,p)=>a+p.amount,0)),falta=r2(s.rest-sum),fl=$('pedFalta');
+ fl.textContent=Math.abs(falta)<0.005?`Formas de pagamento conferem com o restante (${money(s.rest)}).`:(falta>0?`Falta distribuir ${money(falta)}. Use outra forma de pagamento abaixo.`:`As formas passam ${money(-falta)} do restante.`);
+ fl.style.color=Math.abs(falta)<0.005?'#0f7b4d':'#b3261e';
  const date=$('pedData').value||localDateKey(new Date());
- const meth=$('pedForma').value,imm=PED_IMEDIATO.includes(meth);
- const head=!hasRest?'':(!meth?'Escolha a forma de pagamento do restante.<br>':(imm?`${meth}: pagamento imediato, as parcelas já ficam como <b>pagas</b>.<br>`:`${meth} a prazo: as parcelas ficam <b>em aberto</b> e o sistema avisa antes de cada vencimento.<br>`));
- $('pedPreview').innerHTML=hasRest?head+(s.terms.length?splitInstallments(s.rest,s.terms.length).map((v,i)=>`${s.terms[i]===0?'À vista':s.terms[i]+' dias'} · ${brDate(addDaysKey(date,s.terms[i]))} · <b>${money(v)}</b>${imm||s.terms[i]===0?' · paga':''}`).join('<br>'):'Informe os dias das parcelas, ex.: 30/60/90.'):'';
+ const ok=pays.filter(p=>p.method&&p.amount>0.004&&p.terms.length);
+ const inst=pedBuild(ok,date,'');
+ const temBoleto=ok.some(p=>p.method==='Boleto');
+ $('pedPreview').innerHTML=inst.length?inst.map(p=>`${esc(p.method)} · ${p.days===0?'À vista':p.days+' dias'} · ${brDate(p.dueDate)} · <b>${money(p.amount)}</b>${p.paid?' · paga':' · em aberto'}`).join('<br>')+(temBoleto?'<br><i>Quando o pedido for entregue, você informa a data da nota e os boletos passam a contar a partir dela. Também dá para mudar data e valor de cada boleto em "Pedidos registrados" (os dias se ajustam sozinhos).</i>':''):(ok.length===0?'Escolha a forma de pagamento e o valor.':'Informe os dias das parcelas, ex.: 30/60/90.');
+}
+// Monta as parcelas de todas as formas de pagamento, ordenadas por vencimento
+function pedBuild(pays,date,now){
+ const raw=[];
+ pays.forEach(p=>{const parts=splitInstallments(p.amount,p.terms.length);p.terms.forEach((t,i)=>{const paid=p.imm||t===0;raw.push({method:p.method,days:t,dueDate:addDaysKey(date,t),amount:parts[i],paid,paidAt:paid?now:''});});});
+ raw.sort((a,b)=>a.dueDate.localeCompare(b.dueDate)||a.method.localeCompare(b.method));
+ return raw.map((x,i)=>({n:i+1,of:raw.length,...x}));
 }
 $('pedAddItem').addEventListener('click',()=>{const pk=$('pedPicker');pk.hidden=!pk.hidden;if(!pk.hidden){pedPickRender();$('pedPickBusca').focus();}});
 $('pedPickFechar').addEventListener('click',()=>{$('pedPicker').hidden=true;});
@@ -704,42 +765,58 @@ $('pedUsarTodo').addEventListener('click',()=>{delete $('pedCredito').dataset.ma
 bindMoneyMask($('pedCredito'));
 $('pedCredito').addEventListener('input',()=>{$('pedCredito').dataset.manual='1';pedSync();});
 $('pedCredito').addEventListener('money-mask-updated',pedSync);
-['pedPrazo','pedData','pedForma'].forEach(k=>$(k).addEventListener('change',pedSync));
-$('pedPrazoCustom').addEventListener('input',pedSync);
+$('pedData').addEventListener('change',pedSync);
+$('pedAddPag').addEventListener('click',()=>{
+ const rows=[...$('pedPagamentos').querySelectorAll('.ped-pag')];
+ if(rows.length)rows[rows.length-1].querySelector('.pagValor').dataset.manual='1';
+ pedPagRow();pedSync();
+});
 function pedReset(){
  $('pedItens').innerHTML='';$('pedPicker').hidden=true;$('pedPickBusca').value='';
  $('pedData').value=localDateKey(new Date());$('pedObs').value='';$('pedEntregue').checked=false;$('pedUsarCredito').checked=false;$('pedCredito').value='';delete $('pedCredito').dataset.manual;
- $('pedForma').value='';$('pedPrazo').value='30';$('pedPrazoCustom').value='';pedSync();
+ $('pedPagamentos').innerHTML='';pedSync();
 }
 $('pedLimpar').addEventListener('click',pedReset);
-$('pedSalvar').addEventListener('click',()=>{
+// Valida o formulário e devolve os dados do pedido (ou {err})
+function pedCollect(){
  const s=pedState(),date=$('pedData').value;
- if(!date){toast('Informe a data do pedido.',true);return;}
+ if(!date)return {err:'Informe a data do pedido.'};
  const filled=s.items.filter(i=>i.name||i.unit>0);
- if(!filled.length){toast('Adicione ao menos um produto.',true);return;}
- if(filled.some(i=>!i.name||i.qty<1||i.unit<=0)){toast('Cada produto precisa de nome, quantidade e valor unitário.',true);return;}
+ if(!filled.length)return {err:'Adicione ao menos um produto.'};
+ if(filled.some(i=>!i.name||i.qty<1||i.unit<=0))return {err:'Cada produto precisa de nome, quantidade e valor unitário.'};
  const total=r2(filled.reduce((a,i)=>a+i.total,0));
- if(s.credit>s.f.bal+0.009){toast(`O crédito informado é maior que o saldo disponível (${money(s.f.bal)}).`,true);return;}
- if(s.credit>total+0.009){toast('O crédito informado é maior que o total do pedido.',true);return;}
- const credit=s.use?r2(s.credit):0,rest=r2(total-credit),hasRest=rest>0.004;
- if(hasRest&&!$('pedForma').value){toast('Escolha a forma de pagamento do restante.',true);return;}
- if(hasRest&&!s.terms.length){toast('Informe o prazo do pagamento (ex.: 30/60/90).',true);return;}
- const now=new Date().toISOString(),terms=hasRest?s.terms:[],imm=PED_IMEDIATO.includes($('pedForma').value);
- const installments=hasRest?splitInstallments(rest,terms.length).map((amount,i)=>({n:i+1,of:terms.length,days:terms[i],dueDate:addDaysKey(date,terms[i]),amount,paid:imm||terms[i]===0,paidAt:(imm||terms[i]===0)?now:''})):[];
- const o={id:id(),date,items:filled.map(i=>({productId:i.pid,name:i.name,qty:i.qty,unit:i.unit,total:i.total})),total,creditUsed:credit,remainder:hasRest?rest:0,payMethod:hasRest?$('pedForma').value:'',terms,installments,note:$('pedObs').value.trim(),delivered:$('pedEntregue').checked,deliveredAt:$('pedEntregue').checked?now:'',by:currentUserName(),createdAt:now};
+ if(s.credit>s.f.bal+0.009)return {err:`O crédito informado é maior que o saldo disponível (${money(s.f.bal)}).`};
+ if(s.credit>total+0.009)return {err:'O crédito informado é maior que o total do pedido.'};
+ const credit=s.use?r2(s.credit):0,rest=r2(total-credit),hasRest=rest>0.004,now=new Date().toISOString();
+ let pays=[],installments=[];
+ if(hasRest){
+  pays=pedPays().filter(p=>p.method||p.amount>0.004);
+  if(!pays.length)return {err:'Escolha a forma de pagamento do restante.'};
+  if(pays.some(p=>!p.method))return {err:'Escolha a forma de pagamento em todas as linhas.'};
+  if(pays.some(p=>p.amount<=0.004))return {err:'Informe o valor de cada forma de pagamento.'};
+  if(pays.some(p=>!p.terms.length))return {err:'Informe o prazo do pagamento (ex.: 30/60/90).'};
+  const sum=r2(pays.reduce((a,p)=>a+p.amount,0));
+  if(Math.abs(sum-rest)>0.009)return {err:`A soma das formas de pagamento (${money(sum)}) precisa ser igual ao restante (${money(rest)}).`};
+  installments=pedBuild(pays,date,now);
+ }
+ return {date,now,filled,total,credit,rest,hasRest,pays,installments};
+}
+function pedMakeOrder(c){
+ return {date:c.date,items:c.filled.map(i=>({productId:i.pid,name:i.name,qty:i.qty,unit:i.unit,total:i.total})),total:c.total,creditUsed:c.credit,remainder:c.hasRest?c.rest:0,
+  payMethod:[...new Set(c.pays.map(p=>p.method))].join(' + '),payments:c.pays.map(p=>({method:p.method,amount:p.amount,terms:p.terms})),
+  terms:[...new Set(c.installments.map(i=>i.days))].sort((a,b)=>a-b),installments:c.installments,note:$('pedObs').value.trim()};
+}
+$('pedSalvar').addEventListener('click',()=>{
+ const c=pedCollect();if(c.err){toast(c.err,true);return;}
+ const o={id:id(),...pedMakeOrder(c),delivered:$('pedEntregue').checked,deliveredAt:$('pedEntregue').checked?c.now:'',by:currentUserName(),createdAt:c.now};
  orders().push(o);
- if(credit>0.004)ledger().push({id:id(),date:now,amount:credit,note:`Pedido de ${brDate(date)}${o.note?' · '+o.note:''}`,by:currentUserName(),orderId:o.id});
+ if(c.credit>0.004)ledger().push({id:id(),date:c.now,amount:c.credit,note:`Pedido de ${brDate(c.date)}${o.note?' · '+o.note:''}`,by:currentUserName(),orderId:o.id});
  if(saveData()){pedReset();toast('Pedido registrado.');}
 });
 // ---- PDF para a fábrica: conferência de valores antes de fechar o pedido ----
 function pedDraft(){
- const s=pedState(),date=$('pedData').value||localDateKey(new Date());
- const filled=s.items.filter(i=>i.name||i.unit>0);
- if(!filled.length){toast('Adicione ao menos um produto ao pedido.',true);return null;}
- if(filled.some(i=>!i.name||i.qty<1||i.unit<=0)){toast('Cada produto precisa de nome, quantidade e valor unitário.',true);return null;}
- const total=r2(filled.reduce((a,i)=>a+i.total,0)),credit=s.use?r2(Math.min(s.credit,total,s.f.bal>0?s.f.bal:0)):0,rest=r2(total-credit),hasRest=rest>0.004;
- const terms=hasRest?s.terms:[],installments=hasRest&&terms.length?splitInstallments(rest,terms.length).map((amount,i)=>({n:i+1,of:terms.length,days:terms[i],dueDate:addDaysKey(date,terms[i]),amount})):[];
- return {date,items:filled.map(i=>({name:i.name,qty:i.qty,unit:i.unit,total:i.total})),total,creditUsed:credit,remainder:hasRest?rest:0,payMethod:hasRest?$('pedForma').value:'',terms,installments,note:$('pedObs').value.trim()};
+ const c=pedCollect();if(c.err){toast(c.err,true);return null;}
+ return pedMakeOrder(c);
 }
 function buildOrderPdf(o){
  if(!window.jspdf||!window.jspdf.jsPDF){toast('A biblioteca de PDF não carregou. Verifique a internet e tente novamente.',true);return null;}
@@ -760,9 +837,9 @@ function buildOrderPdf(o){
  if(o.creditUsed>0){doc.text('Crédito com a fábrica a abater:',125,y);doc.text('- '+money(o.creditUsed),195,y,{align:'right'});y+=6;doc.setFont('helvetica','bold');doc.text('Restante a pagar:',125,y);doc.text(money(o.remainder),195,y,{align:'right'});doc.setFont('helvetica','normal');y+=8;}
  else y+=1;
  if(o.remainder>0){
-  const forma=o.payMethod?`${o.payMethod}${o.terms.length?' - '+termsText(o.terms):''}`:'a combinar';
-  doc.text(`Forma de pagamento prevista: ${forma}`,15,y);y+=6;
-  o.installments.forEach(p=>{room(6);doc.text(`   Parcela ${p.n}/${p.of}: ${p.days===0?'à vista':'vencimento '+brDate(p.dueDate)} - ${money(p.amount)}`,15,y);y+=5;});
+  const pays=(o.payments&&o.payments.length)?o.payments:[{method:o.payMethod||'a combinar',amount:o.remainder,terms:o.terms||[]}];
+  pays.forEach(p=>{room(6);doc.text(`Forma de pagamento: ${p.method} - ${money(p.amount)}${p.terms&&p.terms.length?' ('+termsText(p.terms)+')':''}`,15,y);y+=6;});
+  o.installments.forEach(p=>{room(6);doc.text(`   ${p.method?p.method+' - ':''}Parcela ${p.n}/${p.of}: ${p.days===0?'à vista':'vencimento '+brDate(p.dueDate)} - ${money(p.amount)}`,15,y);y+=5;});
  }else if(o.creditUsed>0){doc.text('Pedido totalmente abatido com o crédito da fábrica.',15,y);y+=6;}
  y+=8;room(60);
  doc.setDrawColor(120);doc.rect(15,y,180,52);y+=8;
@@ -802,21 +879,29 @@ function renderPedidos(){
  $('pedStatPendente').textContent=money(sum(open));
  $('pedStatEntrega').textContent=all.filter(o=>!o.delivered).length;
  const badge=$('menuPedidos');badge.textContent=urgent;badge.classList.toggle('alert',urgent>0);
- const txt=[late.length?`${late.length} boleto(s)/parcela(s) da fábrica vencido(s) (${money(sum(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sum(soon))})`:''].filter(Boolean).join(' · ');
+ const proxima=soon.length?` (próximo: ${brDate(soon[0].p.dueDate)})`:'';
+ const txt=[late.length?`${late.length} boleto(s)/parcela(s) da fábrica vencido(s) (${money(sum(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sum(soon))})${proxima}`:''].filter(Boolean).join(' · ');
  $('pedAlerta').hidden=!urgent;$('pedAlertaPainel').hidden=!urgent;$('pedAlertaTexto').textContent=txt;$('pedAlertaPainelTexto').textContent=txt;
- $('pedAgenda').innerHTML=open.map(({o,p,st})=>`<tr><td><b>${esc(brDate(p.dueDate))}</b></td><td><span class="pill ${st.k}">${esc(st.t)}</span></td><td><b>${money(p.amount)}</b></td><td>${p.n}/${p.of} · ${esc(o.payMethod)}</td><td>Pedido de ${esc(brDate(o.date))}<br><small>${esc(o.items.map(i=>i.name).join(', '))}</small></td><td><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">Marcar paga</button></td></tr>`).join('');
+ $('pedAgenda').innerHTML=open.map(({o,p,st})=>`<tr><td><b>${esc(brDate(p.dueDate))}</b></td><td><span class="pill ${st.k}">${esc(st.t)}</span></td><td><b>${money(p.amount)}</b></td><td>${p.n}/${p.of} · ${esc(p.method||o.payMethod||'')} · ${keyDiff(pedBaseFor(o,p),p.dueDate)} dias</td><td>Pedido de ${esc(brDate(o.date))}<br><small>${esc(o.items.map(i=>i.name).join(', '))}</small></td><td><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">Marcar paga</button></td></tr>`).join('');
  $('pedAgendaVazio').style.display=open.length?'none':'block';
  $('pedProdutos').innerHTML=data.products.map(p=>`<option value="${esc(p.name)}"></option>`).join('');
  const fe=$('pedFiltroEntrega').value;
  const list=all.filter(o=>(fe==='todos'||(fe==='aguardando'&&!o.delivered)||(fe==='entregues'&&o.delivered))&&(!q||fold([brDate(o.date),o.payMethod,o.note,o.items.map(i=>i.name).join(' ')].join(' ')).includes(q)));
  $('pedLista').innerHTML=list.map(o=>{
   const prods=o.items.map(i=>`${i.qty}× ${esc(i.name)} (${money(i.unit)})`).join('<br>');
+  const ds=`data-oid="${esc(o.id)}"`;
   const parc=o.installments.length?o.installments.map(p=>{
-   const st=pedStatus(p,lim);
-   return `<span class="p">${p.n}/${p.of} · ${brDate(p.dueDate)} · <b>${money(p.amount)}</b> <span class="pill ${st.k}">${esc(st.t)}</span><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">${p.paid?'Desmarcar':'Marcar paga'}</button></span>`;
+   const st=pedStatus(p,lim),dias=keyDiff(pedBaseFor(o,p),p.dueDate),m=p.method||o.payMethod||'';
+   const edit=p.paid?`${esc(brDate(p.dueDate))} · <b>${money(p.amount)}</b>`:`<input type="date" class="ped-inline pedInstData" value="${esc(p.dueDate)}" ${ds} data-n="${p.n}" aria-label="Vencimento"> <input type="text" inputmode="numeric" autocomplete="off" class="ped-inline pedInstVal" value="${fmtBR(p.amount)}" ${ds} data-n="${p.n}" aria-label="Valor da parcela">`;
+   return `<span class="p">${p.n}/${p.of} · ${esc(m)} · ${p.paid&&dias===0?'à vista':`<b>${dias} dias</b>`} · ${edit} <span class="pill ${st.k}">${esc(st.t)}</span><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">${p.paid?'Desmarcar':'Marcar paga'}</button></span>`;
   }).join(''):'<span class="p">Pago totalmente com crédito da fábrica</span>';
-  return `<tr><td>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${o.remainder>0?`${money(o.remainder)} · <b>${esc(o.payMethod)}</b>`:'—'}</td><td>${o.terms.length?termsText(o.terms):'—'}</td><td>${o.delivered?`<span class="pill recebida">Entregue</span>${o.deliveredAt?`<br><small>${esc(dateText(o.deliveredAt))}</small>`:''}<br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Desmarcar</button>`:`<span class="pill aberta">Aguardando</span><br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Marcar entregue</button>`}</td><td><button type="button" class="row-action" data-ped-pdf="${esc(o.id)}">PDF</button><button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="7"><div class="ped-parc">${parc}</div></td></tr>`;
+  const somaP=r2(o.installments.reduce((a,p)=>a+p.amount,0)),dif=r2(somaP-(o.remainder||0));
+  const difHtml=(o.installments.length&&Math.abs(dif)>0.009)?`<span class="p"><span class="pill vencida">Parcelas somam ${money(somaP)}: ${dif>0?'acima':'abaixo'} do restante do pedido em ${money(Math.abs(dif))}</span></span>`:'';
+  const restoTxt=o.remainder>0?((o.payments&&o.payments.length)?o.payments.map(x=>`${money(x.amount)} · <b>${esc(x.method)}</b>`).join('<br>'):`${money(o.remainder)} · <b>${esc(o.payMethod)}</b>`):'—';
+  const prazoTxt=(o.payments&&o.payments.length)?o.payments.map(x=>termsText(x.terms)).join('<br>'):(o.terms.length?termsText(o.terms):'—');
+  return `<tr><td>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${restoTxt}</td><td>${prazoTxt}</td><td>${o.delivered?`<span class="pill recebida">Entregue</span>${o.deliveredAt?`<br><small>${esc(dateText(o.deliveredAt))}</small>`:''}${o.invoiceDate?`<br><small>Nota: ${esc(brDate(o.invoiceDate))}</small>`:''}<br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Desmarcar</button>`:`<span class="pill aberta">Aguardando</span><br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Marcar entregue</button>`}</td><td><button type="button" class="row-action" data-ped-pdf="${esc(o.id)}">PDF</button><button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="7"><div class="ped-parc">${parc}${difHtml}</div></td></tr>`;
  }).join('');
+ $('pedLista').querySelectorAll('.pedInstVal').forEach(el=>bindMoneyMask(el));
  $('pedVazio').style.display=list.length?'none':'block';
 }
 $('pedBusca').addEventListener('input',renderPedidos);$('pedFiltroEntrega').addEventListener('change',renderPedidos);
@@ -825,6 +910,46 @@ function pedTogglePay(btn){
  inst.paid=!inst.paid;inst.paidAt=inst.paid?new Date().toISOString():'';if(saveData())toast(inst.paid?'Parcela marcada como paga.':'Parcela reaberta.');
 }
 $('pedAgenda').addEventListener('click',e=>{const p=e.target.closest('[data-ped-pay]');if(p)pedTogglePay(p);});
+// Mudar a data ou o valor de um boleto/parcela em aberto: os dias são recalculados a partir da data base (nota ou pedido)
+$('pedLista').addEventListener('change',e=>{
+ const dt=e.target.closest('.pedInstData'),vl=e.target.closest('.pedInstVal'),el=dt||vl;if(!el)return;
+ const o=orders().find(x=>x.id===el.dataset.oid),inst=o&&o.installments.find(x=>String(x.n)===el.dataset.n);
+ if(!inst||inst.paid)return;
+ if(dt){
+  if(!dt.value){renderPedidos();return;}
+  inst.dueDate=dt.value;inst.days=keyDiff(pedBaseFor(o,inst),dt.value);
+  if(saveData())toast(`Vencimento alterado para ${brDate(inst.dueDate)} (${inst.days} dias).`);
+ }else{
+  const v=r2(parseMoneyInput(vl.value));
+  if(v<=0){toast('Informe um valor maior que zero.',true);renderPedidos();return;}
+  inst.amount=v;
+  if(saveData())toast('Valor da parcela atualizado.');
+ }
+});
+// Ao marcar entregue: pede a data da nota e recalcula os boletos em aberto a partir dela (mantendo os prazos: 30/60/90...)
+function pedAskInvoiceDate(o){
+ const ov=document.createElement('div');ov.className='ped-modal';
+ const bol=o.installments.filter(p=>!p.paid&&pedIsBoleto(o,p));
+ ov.innerHTML=`<div class="ped-modal-box" role="dialog" aria-modal="true"><h3>Marcar pedido como entregue</h3><p class="ped-modal-sub">Pedido de ${esc(brDate(o.date))} · ${money(o.total)}</p><label class="field">Data da nota<input type="date" class="pedNotaData" value="${localDateKey(new Date())}"></label><p class="ped-modal-prev"></p><div class="form-actions"><button class="button button-primary pedNotaOk" type="button">Confirmar entrega</button><button class="button button-light pedNotaCancel" type="button">Cancelar</button></div></div>`;
+ document.body.appendChild(ov);
+ const inp=ov.querySelector('.pedNotaData'),prev=ov.querySelector('.ped-modal-prev');
+ const fechar=()=>ov.remove();
+ const mostra=()=>{
+  prev.innerHTML=!bol.length?'Este pedido não tem boletos em aberto.':'Os boletos passam a contar a partir da data da nota:<br>'+bol.map(p=>`${p.n}/${p.of} · ${p.days} dias · ${esc(brDate(p.dueDate))} → <b>${inp.value?esc(brDate(addDaysKey(inp.value,p.days))):'—'}</b> · ${money(p.amount)}`).join('<br>');
+ };
+ inp.addEventListener('input',mostra);inp.addEventListener('change',mostra);mostra();
+ ov.addEventListener('click',e=>{if(e.target===ov)fechar();});
+ ov.querySelector('.pedNotaCancel').addEventListener('click',fechar);
+ ov.querySelector('.pedNotaOk').addEventListener('click',()=>{
+  const nota=inp.value;if(!nota){toast('Informe a data da nota.',true);return;}
+  o.delivered=true;o.deliveredAt=new Date().toISOString();o.invoiceDate=nota;
+  let n=0;
+  o.installments.forEach(p=>{if(!p.paid&&pedIsBoleto(o,p)){p.baseDue=p.dueDate;p.dueDate=addDaysKey(nota,p.days);n++;}});
+  fechar();
+  if(saveData())toast(n?`Entrega registrada. ${n} boleto(s) recalculado(s) a partir de ${brDate(nota)}.`:'Pedido marcado como entregue.');
+ });
+ inp.focus();
+}
 $('pedLista').addEventListener('click',e=>{
  const pf=e.target.closest('[data-ped-pdf]');if(pf){const o=orders().find(x=>x.id===pf.dataset.pedPdf);if(o)pedPdf(o);return;}
  const d=e.target.closest('[data-ped-del]'),p=e.target.closest('[data-ped-pay]'),en=e.target.closest('[data-ped-ent]');
@@ -835,8 +960,12 @@ $('pedLista').addEventListener('click',e=>{
   if(saveData())toast('Pedido excluído.');
  }else if(en){
   const o=orders().find(x=>x.id===en.dataset.pedEnt);if(!o)return;
-  o.delivered=!o.delivered;o.deliveredAt=o.delivered?new Date().toISOString():'';
-  if(saveData())toast(o.delivered?'Pedido marcado como entregue.':'Entrega desmarcada.');
+  if(!o.delivered){pedAskInvoiceDate(o);return;}
+  const volta=o.installments.some(p=>p.baseDue&&!p.paid);
+  if(!confirm(volta?'Desmarcar a entrega? Os boletos em aberto voltam às datas anteriores à nota.':'Desmarcar a entrega?'))return;
+  o.installments.forEach(p=>{if(p.baseDue){if(!p.paid){p.dueDate=p.baseDue;p.days=keyDiff(o.date,p.dueDate);}delete p.baseDue;}});
+  o.delivered=false;o.deliveredAt='';o.invoiceDate='';
+  if(saveData())toast('Entrega desmarcada.');
  }else if(p)pedTogglePay(p);
 });
 setInterval(renderPedidos,600000);
