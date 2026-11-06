@@ -101,11 +101,16 @@ function autoEntries(){
 function expenseEntries(){
  const start=conf().start||'',out=[];
  (data.expenses||[]).forEach(x=>{
-  if(!x||x.status!=='pago'||String(x.account||'').indexOf('caixa:')!==0)return;
-  const acc=x.account.slice(6);if(!ACCS.some(a=>a.k===acc))return;
-  const day=x.paidDate||x.date||'',amt=r2(x.amount);
-  if(!day||(start&&day<start)||!(amt>0))return;
-  out.push({key:x.id,date:day,ts:String(x.updatedAt||x.createdAt||''),acc,amount:-amt,desc:'Despesa: '+(x.description||'sem descrição'),sub:x.category||''});
+  if(!x||x.status!=='pago')return;
+  // uma despesa pode ter várias formas de pagamento (x.payments); despesas antigas usam x.account
+  const pays=Array.isArray(x.payments)&&x.payments.length?x.payments:[{account:x.account,amount:x.amount}];
+  pays.forEach((p,i)=>{
+   if(String(p.account||'').indexOf('caixa:')!==0)return;
+   const acc=p.account.slice(6);if(!ACCS.some(a=>a.k===acc))return;
+   const day=x.paidDate||x.date||'',amt=r2(p.amount);
+   if(!day||(start&&day<start)||!(amt>0))return;
+   out.push({key:x.id+':'+i,date:day,ts:String(x.updatedAt||x.createdAt||''),acc,amount:-amt,desc:'Despesa: '+(x.description||'sem descrição'),sub:(x.category||'')+(pays.length>1?(x.category?' · ':'')+'pagamento dividido':'')});
+  });
  });
  return out;
 }
