@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=30">
+  <link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -531,8 +531,15 @@
                 <label class="field field-wide">Descrição<input id="finDesc" required maxlength="120" placeholder="Ex.: Aluguel da loja, conta de energia..."></label>
                 <p class="fin-hint field-wide" id="finCatHint"></p>
                 <label class="field">Valor (R$)<input id="finValor" type="text" inputmode="numeric" placeholder="0,00"></label>
-                <label class="field">Forma de pagamento<select id="finForma"></select></label>
-                <label class="field">Saiu de qual conta?<div class="cep-row"><select id="finConta"></select><button class="button button-light" id="finNovaConta" type="button" title="Cadastrar nova conta">＋ Nova</button></div></label>
+                <div class="field field-wide fin-pag" id="finPagBox">
+                  <span>Formas de pagamento e conta de onde saiu</span>
+                  <div id="finPagtos"></div>
+                  <div class="fin-pag-foot">
+                    <button class="button button-light button-small" id="finAddPag" type="button">＋ Outra forma de pagamento</button>
+                    <button class="button button-light button-small" id="finNovaConta" type="button" title="Cadastrar nova conta">＋ Nova conta</button>
+                    <small class="fin-pag-soma" id="finPagSoma"></small>
+                  </div>
+                </div>
                 <label class="field">Situação<select id="finStatus"><option value="pago">Pago</option><option value="pendente">Pendente</option></select></label>
                 <label class="field">Vencimento (opcional)<input id="finVenc" type="date"></label>
                 <label class="field" id="finPagoBox">Data do pagamento<input id="finPago" type="date"></label>
@@ -829,8 +836,8 @@
   <script src="app.js?v=31"></script>
   <script src="modulos.js?v=25"></script>
   <script src="encomendas.js?v=3"></script>
-  <script src="despesas.js?v=4"></script>
-  <script src="caixa.js?v=10"></script>
+  <script src="despesas.js?v=5"></script>
+  <script src="caixa.js?v=11"></script>
   <script src="impostos.js?v=11"></script>
 </body>
 </html>
