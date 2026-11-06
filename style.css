@@ -409,6 +409,15 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 .fin-list-filters{display:grid;grid-template-columns:2fr repeat(3,minmax(0,1fr));gap:12px;padding:0 20px 16px}
 .fin-sub{display:block;color:#8490a3;font-size:10px;margin-top:2px}
 .fin-actions{white-space:nowrap}
+.fin-pag>span{font-size:12px;font-weight:700;color:#536178}
+.fin-pag-row{display:grid;grid-template-columns:1fr 1.4fr minmax(0,.9fr) auto;gap:10px;align-items:end;margin-top:8px;padding:10px;background:#f6f8fc;border-radius:12px}
+.fin-pag-row.single{grid-template-columns:1fr 1.4fr}
+.fin-pag-row.single .pg-vbox,.fin-pag-row.single .pg-rm{display:none}
+.fin-pag-row .button{height:42px;padding:0 12px}
+.fin-pag-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.fin-pag-soma{font-size:11px;color:#8490a3}
+.fin-pag-soma.ok{color:#1b9869}.fin-pag-soma.bad{color:#d74b55;font-weight:700}
+@media(max-width:700px){.fin-pag-row,.fin-pag-row.single{grid-template-columns:1fr}.fin-pag-row .pg-rm{display:block!important}.fin-pag-row.single .pg-rm{display:none!important}}
 .pill.pago{background:#e8f8f0;color:#1b9869}.pill.pendente{background:#fff4e0;color:#b36a05}
 @media(max-width:1000px){.fin-grid-2,.fin-grid-2.fin-grid-even{grid-template-columns:1fr}.fin-list-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.report-filters.fin-filters{grid-template-columns:1fr}.fin-list-filters{grid-template-columns:1fr;padding:0 12px 14px}.fin-card{padding:15px}.fin-heading .button{width:100%}}
