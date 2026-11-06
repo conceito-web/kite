@@ -478,3 +478,6 @@ body[data-ckr-role="usuario"] #encLista [data-enc-act="editar"],body[data-ckr-ro
 .ped-modal-box h3{margin:0 0 4px;font-size:18px}
 .ped-modal-sub{margin:0 0 14px;font-size:13px;color:#637087}
 .ped-modal-prev{font-size:13px;color:#43506a;line-height:1.8;margin:14px 0}
+.report-filters.rel-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.report-filters.rel-filters .button{grid-column:1/-1}
+@media(max-width:1050px){.report-filters.rel-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.report-filters.rel-filters{grid-template-columns:1fr}}
