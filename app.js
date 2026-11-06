@@ -272,9 +272,33 @@ function renderDashboardInsights(){
 }
 function shortMoney(n){const v=Number(n||0);if(v>=1000000)return `R$ ${(v/1000000).toLocaleString('pt-BR',{maximumFractionDigits:1})} mi`;if(v>=1000)return `R$ ${(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} mil`;return `R$ ${Math.round(v).toLocaleString('pt-BR')}`;}
 
+function relNorm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
+function relPayMatch(m,f){
+ if(!f)return true;
+ if(m.type!=='venda')return false;
+ const ps=Array.isArray(m.payments)?m.payments.filter(p=>p&&p.method):[];
+ if(!ps.length)return false;
+ const fab=p=>p.responsible==='fabrica';
+ switch(f){
+  case 'pix':return ps.some(p=>p.method==='Pix');
+  case 'dinheiro':return ps.some(p=>p.method==='Dinheiro');
+  case 'debito':return ps.some(p=>p.method===PM.DEBIT);
+  case 'credito-loja':return ps.some(p=>p.method===PM.CREDIT&&!fab(p));
+  case 'credito-fabrica':return ps.some(p=>p.method===PM.CREDIT&&fab(p));
+  case 'cartao':return ps.some(p=>p.method===PM.DEBIT||p.method===PM.CREDIT||p.method===PM.BLU);
+  case 'blu-loja':return ps.some(p=>p.method===PM.BLU&&!fab(p));
+  case 'blu-fabrica':return ps.some(p=>p.method===PM.BLU&&fab(p));
+  case 'promissoria':return ps.some(p=>p.method===PM.PROM);
+  case 'outras':return ps.some(p=>['Transferência','Boleto','Outro'].includes(p.method));
+  case 'multi':return new Set(ps.map(p=>p.method)).size>1;
+ }
+ return true;
+}
+function relPayText(m){return (m.type==='venda'&&Array.isArray(m.payments)&&m.payments.length)?m.payments.filter(p=>p&&p.method).map(payLabel).join(' + '):'';}
 function getDateReportRows(){
- const start=document.getElementById('relatorioDataInicio').value,end=document.getElementById('relatorioDataFim').value,type=document.getElementById('relatorioTipo').value;
- return data.movements.filter(m=>{const day=localDateKey(m.date);return (!start||day>=start)&&(!end||day<=end)&&(type==='todos'||m.type===type);}).sort((a,b)=>new Date(b.date)-new Date(a.date));
+ const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
+ const start=g('relatorioDataInicio'),end=g('relatorioDataFim'),type=g('relatorioTipo'),prod=relNorm(g('relatorioProduto')),cli=relNorm(g('relatorioCliente')),pay=g('relatorioPagamento');
+ return data.movements.filter(m=>{const day=localDateKey(m.date);return (!start||day>=start)&&(!end||day<=end)&&(type==='todos'||m.type===type)&&(!prod||relNorm(m.productName).includes(prod))&&(!cli||relNorm(m.client).includes(cli))&&relPayMatch(m,pay);}).sort((a,b)=>new Date(b.date)-new Date(a.date));
 }
 function renderDateReport(){
  const rows=getDateReportRows(),sales=rows.filter(m=>m.type==='venda'&&!m.canceled).reduce((s,m)=>s+Number(m.total||0),0),entries=rows.filter(m=>m.type==='entrada').reduce((s,m)=>s+Number(m.total||0),0);
@@ -285,7 +309,7 @@ function renderDateReport(){
    el('relatorioLucro').textContent=money(lucro);el('relatorioLucroNota').textContent=(rec>0?`Margem: ${(lucro/rec*100).toFixed(1).replace('.',',')}%`:'')+(sem>0?`${rec>0?' · ':''}${sem} venda(s) antiga(s) sem custo registrado, fora do cálculo`:'');}}
  el('relatorioTotalVendas').textContent=money(sales);el('relatorioTotalEntradas').textContent=money(entries);el('relatorioQtd').textContent=rows.length;
  const start=el('relatorioDataInicio').value,end=el('relatorioDataFim').value;el('relatorioDescricao').textContent=`${start?new Date(start+'T12:00:00').toLocaleDateString('pt-BR'):'Desde o início'} até ${end?new Date(end+'T12:00:00').toLocaleDateString('pt-BR'):'hoje'} · ${rows.length} registro(s)`;
- el('relatorioRows').innerHTML=rows.map(m=>`<tr><td>${esc(dateText(m.date))}</td><td>${typePill(m)}</td><td><span class="product-name">${esc(m.productName)}</span></td><td>${Number(m.quantity)}</td><td>${money(m.total)}</td><td>${esc([m.client?`Cliente: ${m.client}`:'',m.details||''].filter(Boolean).join(' · ')||'—')}</td></tr>`).join('');el('relatorioVazio').style.display=rows.length?'none':'block';
+ el('relatorioRows').innerHTML=rows.map(m=>`<tr><td>${esc(dateText(m.date))}</td><td>${typePill(m)}</td><td><span class="product-name">${esc(m.productName)}</span></td><td>${Number(m.quantity)}</td><td>${money(m.total)}</td><td>${esc(relPayText(m)||'—')}</td><td>${esc([m.client?`Cliente: ${m.client}`:'',m.details||''].filter(Boolean).join(' · ')||'—')}</td></tr>`).join('');el('relatorioVazio').style.display=rows.length?'none':'block';
 }
 
 let editingCustomerId = null;
@@ -884,8 +908,8 @@ document.getElementById('fazerBackup').addEventListener('click',()=>{if(!documen
 document.getElementById('restaurarBackup').addEventListener('click',async()=>{if(!isAdminRole()){toast('Somente o ADMIN pode restaurar backup.',true);return;}const file=document.getElementById('arquivoBackup').files[0];if(!file){toast('Escolha um arquivo JSON primeiro.',true);return;}if(!confirm('A restauração vai substituir os dados deste dispositivo. Deseja continuar?'))return;try{const imported=JSON.parse(await file.text());if(!Array.isArray(imported.products)||!Array.isArray(imported.movements))throw Error('Formato');for(const p of imported.products){if(!p.id||!String(p.name||'').trim()||!Number.isFinite(Number(p.stock))||Number(p.stock)<0)throw Error('Produto');}data={version:3,products:imported.products,movements:imported.movements,customers:Array.isArray(imported.customers)?imported.customers:[],cashSessions:Array.isArray(imported.cashSessions)?imported.cashSessions:[],xmlImports:Array.isArray(imported.xmlImports)?imported.xmlImports:[],receivables:Array.isArray(imported.receivables)?imported.receivables:[],quotes:Array.isArray(imported.quotes)?imported.quotes:[],preorders:Array.isArray(imported.preorders)?imported.preorders:[],productLinks:(imported.productLinks&&typeof imported.productLinks==='object'&&!Array.isArray(imported.productLinks))?imported.productLinks:{},factoryLedger:Array.isArray(imported.factoryLedger)?imported.factoryLedger:[],factoryOrders:Array.isArray(imported.factoryOrders)?imported.factoryOrders:[],factoryCreditsManual:Array.isArray(imported.factoryCreditsManual)?imported.factoryCreditsManual:[],expenses:Array.isArray(imported.expenses)?imported.expenses:[],taxNotes:Array.isArray(imported.taxNotes)?imported.taxNotes:[],taxCfg:(imported.taxCfg&&typeof imported.taxCfg==='object')?imported.taxCfg:{},taxAdj:(imported.taxAdj&&typeof imported.taxAdj==='object')?imported.taxAdj:{},cashLedger:Array.isArray(imported.cashLedger)?imported.cashLedger:[],cashConfig:(imported.cashConfig&&typeof imported.cashConfig==='object')?imported.cashConfig:{},settings:(imported.settings&&typeof imported.settings==='object')?imported.settings:{}};if(saveData()){window.pfRestore&&pfRestore(imported.productPhotos);document.getElementById('arquivoBackup').value='';resetProductForm();toast('Backup restaurado com sucesso.');}}catch(err){toast('Arquivo inválido ou incompatível com o Conceito Web V2.',true);}});
 document.getElementById('apagarTudo').addEventListener('click',()=>{if(!isAdminRole()){toast('Somente o ADMIN pode apagar os dados.',true);return;}if(!confirm('Isso apagará todos os produtos, clientes, entradas e vendas deste navegador. Continuar?'))return;if(!confirm('Confirme mais uma vez. Só será possível recuperar com backup.'))return;data=emptyData();window.pfClear&&pfClear();if(saveData()){resetProductForm();toast('Dados locais apagados.');}});
 document.getElementById('gerarRelatorio').addEventListener('click',()=>{const a=document.getElementById('relatorioDataInicio').value,b=document.getElementById('relatorioDataFim').value;if(a&&b&&a>b){toast('A data inicial não pode ser posterior à data final.',true);return;}renderDateReport();});
-['relatorioDataInicio','relatorioDataFim','relatorioTipo'].forEach(k=>document.getElementById(k).addEventListener('change',renderDateReport));
-document.getElementById('exportarRelatorioCsv').addEventListener('click',()=>{const rows=getDateReportRows();const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const lines=[['Data e hora','Tipo','Produto','Quantidade','Valor','Cliente','Detalhes'].map(cell).join(';'),...rows.map(m=>[dateText(m.date),m.type==='venda'?(m.canceled?'Venda cancelada':'Venda'):'Entrada',m.productName,m.quantity,Number(m.total||0).toFixed(2).replace('.',','),m.client||'',m.details||''].map(cell).join(';'))];const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`conceito-relatorio-${document.getElementById('relatorioDataInicio').value||'inicio'}-${document.getElementById('relatorioDataFim').value||'hoje'}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);});
+['relatorioDataInicio','relatorioDataFim','relatorioTipo','relatorioPagamento'].forEach(k=>document.getElementById(k).addEventListener('change',renderDateReport));['relatorioProduto','relatorioCliente'].forEach(k=>document.getElementById(k).addEventListener('input',renderDateReport));
+document.getElementById('exportarRelatorioCsv').addEventListener('click',()=>{const rows=getDateReportRows();const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const lines=[['Data e hora','Tipo','Produto','Quantidade','Valor','Pagamento','Cliente','Detalhes'].map(cell).join(';'),...rows.map(m=>[dateText(m.date),m.type==='venda'?(m.canceled?'Venda cancelada':'Venda'):'Entrada',m.productName,m.quantity,Number(m.total||0).toFixed(2).replace('.',','),relPayText(m),m.client||'',m.details||''].map(cell).join(';'))];const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`conceito-relatorio-${document.getElementById('relatorioDataInicio').value||'inicio'}-${document.getElementById('relatorioDataFim').value||'hoje'}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);});
 document.getElementById('imprimirRelatorio').addEventListener('click',()=>{renderDateReport();window.print();});
 // Período padrão: mês atual
 const reportToday=new Date();document.getElementById('relatorioDataInicio').value=`${reportToday.getFullYear()}-${String(reportToday.getMonth()+1).padStart(2,'0')}-01`;document.getElementById('relatorioDataFim').value=localDateKey(reportToday);
