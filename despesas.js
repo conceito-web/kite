@@ -39,13 +39,64 @@ function accountList(){
  const map=new Map();
  DEFAULT_ACCOUNTS.forEach(([b,cs])=>map.set(b,[...cs]));
  const add=v=>{const i=String(v||'').indexOf(SEP);if(i<1)return;const b=v.slice(0,i),c=v.slice(i+SEP.length);if(!map.has(b))map.set(b,[]);if(!map.get(b).includes(c))map.get(b).push(c);};
- (cfg().expenseAccounts||[]).forEach(add);list().forEach(x=>add(x.account));
+ (cfg().expenseAccounts||[]).forEach(add);list().forEach(x=>{add(x.account);(x.payments||[]).forEach(p=>add(p.account));});
  return map;
 }
+function accountOptions(){
+ return '<option value="">Não informar</option><optgroup label="Conceito caixa (desconta do saldo)">'+CAIXA.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('')+'</optgroup>'+[...accountList()].map(([b,cs])=>`<optgroup label="${esc(b)}">${cs.map(c=>`<option value="${esc(b+SEP+c)}">${esc(b)}: ${esc(c)}</option>`).join('')}</optgroup>`).join('');
+}
 function syncAccounts(){
- const sel=$('finConta'),cur=sel.value;
- sel.innerHTML='<option value="">Não informar</option><optgroup label="Conceito caixa (desconta do saldo)">'+CAIXA.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('')+'</optgroup>'+[...accountList()].map(([b,cs])=>`<optgroup label="${esc(b)}">${cs.map(c=>`<option value="${esc(b+SEP+c)}">${esc(b)}: ${esc(c)}</option>`).join('')}</optgroup>`).join('');
- if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+ const opts=accountOptions();
+ document.querySelectorAll('#finPagtos .pg-c').forEach(sel=>{const cur=sel.value;sel.innerHTML=opts;if([...sel.options].some(o=>o.value===cur))sel.value=cur;});
+}
+// ---------- formas de pagamento (uma despesa pode ser paga de várias formas/contas) ----------
+// x.payments = [{method,account,amount}]. Despesas antigas (só x.method/x.account) viram 1 pagamento.
+function payList(x){
+ if(Array.isArray(x.payments)&&x.payments.length)return x.payments;
+ return [{method:x.method||'',account:x.account||'',amount:Number(x.amount||0)}];
+}
+const payRowHtml=()=>`<div class="fin-pag-row"><label class="field">Forma<select class="pg-m">${METHODS.map(m=>`<option>${esc(m)}</option>`).join('')}</select></label><label class="field">Saiu de qual conta?<select class="pg-c">${accountOptions()}</select></label><label class="field pg-vbox">Valor (R$)<input class="pg-v" type="text" inputmode="numeric" placeholder="0,00"></label><button class="button button-light pg-rm" type="button" title="Remover esta forma">✕</button></div>`;
+const fmtIn=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function addPayRow(p){
+ const box=$('finPagtos');box.insertAdjacentHTML('beforeend',payRowHtml());
+ const row=box.lastElementChild;
+ if(p){row.querySelector('.pg-m').value=p.method||METHODS[0];row.querySelector('.pg-c').value=p.account||'';row.querySelector('.pg-v').value=p.amount>0?fmtIn(p.amount):'';}
+ bindMoneyMask(row.querySelector('.pg-v'));
+ return row;
+}
+function setPays(arr){
+ $('finPagtos').innerHTML='';
+ (arr&&arr.length?arr:[{method:METHODS[0],account:'',amount:0}]).forEach(addPayRow);
+ payLayout();
+}
+function payLayout(){
+ const rows=[...document.querySelectorAll('#finPagtos .fin-pag-row')];
+ rows.forEach(r=>r.classList.toggle('single',rows.length===1));
+ paySum();
+}
+function readPays(){
+ return [...document.querySelectorAll('#finPagtos .fin-pag-row')].map(r=>({method:r.querySelector('.pg-m').value,account:r.querySelector('.pg-c').value,amount:r2(parseMoneyInput(r.querySelector('.pg-v').value))}));
+}
+function paySum(){
+ const el=$('finPagSoma'),rows=document.querySelectorAll('#finPagtos .fin-pag-row');
+ if(!el)return;
+ if(rows.length<2){el.textContent='';el.className='fin-pag-soma';return;}
+ const tot=r2(parseMoneyInput($('finValor').value)),sum=r2(readPays().reduce((n,p)=>n+p.amount,0)),dif=r2(tot-sum);
+ if(Math.abs(dif)<0.005){el.textContent=`Soma confere: ${money(sum)}`;el.className='fin-pag-soma ok';}
+ else{el.textContent=dif>0?`Falta distribuir ${money(dif)} (total ${money(tot)})`:`Passou ${money(-dif)} do total ${money(tot)}`;el.className='fin-pag-soma bad';}
+}
+function onAddPay(){
+ const rows=document.querySelectorAll('#finPagtos .fin-pag-row'),tot=r2(parseMoneyInput($('finValor').value));
+ if(rows.length>=6){toast('No máximo 6 formas de pagamento por despesa.',true);return;}
+ const row=addPayRow({method:METHODS[0],account:'',amount:0});
+ if(rows.length===1&&tot>0){   // 1ª vez que divide: metade em cada, ajustável
+  const a=r2(tot/2),first=rows[0].querySelector('.pg-v');first.value=fmtIn(a);row.querySelector('.pg-v').value=fmtIn(r2(tot-a));
+ }
+ payLayout();
+}
+function onPagClick(ev){
+ const b=ev.target.closest('.pg-rm');if(!b)return;
+ b.closest('.fin-pag-row').remove();payLayout();
 }
 function newAccount(){
  if(denied())return;
@@ -54,7 +105,7 @@ function newAccount(){
  const val=v.slice(0,i).trim()+SEP+v.slice(i+1).trim();
  const ex=cfg().expenseAccounts||(cfg().expenseAccounts=[]);
  if(!ex.includes(val))ex.push(val);
- syncAccounts();$('finConta').value=val;saveData();
+ syncAccounts();const rs=[...document.querySelectorAll('#finPagtos .pg-c')],tg=rs.find(s=>!s.value)||rs[rs.length-1];if(tg)tg.value=val;saveData();
 }
 const accLabel=a=>isCaixa(a)?((CAIXA.find(c=>c[0]===a)||[])[1]||a):(a?a.replace(SEP,': '):'');
 const hintOf=c=>(DEFAULT_CATS.find(x=>x[0]===c)||[])[1]||'Categoria criada por você.';
@@ -202,20 +253,25 @@ function filtered(){
  return list().filter(x=>{
   if(!inR(x.date,s,e))return false;
   if(cat&&x.category!==cat)return false;
-  if(forma&&x.method!==forma)return false;
+  if(forma&&!payList(x).some(p=>p.method===forma))return false;
   const sit=statusOf(x,today);
   if(st==='pago'&&sit!=='pago')return false;
   if(st==='pendente'&&sit==='pago')return false;
   if(st==='vencida'&&sit!=='vencida')return false;
-  if(q&&!fold([x.description,x.category,x.method,x.account,x.note].join(' ')).includes(q))return false;
+  if(q&&!fold([x.description,x.category,payList(x).map(p=>p.method+' '+accLabel(p.account)).join(' '),x.note].join(' ')).includes(q))return false;
   return true;
  }).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+}
+function payCell(x){
+ const ps=payList(x),multi=ps.length>1;
+ if(!multi){const p=ps[0];return esc(p.method||'—')+(p.account?`<small class="fin-sub">${esc(accLabel(p.account))}</small>`:'');}
+ return ps.map(p=>`<div>${esc(p.method||'—')} <b>${money(p.amount)}</b>${p.account?`<small class="fin-sub">${esc(accLabel(p.account))}</small>`:''}</div>`).join('');
 }
 function renderList(){
  const rows=filtered(),today=todayISO(),total=r2(rows.reduce((n,x)=>n+Number(x.amount||0),0));
  $('finLista').innerHTML=rows.map(x=>{
   const sit=statusOf(x,today),pill=sit==='pago'?`<span class="pill pago">Pago${x.paidDate?' em '+dayText(x.paidDate):''}</span>`:sit==='vencida'?'<span class="pill vencida">Vencida</span>':'<span class="pill pendente">Pendente</span>';
-  return `<tr><td>${dayText(x.date)}</td><td><span class="fin-dot" style="background:${colorOf(x.category)}"></span>${esc(x.category||'Outras')}</td><td><span class="product-name">${esc(x.description)}</span>${x.recurring?' <small class="fin-muted">↻ recorrente</small>':''}${x.note?`<small class="fin-sub">${esc(x.note)}</small>`:''}</td><td>${esc(x.method||'—')}${x.account?`<small class="fin-sub">${esc(accLabel(x.account))}</small>`:''}</td><td>${dayText(x.dueDate)}</td><td>${pill}</td><td><b>${money(x.amount)}</b></td><td class="fin-actions">${x.status==='pago'?'':`<button type="button" class="row-action" data-fin="pay" data-id="${esc(x.id)}">Pagar</button>`}<button type="button" class="row-action" data-fin="edit" data-id="${esc(x.id)}">Editar</button><button type="button" class="row-action" data-fin="repeat" data-id="${esc(x.id)}" title="Lançar de novo no mês seguinte">Repetir</button><button type="button" class="row-action delete" data-fin="del" data-id="${esc(x.id)}">Excluir</button></td></tr>`;
+  return `<tr><td>${dayText(x.date)}</td><td><span class="fin-dot" style="background:${colorOf(x.category)}"></span>${esc(x.category||'Outras')}</td><td><span class="product-name">${esc(x.description)}</span>${x.recurring?' <small class="fin-muted">↻ recorrente</small>':''}${x.note?`<small class="fin-sub">${esc(x.note)}</small>`:''}</td><td>${payCell(x)}</td><td>${dayText(x.dueDate)}</td><td>${pill}</td><td><b>${money(x.amount)}</b></td><td class="fin-actions">${x.status==='pago'?'':`<button type="button" class="row-action" data-fin="pay" data-id="${esc(x.id)}">Pagar</button>`}<button type="button" class="row-action" data-fin="edit" data-id="${esc(x.id)}">Editar</button><button type="button" class="row-action" data-fin="repeat" data-id="${esc(x.id)}" title="Lançar de novo no mês seguinte">Repetir</button><button type="button" class="row-action delete" data-fin="del" data-id="${esc(x.id)}">Excluir</button></td></tr>`;
  }).join('');
  $('finVazio').style.display=rows.length?'none':'block';
  $('finListaTotal').textContent=`${rows.length} lançamento(s) · total ${money(total)}`;
@@ -245,7 +301,7 @@ function syncForm(){
 function resetForm(){
  editId=null;$('finForm').reset();$('finData').value=todayISO();$('finPago').value='';
  $('finFormTitulo').textContent='Nova despesa';$('finSalvar').textContent='Salvar despesa';$('finFormBadge').textContent='LANÇAMENTO';
- syncAccounts();syncForm();catHint();
+ setPays(null);syncForm();catHint();
 }
 function openForm(){const c=$('finFormCard');c.style.display='';c.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('finDesc').focus({preventScroll:true}),250);}
 function closeForm(){$('finFormCard').style.display='none';resetForm();}
@@ -253,7 +309,7 @@ function fillForm(x){
  editId=x.id;syncCats();
  $('finData').value=x.date||todayISO();$('finCat').value=x.category||'Outras';$('finDesc').value=x.description||'';
  $('finValor').value=Number(x.amount||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
- $('finForma').value=x.method||METHODS[0];syncAccounts();$('finConta').value=x.account||'';$('finStatus').value=x.status||'pendente';$('finVenc').value=x.dueDate||'';$('finPago').value=x.paidDate||'';
+ setPays(payList(x).map(p=>({...p})));$('finStatus').value=x.status||'pendente';$('finVenc').value=x.dueDate||'';$('finPago').value=x.paidDate||'';
  $('finTipo').value=x.recurring?'rec':'avulsa';$('finObs').value=x.note||'';
  $('finFormTitulo').textContent='Editar despesa';$('finSalvar').textContent='Salvar alterações';$('finFormBadge').textContent='EDIÇÃO';
  syncForm();catHint();openForm();
@@ -266,7 +322,16 @@ function save(ev){
  if(!desc){toast('Informe a descrição da despesa.',true);$('finDesc').focus();return;}
  if(!(amount>0)){toast('Informe o valor da despesa.',true);$('finValor').focus();return;}
  const date=$('finData').value||todayISO(),status=$('finStatus').value;
- const rec={date,category:$('finCat').value||'Outras',description:desc,amount,method:$('finForma').value,account:$('finConta').value,status,
+ let pays=readPays();
+ if(pays.length===1)pays[0].amount=amount;
+ else{
+  const blank=pays.filter(p=>!(p.amount>0));
+  if(blank.length===1)blank[0].amount=r2(amount-pays.reduce((n,p)=>n+p.amount,0));   // uma linha vazia recebe o que falta
+  if(pays.some(p=>!(p.amount>0))){toast('Informe o valor de cada forma de pagamento.',true);return;}
+  const soma=r2(pays.reduce((n,p)=>n+p.amount,0));
+  if(Math.abs(soma-amount)>0.004){toast(`A soma das formas de pagamento (${money(soma)}) precisa ser igual ao valor da despesa (${money(amount)}).`,true);return;}
+ }
+ const rec={date,category:$('finCat').value||'Outras',description:desc,amount,payments:pays,method:[...new Set(pays.map(p=>p.method))].join(' + '),account:pays.length===1?pays[0].account:'',status,
   dueDate:$('finVenc').value||'',paidDate:status==='pago'?($('finPago').value||date):'',recurring:$('finTipo').value==='rec',note:$('finObs').value.trim()};
  const now=new Date().toISOString();let msg='Despesa salva.';
  if(editId){
@@ -286,7 +351,7 @@ function onListClick(ev){
  const x=list().find(i=>i.id===b.dataset.id);if(!x)return;
  const act=b.dataset.fin;
  if(act==='edit'){fillForm(x);return;}
- if(act==='pay'){x.status='pago';x.paidDate=todayISO();if(saveData())toast(x.account?'Despesa marcada como paga.':'Despesa marcada como paga. Em Editar, escolha de qual conta saiu para descontar do caixa.');return;}
+ if(act==='pay'){x.status='pago';x.paidDate=todayISO();if(saveData())toast(payList(x).some(p=>p.account)?'Despesa marcada como paga.':'Despesa marcada como paga. Em Editar, escolha de qual conta saiu para descontar do caixa.');return;}
  if(act==='repeat'){
   const c={...x,id:id(),date:addMonths(x.date,1),dueDate:x.dueDate?addMonths(x.dueDate,1):'',status:'pendente',paidDate:'',recurring:true,createdAt:new Date().toISOString()};
   x.recurring=true;list().push(c);if(saveData())toast(`Lançada de novo em ${dayText(c.date)} (pendente).`);return;
@@ -299,7 +364,7 @@ function onListClick(ev){
 function exportCsv(){
  const rows=filtered(),cell=v=>{const s=String(v??'');return /[";\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;},today=todayISO();
  const head=['Data','Categoria','Descrição','Forma de pagamento','Conta de origem','Vencimento','Pagamento','Situação','Valor (R$)','Recorrente','Observação'];
- const lines=[head.join(';')].concat(rows.map(x=>[dayText(x.date),x.category,x.description,x.method,accLabel(x.account),x.dueDate?dayText(x.dueDate):'',x.paidDate?dayText(x.paidDate):'',statusOf(x,today),Number(x.amount||0).toFixed(2).replace('.',','),x.recurring?'Sim':'Não',x.note].map(cell).join(';')));
+ const lines=[head.join(';')].concat(rows.map(x=>[dayText(x.date),x.category,x.description,payList(x).map(p=>p.method+(payList(x).length>1?' '+money(p.amount):'')).join(' + '),payList(x).map(p=>accLabel(p.account)||'—').join(' + '),x.dueDate?dayText(x.dueDate):'',x.paidDate?dayText(x.paidDate):'',statusOf(x,today),Number(x.amount||0).toFixed(2).replace('.',','),x.recurring?'Sim':'Não',x.note].map(cell).join(';')));
  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
  a.href=URL.createObjectURL(blob);a.download=`despesas-${todayISO()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
  toast('Planilha de despesas exportada.');
@@ -308,9 +373,8 @@ function exportCsv(){
 // ---------- ligações ----------
 function init(){
  if(!$('panel-financeiro'))return;
- $('finForma').innerHTML=METHODS.map(m=>`<option>${esc(m)}</option>`).join('');
- $('finFiltroForma').innerHTML='<option value="">Todas as formas</option>'+METHODS.map(m=>`<option>${esc(m)}</option>`).join('');
- syncAccounts();bindMoneyMask($('finValor'));
+  $('finFiltroForma').innerHTML='<option value="">Todas as formas</option>'+METHODS.map(m=>`<option>${esc(m)}</option>`).join('');
+ bindMoneyMask($('finValor'));
  setPreset('mes');resetForm();
  $('finPreset').addEventListener('change',()=>{setPreset($('finPreset').value);render();});
  ['finDe','finAte'].forEach(k=>$(k).addEventListener('change',()=>{$('finPreset').value='custom';render();}));
@@ -318,6 +382,7 @@ function init(){
  $('finBusca').addEventListener('input',renderList);
  $('finNovo').addEventListener('click',()=>{if(denied())return;resetForm();openForm();});
  $('finCancelar').addEventListener('click',closeForm);
+ $('finAddPag').addEventListener('click',onAddPay);$('finPagtos').addEventListener('click',onPagClick);$('finPagtos').addEventListener('input',paySum);$('finValor').addEventListener('input',paySum);
  $('finForm').addEventListener('submit',save);$('finNovaConta').addEventListener('click',newAccount);
  $('finStatus').addEventListener('change',syncForm);$('finTipo').addEventListener('change',syncForm);
  $('finData').addEventListener('change',syncForm);
