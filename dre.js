@@ -101,6 +101,9 @@ function compute(s,e){
   if(Number.isFinite(c)){C.cmv+=c*(1-f);C.cmvCredito+=Number(m.factoryCredit||0);}else C.sem++;
  });
  C.vendasQtd=vendas.size;
+ // receitas de serviços (janela "Serviço"): entram como receita; a taxa do cartão vai para a despesa com taxa de cartão
+ C.servico=0;
+ (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{if(!inR(localDateKey(sv.date),s,e))return;C.servico+=Number(sv.amount||0);C.fee+=Number((sv.payment||{}).fee||0);});
  // despesas lançadas (pela data de competência: a do pagamento, ou a do mês anterior para contas pagas no mês seguinte)
  const L={};LINES.forEach(l=>L[l[0]]=0);const itens=[];
  exps().forEach(x=>{
@@ -111,7 +114,7 @@ function compute(s,e){
  // Simples Nacional (mesmo cálculo do painel Impostos)
  const sn=typeof window.ckrSimplesPeriodo==='function'?window.ckrSimplesPeriodo(s,e):{total:0,meses:[]};
  const R={};
- R.gross=r2(C.gross);R.servico=0;R.rec=R.gross;
+ R.gross=r2(C.gross);R.servico=r2(C.servico);R.rec=r2(R.gross+R.servico);
  R.dev=r2(L.devolucoes);R.simples=r2(sn.total);R.desc=r2(C.desc);R.ded=r2(R.dev+R.simples+R.desc);
  R.liq=r2(R.rec-R.ded);
  R.cmv=r2(C.cmv+C.cmvCredito);R.cmvCredito=r2(C.cmvCredito);
@@ -262,3 +265,5 @@ window.renderAll=function(){baseRender();render();};
 const baseGoTo=window.goTo;
 window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='dre')render();};
 })();
+// Carrega o módulo de receitas de serviços (servicos.js) sem precisar mexer no index.html.
+(function(){const s=document.createElement('script');s.src='servicos.js?v=1';document.body.appendChild(s);})();
