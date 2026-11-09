@@ -285,6 +285,23 @@ function aeDoMes(mes){
   else{const f=faixa(rbt);aliq=f[1];pd=f[2];}
   return rbt>0?Math.max(0,(rbt*aliq/100-pd)/rbt)*100:aliq; // em %
 }
+// Simples Nacional de um período (usado pela DRE): soma o imposto de cada mês que tem notas no período.
+// Mês inteiro dentro do período e com valor ajustado salvo -> usa o ajuste; senão, notas do período × alíquota efetiva do mês.
+window.ckrSimplesPeriodo=function(s,e){
+  const adj=data.taxAdj||{},meses=new Set();
+  const dentro=d=>(!s||d>=s)&&(!e||d<=e);
+  const cheio=mes=>{const y=+mes.slice(0,4),m=+mes.slice(5,7);return dentro(iso(y,m,1))&&dentro(iso(y,m,new Date(y,m,0).getDate()));};
+  notes().forEach(n=>{const d=String(n.date||'');if(dentro(d))meses.add(d.slice(0,7));});
+  Object.keys(adj).forEach(k=>{if(/^\d{4}-\d{2}$/.test(k)&&cheio(k))meses.add(k);});
+  let total=0;const det=[];
+  [...meses].filter(k=>/^\d{4}-\d{2}$/.test(k)).sort().forEach(mes=>{
+    const full=cheio(mes),ajustado=full&&adj[mes]!=null;
+    const base=notes().filter(n=>String(n.date||'').startsWith(mes)&&dentro(String(n.date))).reduce((t,n)=>t+Number(n.value||0),0);
+    const valor=ajustado?round2(adj[mes]):round2(base*aeDoMes(mes)/100);
+    total+=valor;det.push({mes,valor,parcial:!full,ajustado});
+  });
+  return {total:round2(total),meses:det};
+};
 const baseShowProfit=window.showProfitPct;
 // "?" ao lado do Lucro (%): mostra de onde vem o número (custo, imposto, taxa da maquininha).
 const detalhe={};            // por tela: última composição calculada {total,cost,fee,profit,ae}
