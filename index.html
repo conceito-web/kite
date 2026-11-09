@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=33">
+  <link rel="stylesheet" href="style.css?v=34">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -186,7 +186,6 @@
         <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
         <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
         <button class="nav-link" data-panel="financeiro"><span class="nav-icon">$</span> Despesas e lucro <span class="nav-count" id="menuDespesasPend">0</span></button>
-        <button class="nav-link" data-panel="dre"><span class="nav-icon">≣</span> DRE</button>
         <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
         <button class="nav-link" data-panel="impostos"><span class="nav-icon">§</span> Impostos <span class="nav-count" id="menuImpostos">0</span></button>
         <button class="nav-link" data-panel="pedidos"><span class="nav-icon">⊕</span> Pedidos à fábrica <span class="nav-count" id="menuPedidos">0</span></button>
@@ -423,11 +422,27 @@
         <section class="panel" id="panel-relatorios">
           <div class="page-heading"><div><p class="eyebrow">CONSULTAS E RESULTADOS</p><h1>Relatórios</h1><p class="subtitle">Consulte entradas e vendas dentro de um período e exporte os resultados.</p></div></div>
           <section class="surface report-filter-surface">
-            <div class="surface-heading"><div><h2>Relatório por período</h2><p>Escolha a data inicial e final para filtrar as movimentações.</p></div></div>
-            <div class="report-filters">
+            <div class="surface-heading"><div><h2>Relatório por período</h2><p>Escolha o período e, se quiser, filtre por produto, cliente ou forma de pagamento.</p></div></div>
+            <div class="report-filters rel-filters">
               <label class="field">Data inicial<input type="date" id="relatorioDataInicio"></label>
               <label class="field">Data final<input type="date" id="relatorioDataFim"></label>
               <label class="field">Tipo<select id="relatorioTipo"><option value="todos">Entradas e vendas</option><option value="venda">Somente vendas</option><option value="entrada">Somente entradas</option></select></label>
+              <label class="field">Produto<input type="search" id="relatorioProduto" placeholder="Nome do produto" autocomplete="off"></label>
+              <label class="field">Cliente<input type="search" id="relatorioCliente" placeholder="Nome do cliente" autocomplete="off"></label>
+              <label class="field">Forma de pagamento<select id="relatorioPagamento">
+                <option value="">Todas as formas</option>
+                <option value="pix">Pix</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="debito">Cartão de débito</option>
+                <option value="credito-loja">Cartão de crédito (loja)</option>
+                <option value="credito-fabrica">Cartão de crédito (fábrica)</option>
+                <option value="cartao">Qualquer cartão (débito, crédito e Blu)</option>
+                <option value="blu-loja">Link Blu (loja)</option>
+                <option value="blu-fabrica">Link Blu (fábrica)</option>
+                <option value="promissoria">Promissória</option>
+                <option value="outras">Transferência / Boleto / Outro</option>
+                <option value="multi">Mais de uma forma de pagamento</option>
+              </select></label>
               <button id="gerarRelatorio" class="button button-primary" type="button">Gerar relatório</button>
             </div>
           </section>
@@ -439,7 +454,7 @@
           </div>
           <section class="surface list-surface report-results">
             <div class="surface-heading responsive-heading"><div><h2>Resultado do período</h2><p id="relatorioDescricao">Selecione as datas e gere o relatório.</p></div><div class="report-actions"><button id="exportarRelatorioCsv" class="button button-light button-small" type="button">Exportar CSV</button><button id="imprimirRelatorio" class="button button-light button-small" type="button">Imprimir / PDF</button></div></div>
-            <div class="table-wrap"><table><thead><tr><th>DATA E HORA</th><th>TIPO</th><th>PRODUTO</th><th>QTD.</th><th>VALOR</th><th>CLIENTE / DETALHES</th></tr></thead><tbody id="relatorioRows"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA E HORA</th><th>TIPO</th><th>PRODUTO</th><th>QTD.</th><th>VALOR</th><th>PAGAMENTO</th><th>CLIENTE / DETALHES</th></tr></thead><tbody id="relatorioRows"></tbody></table></div>
             <div id="relatorioVazio" class="empty-state"><div class="empty-symbol">▥</div><b>Nenhuma movimentação encontrada</b><p>Altere o período ou o tipo de movimentação.</p></div>
           </section>
         </section>
@@ -562,48 +577,6 @@
             </div>
             <div class="table-wrap"><table><thead><tr><th>DATA</th><th>CATEGORIA</th><th>DESCRIÇÃO</th><th>PAGAMENTO</th><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>AÇÕES</th></tr></thead><tbody id="finLista"></tbody></table></div>
             <div id="finVazio" class="empty-state"><div class="empty-symbol">$</div><b>Nenhuma despesa encontrada</b><p>Use “Nova despesa” para lançar o primeiro gasto ou altere os filtros.</p></div>
-          </section>
-        </section>
-
-        <section class="panel" id="panel-dre">
-          <style>
-            .dre-table{width:100%;border-collapse:collapse}
-            .dre-table th{text-align:left;font-size:11px;letter-spacing:.04em;color:#74839a;padding:10px 12px;border-bottom:1px solid #e3e8f0}
-            .dre-table th:nth-child(n+2){text-align:right}
-            .dre-table td{padding:9px 12px;border-bottom:1px solid #f0f3f8}
-            .dre-num,.dre-pct{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-            .dre-pct{color:#74839a;font-size:12px;width:90px}
-            .dre-head td{background:#f6f8fc;font-weight:800;color:#1d2b42;border-top:1px solid #e3e8f0}
-            .dre-sub td:first-child{padding-left:30px;color:#4a5a73}
-            .dre-sub.dre-zero td{color:#aab4c3}
-            .dre-total td{background:#eef3ff;font-weight:800;color:#1d2b42;font-size:15px;border-top:2px solid #cfdaf5}
-            .dre-avisos p{margin:0 0 6px}.dre-avisos p:last-child{margin:0}
-            .dre-sel{width:100%;min-width:200px;padding:8px 10px;border:1px solid #e3e8f0;border-radius:10px;font:inherit;background:#fff}
-            @media(max-width:640px){.dre-sub td:first-child{padding-left:16px}.dre-table td,.dre-table th{padding:8px 8px}.dre-pct{display:none}.dre-table th:nth-child(3){display:none}}
-          </style>
-          <div class="page-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>DRE</h1><p class="subtitle">Demonstração do resultado do exercício: das vendas brutas até o lucro ou prejuízo do período.</p></div><button class="button button-light" id="dreCsv" type="button">⬇ Exportar CSV</button></div>
-          <section class="surface form-surface">
-            <div class="surface-heading"><div><h2>Período analisado</h2><p id="drePeriodoDesc"></p></div></div>
-            <div class="report-filters fin-filters">
-              <label class="field">Período<select id="drePreset"><option value="mes" selected>Este mês</option><option value="anterior">Mês anterior</option><option value="3m">Últimos 3 meses</option><option value="ano">Este ano</option><option value="tudo">Tudo</option><option value="custom">Personalizado</option></select></label>
-              <label class="field">De<input type="date" id="dreDe"></label>
-              <label class="field">Para<input type="date" id="dreAte"></label>
-            </div>
-          </section>
-          <div class="stats-grid fin-stats">
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">R$</span><span class="stat-label">Receita de vendas</span></div><strong id="dreRec">R$ 0,00</strong><div class="stat-foot" id="dreRecNota"></div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Lucro bruto</span></div><strong id="dreBruto">R$ 0,00</strong><div class="stat-foot" id="dreBrutoNota"></div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">≡</span><span class="stat-label">Lucro operacional</span></div><strong id="dreOper">R$ 0,00</strong><div class="stat-foot" id="dreOperNota"></div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">=</span><span class="stat-label">Lucro/Prejuízo</span></div><strong id="dreRes">R$ 0,00</strong><div class="stat-foot" id="dreResNota"></div></article>
-          </div>
-          <section class="surface list-surface" style="margin-bottom:17px">
-            <div class="surface-heading"><div><h2>Demonstração do resultado</h2><p>A coluna % é sobre a receita de vendas do período.</p></div></div>
-            <div class="table-wrap"><table class="dre-table"><thead><tr><th>DESCRIÇÃO</th><th>VALOR</th><th>% RECEITA</th></tr></thead><tbody id="dreCorpo"></tbody></table></div>
-          </section>
-          <div class="notice"><span class="notice-icon">i</span><div class="dre-avisos" id="dreAvisos"></div></div>
-          <section class="surface list-surface">
-            <div class="surface-heading responsive-heading"><div><h2>Despesas do período e a linha da DRE</h2><p id="dreDespResumo"></p></div></div>
-            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>DESPESA</th><th>VALOR</th><th>LINHA NA DRE</th></tr></thead><tbody id="dreDespLista"></tbody></table></div>
           </section>
         </section>
 
@@ -876,12 +849,11 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=31"></script>
+  <script src="app.js?v=32"></script>
   <script src="modulos.js?v=25"></script>
   <script src="encomendas.js?v=3"></script>
   <script src="despesas.js?v=5"></script>
   <script src="caixa.js?v=11"></script>
-  <script src="impostos.js?v=12"></script>
-  <script src="dre.js?v=1"></script>
+  <script src="impostos.js?v=11"></script>
 </body>
 </html>
