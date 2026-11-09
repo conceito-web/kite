@@ -95,6 +95,13 @@ function autoEntries(){
    if(e){e.label='Encomenda '+String(o.number||0).padStart(4,'0');e.parcs.forEach(x=>{x.label=e.label;});out.push(e);}
   });
  });
+ // receitas de serviços (janela "Serviço" do PDV / Registrar venda): mesmas regras das vendas (dinheiro/Pix na hora, cartão líquido de taxa)
+ (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{
+  if(!sv||!sv.payment)return;
+  const day=localDateKey(sv.date);if(!day||(start&&day<start))return;
+  const e=entryFor('srv-'+sv.id,day,String(sv.createdAt||sv.date||''),sv.client||'',[sv.payment],{});
+  if(e){e.service=true;e.label='Serviço: '+(sv.description||'');e.parcs.forEach(x=>{x.label=e.label;});out.push(e);}
+ });
  return out;
 }
 // Despesas pagas que saem de uma conta do caixa (conta de origem 'caixa:blu' etc.)
@@ -165,7 +172,7 @@ function renderCard(S){
 function rowsAll(S){
  const rows=[];
  S.auto.forEach(a=>{
-  const desc=a.locked?`${a.label}${a.client?' · '+a.client:''}`:`Venda #${String(a.key).slice(-6)}${a.client?' · '+a.client:''}`,lk=a.locked?' · BLOQUEADO até a entrega':'';
+  const desc=(a.locked||a.service)?`${a.label}${a.client?' · '+a.client:''}`:`Venda #${String(a.key).slice(-6)}${a.client?' · '+a.client:''}`,lk=a.locked?' · BLOQUEADO até a entrega':'';
   if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
   if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk});
   if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk});
