@@ -481,3 +481,16 @@ body[data-ckr-role="usuario"] #encLista [data-enc-act="editar"],body[data-ckr-ro
 .report-filters.rel-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.report-filters.rel-filters .button{grid-column:1/-1}
 @media(max-width:1050px){.report-filters.rel-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.report-filters.rel-filters{grid-template-columns:1fr}}
+
+/* ===== DRE ===== */
+.dre-table{width:100%}
+.dre-table th:nth-child(n+2),.dre-table td.dre-num,.dre-table td.dre-pct{text-align:right;white-space:nowrap}
+.dre-table tr.dre-head td{background:#f3f6fb;font-weight:800;color:#1f2a44;border-top:1px solid #e2e8f2}
+.dre-table tr.dre-sub td:first-child{padding-left:30px;color:#445168}
+.dre-table tr.dre-sub.dre-zero td{color:#a3adbd}
+.dre-table tr.dre-total td{background:#eaf0fb;font-weight:800;color:#13213f;border-top:2px solid #c9d6ee;border-bottom:1px solid #c9d6ee}
+.dre-table td.dre-pct{color:#6a7890;font-size:12px}
+.dre-table td.fin-pos{color:#159568}.dre-table td.fin-neg{color:#c0343e}
+.dre-avisos p{margin:0 0 6px;font-size:13px;line-height:1.45}.dre-avisos p:last-child{margin-bottom:0}
+select.dre-sel{max-width:100%;min-height:36px;margin:2px 6px 2px 0;border:1px solid #d0d5dd;border-radius:8px;padding:6px 8px;font:inherit;font-size:12px;background:#fff;color:#1f2a44}
+@media(max-width:600px){.dre-table tr.dre-sub td:first-child{padding-left:16px}}
