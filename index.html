@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=34">
+  <link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -423,27 +423,11 @@
         <section class="panel" id="panel-relatorios">
           <div class="page-heading"><div><p class="eyebrow">CONSULTAS E RESULTADOS</p><h1>Relatórios</h1><p class="subtitle">Consulte entradas e vendas dentro de um período e exporte os resultados.</p></div></div>
           <section class="surface report-filter-surface">
-            <div class="surface-heading"><div><h2>Relatório por período</h2><p>Escolha o período e, se quiser, filtre por produto, cliente ou forma de pagamento.</p></div></div>
-            <div class="report-filters rel-filters">
+            <div class="surface-heading"><div><h2>Relatório por período</h2><p>Escolha a data inicial e final para filtrar as movimentações.</p></div></div>
+            <div class="report-filters">
               <label class="field">Data inicial<input type="date" id="relatorioDataInicio"></label>
               <label class="field">Data final<input type="date" id="relatorioDataFim"></label>
               <label class="field">Tipo<select id="relatorioTipo"><option value="todos">Entradas e vendas</option><option value="venda">Somente vendas</option><option value="entrada">Somente entradas</option></select></label>
-              <label class="field">Produto<input type="search" id="relatorioProduto" placeholder="Nome do produto" autocomplete="off"></label>
-              <label class="field">Cliente<input type="search" id="relatorioCliente" placeholder="Nome do cliente" autocomplete="off"></label>
-              <label class="field">Forma de pagamento<select id="relatorioPagamento">
-                <option value="">Todas as formas</option>
-                <option value="pix">Pix</option>
-                <option value="dinheiro">Dinheiro</option>
-                <option value="debito">Cartão de débito</option>
-                <option value="credito-loja">Cartão de crédito (loja)</option>
-                <option value="credito-fabrica">Cartão de crédito (fábrica)</option>
-                <option value="cartao">Qualquer cartão (débito, crédito e Blu)</option>
-                <option value="blu-loja">Link Blu (loja)</option>
-                <option value="blu-fabrica">Link Blu (fábrica)</option>
-                <option value="promissoria">Promissória</option>
-                <option value="outras">Transferência / Boleto / Outro</option>
-                <option value="multi">Mais de uma forma de pagamento</option>
-              </select></label>
               <button id="gerarRelatorio" class="button button-primary" type="button">Gerar relatório</button>
             </div>
           </section>
@@ -455,7 +439,7 @@
           </div>
           <section class="surface list-surface report-results">
             <div class="surface-heading responsive-heading"><div><h2>Resultado do período</h2><p id="relatorioDescricao">Selecione as datas e gere o relatório.</p></div><div class="report-actions"><button id="exportarRelatorioCsv" class="button button-light button-small" type="button">Exportar CSV</button><button id="imprimirRelatorio" class="button button-light button-small" type="button">Imprimir / PDF</button></div></div>
-            <div class="table-wrap"><table><thead><tr><th>DATA E HORA</th><th>TIPO</th><th>PRODUTO</th><th>QTD.</th><th>VALOR</th><th>PAGAMENTO</th><th>CLIENTE / DETALHES</th></tr></thead><tbody id="relatorioRows"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA E HORA</th><th>TIPO</th><th>PRODUTO</th><th>QTD.</th><th>VALOR</th><th>CLIENTE / DETALHES</th></tr></thead><tbody id="relatorioRows"></tbody></table></div>
             <div id="relatorioVazio" class="empty-state"><div class="empty-symbol">▥</div><b>Nenhuma movimentação encontrada</b><p>Altere o período ou o tipo de movimentação.</p></div>
           </section>
         </section>
@@ -892,12 +876,12 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=32"></script>
+  <script src="app.js?v=31"></script>
   <script src="modulos.js?v=25"></script>
   <script src="encomendas.js?v=3"></script>
   <script src="despesas.js?v=5"></script>
   <script src="caixa.js?v=11"></script>
   <script src="impostos.js?v=12"></script>
-  <script src="dre.js?v=1"></script>
+  <script src="dre.js?v=2"></script>
 </body>
 </html>
