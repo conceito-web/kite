@@ -1,5 +1,6 @@
 'use strict';
 // Conceito: DRE — Demonstração do Resultado do Exercício, por período (De / Para).
+// Competência: despesas pagas no mês seguinte entram no mês anterior (ver DEFER).
 // Fontes: vendas (movimentos 'venda' ativos), Simples Nacional (painel Impostos) e despesas (painel Despesas).
 // Usa as funções e dados do app.js (data, money, saveData, localDateKey, todayISO, esc, fold, toast, PM, ...).
 (function(){
@@ -27,7 +28,7 @@ const LBL=Object.fromEntries(LINES.map(l=>[l[0],l[1]]));
 const GROUPS=[['ded','Deduções'],['vend','Despesas de vendas'],['fixa','Despesas operacionais (fixas)'],['div','Receitas/Despesas diversas'],['x','Outros']];
 // Classificação automática pela categoria + descrição (a ordem importa: o primeiro que casar vale).
 const RULES=[
- ['ignorar',/simples nacional|\bdas\b/],
+ ['ignorar',/\bsimples\b|\bdas\b/],
  ['devolucoes',/devolu/],
  ['descontosConc',/desconto.*conced|conced.*desconto/],
  ['rendimentos',/rendimento|aplicacao|\bcdb\b|renda fixa/],
@@ -59,6 +60,23 @@ function autoLine(x){
 }
 const lineOf=x=>(x.dre&&LBL[x.dre])?x.dre:autoLine(x);
 
+// ---------- competência ----------
+// Despesas lançadas pela data do PAGAMENTO, mas que se referem ao mês anterior (conta de luz, contador, internet...),
+// entram na DRE do mês anterior. Para mudar quais linhas fazem isso, edite a lista abaixo.
+// Em cada despesa dá para escolher manualmente: "Mês do pagamento" ou "Mês anterior".
+const DEFER=['contabeis','telefone','energia','agua','gps','fgtsF','fgtsOp'];
+function prevMonthDate(iso){
+ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso||''));if(!m)return iso;
+ let y=+m[1],mo=+m[2]-1;const dia=+m[3];
+ if(mo<1){mo=12;y--;}
+ const ult=new Date(y,mo,0).getDate();
+ return `${y}-${String(mo).padStart(2,'0')}-${String(Math.min(dia,ult)).padStart(2,'0')}`;
+}
+const compAuto=x=>DEFER.includes(lineOf(x))?'ant':'pag';
+const compMode=x=>(x.dreComp==='ant'||x.dreComp==='pag')?x.dreComp:compAuto(x);
+const compDate=x=>compMode(x)==='ant'?prevMonthDate(x.date):x.date;
+const COMP_LBL={pag:'Mês do pagamento',ant:'Mês anterior'};
+
 // ---------- cálculo ----------
 function compute(s,e){
  const C={gross:0,desc:0,cmv:0,cmvCredito:0,fee:0,sem:0,vendasQtd:0};
@@ -83,11 +101,12 @@ function compute(s,e){
   if(Number.isFinite(c)){C.cmv+=c*(1-f);C.cmvCredito+=Number(m.factoryCredit||0);}else C.sem++;
  });
  C.vendasQtd=vendas.size;
- // despesas lançadas (por data da despesa, igual ao painel Despesas)
+ // despesas lançadas (pela data de competência: a do pagamento, ou a do mês anterior para contas pagas no mês seguinte)
  const L={};LINES.forEach(l=>L[l[0]]=0);const itens=[];
  exps().forEach(x=>{
-  if(!inR(x.date,s,e))return;
-  const k=lineOf(x),v=Number(x.amount||0);L[k]+=v;itens.push({x,k,v});
+  const cd=compDate(x);
+  if(!inR(cd,s,e))return;
+  const k=lineOf(x),v=Number(x.amount||0);L[k]+=v;itens.push({x,k,v,cd});
  });
  // Simples Nacional (mesmo cálculo do painel Impostos)
  const sn=typeof window.ckrSimplesPeriodo==='function'?window.ckrSimplesPeriodo(s,e):{total:0,meses:[]};
@@ -178,23 +197,26 @@ function renderAvisos(R,s,e){
  if(R.rec>0&&R.simples===0)av.push('Nenhum Simples Nacional apurado neste período. Ele vem das notas registradas em Impostos; sem notas no período, a linha fica zerada.');
  else if(R.simples>0)av.push(`Simples Nacional calculado pelo painel Impostos: ${R.meses.map(m=>`${m.mes.slice(5)}/${m.mes.slice(0,4)} ${money(m.valor)}${m.parcial?' (parcial)':''}${m.ajustado?' (ajustado)':''}`).join(' · ')}.`);
  if(R.ignorado>0)av.push(`${money(R.ignorado)} em despesas marcadas como “Não entra na DRE” (ex.: DAS/Simples lançado como despesa, para não descontar duas vezes).`);
+ av.push('Contas pagas no mês seguinte (contador, internet, luz, água, GPS, FGTS) entram no mês anterior; dá para ajustar em cada despesa na lista abaixo. Por isso o mês atual pode mostrar essas contas zeradas até o pagamento ser lançado.');
  av.push('Devoluções, comissões, frete, salários, FGTS e as demais linhas vêm das despesas lançadas. Confira na lista abaixo em qual linha cada despesa caiu.');
  $('dreAvisos').innerHTML=av.map(t=>`<p>${esc(t)}</p>`).join('');
- $('drePeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · vendas pela data da venda, despesas pela data do lançamento.`;
+ $('drePeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · vendas e Simples pelo mês da venda/nota (competência); despesas pelo mês a que se referem.`;
 }
 function groupedOptions(){
  return GROUPS.map(([g,n])=>`<optgroup label="${esc(n)}">${LINES.filter(l=>l[2]===g).map(l=>`<option value="${l[0]}">${esc(l[1])}</option>`).join('')}</optgroup>`).join('');
 }
 function renderClassif(R){
  const opts=groupedOptions();
- const itens=R.itens.slice().sort((a,b)=>String(b.x.date).localeCompare(String(a.x.date)));
- $('dreDespLista').innerHTML=itens.map(({x,k,v})=>{
+ const itens=R.itens.slice().sort((a,b)=>String(b.cd).localeCompare(String(a.cd)));
+ $('dreDespLista').innerHTML=itens.map(({x,k,v,cd})=>{
   const manual=!!(x.dre&&LBL[x.dre]);
-  return `<tr><td>${dayText(x.date)}</td><td>${esc(x.description||'')}<small class="fin-sub">${esc(x.category||'Outras')}</small></td><td><b>${money(v)}</b></td><td><select class="dre-sel" data-dre-id="${esc(x.id)}"><option value="">Automático: ${esc(LBL[autoLine(x)])}</option>${opts}</select>${manual?'':''}</td></tr>`;
+  const comp=`${cd.slice(5,7)}/${cd.slice(0,4)}`;
+  return `<tr><td>${dayText(x.date)}<small class="fin-sub">Competência ${comp}</small></td><td>${esc(x.description||'')}<small class="fin-sub">${esc(x.category||'Outras')}</small></td><td><b>${money(v)}</b></td><td><select class="dre-sel" data-dre-id="${esc(x.id)}"><option value="">Automático: ${esc(LBL[autoLine(x)])}</option>${opts}</select><select class="dre-sel dre-comp" data-dre-id="${esc(x.id)}" title="Em qual mês a despesa entra na DRE"><option value="">Competência automática: ${COMP_LBL[compAuto(x)]}</option><option value="pag">${COMP_LBL.pag}</option><option value="ant">${COMP_LBL.ant}</option></select></td></tr>`;
  }).join('')||'<tr><td colspan="4" class="cart-empty">Nenhuma despesa lançada neste período.</td></tr>';
  $('dreDespLista').querySelectorAll('select.dre-sel').forEach(sel=>{
   const x=exps().find(i=>i.id===sel.dataset.dreId);
-  sel.value=x&&x.dre&&LBL[x.dre]?x.dre:'';
+  if(sel.classList.contains('dre-comp'))sel.value=x&&(x.dreComp==='ant'||x.dreComp==='pag')?x.dreComp:'';
+  else sel.value=x&&x.dre&&LBL[x.dre]?x.dre:'';
  });
  $('dreDespResumo').textContent=`${itens.length} despesa(s) no período · total ${money(itens.reduce((n,i)=>n+i.v,0))}`;
 }
@@ -225,9 +247,11 @@ function init(){
  $('dreDespLista').addEventListener('change',ev=>{
   const sel=ev.target.closest('select.dre-sel');if(!sel||!hasFullAccess())return;
   const x=exps().find(i=>i.id===sel.dataset.dreId);if(!x)return;
-  if(sel.value)x.dre=sel.value;else delete x.dre;
+  const comp=sel.classList.contains('dre-comp');
+  if(comp){if(sel.value)x.dreComp=sel.value;else delete x.dreComp;}
+  else{if(sel.value)x.dre=sel.value;else delete x.dre;}
   sel.blur();
-  if(saveData())toast('Linha da DRE atualizada.');
+  if(saveData())toast(comp?'Competência da despesa atualizada.':'Linha da DRE atualizada.');
  });
 }
 init();
@@ -238,4 +262,3 @@ window.renderAll=function(){baseRender();render();};
 const baseGoTo=window.goTo;
 window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='dre')render();};
 })();
-
