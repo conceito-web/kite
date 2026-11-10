@@ -58,7 +58,7 @@ function entryFor(k,day,ts,client,payments,opt){
   if(p.method===CASH){cash+=amt;return;}
   if(p.method===PIX){pix+=amt;return;}
   if(!card)return;
-  if((p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica'){fab+=amt-Number(p.factoryCredit||0);fcr+=Number(p.factoryCredit||0);return;}
+  if((p.method===PM.CREDIT||p.method===PM.BLU||p.method===PM.DEBIT)&&p.responsible==='fabrica'){fab+=amt-Number(p.factoryCredit||0);fcr+=Number(p.factoryCredit||0);return;}
   // cartão loja / débito: valor líquido (sem taxa) dividido em parcelas, cada uma com sua data de entrada
   const deb=p.method===PM.DEBIT,n=deb?1:Math.max(1,Math.min(60,Math.floor(Number(p.installments)||1))),net=r2(amt-Number(p.fee||0));
   if(!(net>0))return;
@@ -148,9 +148,10 @@ function balances(){
 // Saldo disponivel do credito com a fabrica (leitura; nao entra no saldo total)
 function fabSaldo(){
  const sales=r2((data.movements||[]).filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0));
+ const sv=typeof window.ckrServicoCredito==='function'?window.ckrServicoCredito():0;   // crédito com a fábrica dos serviços
  const man=r2((data.factoryCreditsManual||[]).reduce((x,e)=>x+Number(e.amount||0),0));
  const used=r2((data.factoryLedger||[]).reduce((x,e)=>x+Number(e.amount||0),0));
- return r2(sales+man-used);
+ return r2(sales+sv+man-used);
 }
 // ---------- tela ----------
 function renderCard(S){
