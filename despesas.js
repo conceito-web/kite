@@ -133,7 +133,7 @@ function calc(s,e){
   const t=Number(m.total||0);vendas+=t;sales.add(m.saleId||m.id);
   const p=profitOf(m);if(Number.isFinite(p)){bruto+=p;rec+=t;}else sem++;
  });
- // receitas de serviços: entram em vendas e no lucro bruto (valor − taxa do cartão; serviço não tem custo de produto)
+ // receitas de serviços: entram em vendas e no lucro bruto (valor − taxa do cartão; serviço não tem custo, mesmo se pago pela fábrica)
  (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{if(!inR(localDateKey(sv.date),s,e))return;const t=Number(sv.amount||0);vendas+=t;rec+=t;bruto+=t-Number((sv.payment||{}).fee||0);});
  let desp=0,pagas=0,pend=0,venc=0,qtd=0;const byCat={},today=todayISO();
  list().forEach(x=>{
