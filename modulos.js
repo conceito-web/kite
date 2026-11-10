@@ -562,7 +562,7 @@ const ledger=()=>data.factoryLedger||(data.factoryLedger=[]);
 const manual=()=>data.factoryCreditsManual||(data.factoryCreditsManual=[]);
 const orders=()=>data.factoryOrders||(data.factoryOrders=[]);
 function factoryStats(){
- const sales=r2(data.movements.filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0)),man=r2(manual().reduce((x,e)=>x+Number(e.amount||0),0));
+ const sales=r2(data.movements.filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0)+(typeof window.ckrServicoCredito==='function'?window.ckrServicoCredito():0)),man=r2(manual().reduce((x,e)=>x+Number(e.amount||0),0));
  const acc=r2(sales+man),used=r2(ledger().reduce((x,e)=>x+Number(e.amount||0),0));
  return {sales,man,acc,used,bal:r2(acc-used)};
 }
@@ -600,6 +600,7 @@ function creditRows(){
   const base={...x,credit:r2(x.credit),total:r2(x.total),text:`Venda ${x.key} · ${x.client||'sem cliente'} · total ${money(x.total)} · ${x.payments.map(payLabel).join(' | ')}`};
   if(base.credit>0.004)rows.push(base);else if(card)rows.push({...base,noCredit:true});
  });
+ (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{const c=r2(Number((sv.payment||{}).factoryCredit||0));if(c>0.004)rows.push({kind:'venda',key:sv.id,date:sv.date,credit:c,text:`Serviço · ${sv.description||''} · ${sv.client||'sem cliente'} · total ${money(sv.amount)} · ${payLabel(sv.payment)}`});});
  manual().forEach(e=>rows.push({kind:'manual',key:e.id,date:e.date,credit:Number(e.amount),text:`${e.note||'Crédito lançado manualmente'}${e.by?' · por '+e.by:''}`}));
  return rows.sort((a,b)=>new Date(b.date)-new Date(a.date));
 }
