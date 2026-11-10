@@ -86,7 +86,7 @@ function compute(s,e){
   if(m.type!=='venda'||m.canceled)return;
   const k=m.saleId||m.id,o=bySale.get(k)||{total:0,fab:0,seen:false};
   o.total+=Number(m.total||0);
-  if(!o.seen){o.seen=true;o.fab=(Array.isArray(m.payments)?m.payments:[]).filter(p=>(p.method===PM.CREDIT||p.method===PM.BLU)&&p.responsible==='fabrica').reduce((n,p)=>n+Number(p.amount||0),0);}
+  if(!o.seen){o.seen=true;o.fab=(Array.isArray(m.payments)?m.payments:[]).filter(p=>(p.method===PM.CREDIT||p.method===PM.BLU||p.method===PM.DEBIT)&&p.responsible==='fabrica').reduce((n,p)=>n+Number(p.amount||0),0);}
   bySale.set(k,o);
  });
  const vendas=new Set();
@@ -103,7 +103,7 @@ function compute(s,e){
  C.vendasQtd=vendas.size;
  // receitas de serviços (janela "Serviço"): entram como receita; a taxa do cartão vai para a despesa com taxa de cartão
  C.servico=0;
- (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{if(!inR(localDateKey(sv.date),s,e))return;C.servico+=Number(sv.amount||0);C.fee+=Number((sv.payment||{}).fee||0);});
+ (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{if(!inR(localDateKey(sv.date),s,e))return;C.servico+=Number(sv.amount||0);C.fee+=Number((sv.payment||{}).fee||0);});   // serviço não tem CMV: mesmo pago pela fábrica, o crédito com a fábrica não entra no CMV
  // despesas lançadas (pela data de competência: a do pagamento, ou a do mês anterior para contas pagas no mês seguinte)
  const L={};LINES.forEach(l=>L[l[0]]=0);const itens=[];
  exps().forEach(x=>{
@@ -266,4 +266,4 @@ const baseGoTo=window.goTo;
 window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='dre')render();};
 })();
 // Carrega o módulo de receitas de serviços (servicos.js) sem precisar mexer no index.html.
-(function(){const s=document.createElement('script');s.src='servicos.js?v=1';document.body.appendChild(s);})();
+(function(){const s=document.createElement('script');s.src='servicos.js?v=2';document.body.appendChild(s);})();
