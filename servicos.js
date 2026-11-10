@@ -3,9 +3,9 @@
 // Um quadradinho "Serviço" ao lado do "Lucro (%)" (no PDV e em Registrar venda) abre uma janela para cadastrar uma receita de serviço:
 // descrição, cliente (opcional), data, valor e forma de pagamento. Não mexe no estoque nem no carrinho da venda.
 // Onde o serviço entra:
-//   • Caixa: segue as mesmas regras das vendas (dinheiro e Pix entram na hora; cartão entra líquido da taxa, parcela por parcela).
+//   • Caixa: segue as mesmas regras das vendas (dinheiro e Pix entram na hora; cartão loja/débito entra líquido da taxa; cartão/Blu/débito pela fábrica: 60% vira crédito com a fábrica e 40% entra no Caixa BLU).
 //   • DRE: linha "Venda de serviço" (e a taxa do cartão entra em "Despesa com taxa de cartão").
-//   • Despesas e lucro: lucro do serviço = valor − taxa do cartão (serviço não tem custo de produto).
+//   • Despesas e lucro: lucro do serviço = valor − taxa do cartão (serviço não tem custo, mesmo se pago pela fábrica).
 // Os serviços ficam guardados em data.cashConfig.servicos (assim o backup e a restauração já os preservam).
 // Usa funções do app.js (data, saveData, id, esc, money, parseMoneyInput, bindMoneyMask, toast, todayISO, localDateKey, brDate, PM, PAY_METHODS,
 // payExtraHtml, readPayExtra, syncPayExtra, validatePayments, enrichPayment, payLabel, hasFullAccess, currentUserName).
@@ -14,6 +14,8 @@ const $=x=>document.getElementById(x), r2=n=>Math.round(Number(n||0)*100)/100;
 const list=()=>{const c=data.cashConfig||(data.cashConfig={});return Array.isArray(c.servicos)?c.servicos:(c.servicos=[]);};
 // Lista usada pelo Caixa, pelo DRE e por Despesas e lucro.
 window.ckrServicos=()=>list().filter(s=>s&&Number(s.amount)>0);
+// Crédito com a fábrica gerado pelos serviços pagos "pela fábrica" (entra no saldo de crédito com a fábrica).
+window.ckrServicoCredito=()=>r2(window.ckrServicos().reduce((n,s)=>n+Number((s.payment||{}).factoryCredit||0),0));
 const METHODS=PAY_METHODS.filter(m=>m!==PM.PROM);   // promissória exige cliente e controle de parcelas: fica só nas vendas
 
 const CSS=`
@@ -62,12 +64,9 @@ function build(){
  $('svcLista').addEventListener('click',e=>{const b=e.target.closest('[data-svc-del]');if(b)excluir(b.dataset.svcDel);});
 }
 
-// Mostra/oculta bandeira, parcelas etc. conforme a forma de pagamento (mesmas regras das vendas). Serviço é sempre "pela loja".
+// Mostra/oculta bandeira, parcelas, "pela loja / pela fábrica" etc. conforme a forma de pagamento (mesmas regras das vendas).
 function sync(){
- const box=$('svcExtra'),resp=box.querySelector('.pagamentoResponsavel');
- resp.value='loja';
- syncPayExtra(box,$('svcForma').value,r2(parseMoneyInput($('svcValor').value)));
- resp.closest('label').hidden=true;
+ syncPayExtra($('svcExtra'),$('svcForma').value,r2(parseMoneyInput($('svcValor').value)));
 }
 
 function dateISO(v){
