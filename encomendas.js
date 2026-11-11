@@ -258,6 +258,14 @@ $('encLista').addEventListener('click',e=>{
 $('vendaEncomenda').addEventListener('change',()=>sync());
 $('cancelarEncVenda').addEventListener('click',()=>{pending=null;sync();toast('Encomenda desvinculada. O carrinho continua como está.');});
 
+// Usado pelo extrato do Caixa: abre a encomenda em aberto para edição.
+window.ckrEncomendaEdit=function(eid){
+ if(!hasFullAccess()){toast('Seu perfil não tem permissão para editar encomendas.',true);return;}
+ const o=list().find(x=>x.id===eid);if(!o){toast('Encomenda não encontrada.',true);return;}
+ if(o.status!=='aberta'){toast('Esta encomenda já foi entregue ou cancelada. Edite a venda gerada.',true);return;}
+ load(o,false);
+};
+
 // ---------- integração ----------
 const baseRenderAll=window.renderAll;
 window.renderAll=function(){baseRenderAll();render();try{sync(true);}catch(_){}};
