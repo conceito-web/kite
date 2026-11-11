@@ -46,13 +46,13 @@ function ensureStart(){
 
 // ---------- entradas automáticas (vendas no cartão, dinheiro, Pix e encomendas) ----------
 // REGRA DO 1º DIA ÚTIL: venda no CARTÃO (Registrar venda e PDV) só entra no Caixa no 1º dia útil (seg–sex) depois da venda; dinheiro e Pix entram na hora.
-// ENCOMENDA aberta: o que o cliente já pagou (qualquer forma) entra no Caixa no 1º dia útil, mas fica BLOQUEADO até a entrega.
+// ENCOMENDA aberta: o que o cliente já pagou entra no Caixa com as mesmas regras das vendas (dinheiro/Pix na hora; cartão no 1º dia útil; fábrica 60% crédito / 40% Caixa BLU) e JÁ PODE SER USADO. Só não baixa estoque.
 function entryFor(k,day,ts,client,payments,opt){
  const hoje=todayISO(),ov=conf().parcelas||{},dFab=nextBiz(day),dNon=opt.locked?dFab:day;
  let fab=0,cash=0,pix=0,fcr=0;const parcs=[];
  payments.forEach((p,pi)=>{
   if(!p)return;
-  if(opt.locked&&p.fee==null&&typeof enrichPayment==='function')p=enrichPayment(p);
+  if((opt.locked||opt.enc)&&p.fee==null&&typeof enrichPayment==='function')p=enrichPayment(p);
   const amt=Number(p.amount||0),card=isCard(p.method),eff=card?dFab:dNon;
   if(eff>hoje)return;   // ainda não chegou o 1º dia útil: não entra no sistema
   if(p.method===CASH){cash+=amt;return;}
@@ -81,9 +81,15 @@ function autoEntries(){
   const k=m.saleId||m.id;if(!first.has(k))first.set(k,m);   // os pagamentos ficam repetidos em cada item da venda: conta uma vez só
  });
  first.forEach((m,k)=>{
-  const day=localDateKey(m.date);if(!day||(start&&day<start))return;
-  const e=entryFor(k,day,String(m.date||''),m.client||'',m.payments||[],{});
-  if(e)out.push(e);
+  const day=localDateKey(m.date);if(!day)return;
+  // Sinal de encomenda entregue: o pagamento mantém a data em que o cliente pagou (paidDate), não a data da entrega.
+  const pays=m.payments||[],dayOf=p=>{const d=p&&p.paidDate;return(/^\d{4}-\d{2}-\d{2}$/.test(d||'')&&d<day)?d:day;};
+  const days=[...new Set(pays.map(dayOf))];if(!days.length)days.push(day);
+  days.forEach(d=>{
+   if(start&&d<start)return;
+   const e=entryFor(d===day?k:k+'@'+d,d,String(m.date||''),m.client||'',pays.map(p=>dayOf(p)===d?p:null),{});   // null mantém o índice do pagamento (chave das parcelas)
+   if(e)out.push(e);
+  });
  });
  // encomendas em aberto: pagamentos recebidos entram no 1º dia útil, bloqueados até a entrega
  (data.preorders||[]).forEach(o=>{
@@ -91,8 +97,8 @@ function autoEntries(){
   (o.payments||[]).forEach((p,pi)=>{
    if(!p||!(Number(p.amount)>0))return;
    const day=localDateKey(p.date)||localDateKey(o.date);if(!day||(start&&day<start))return;
-   const e=entryFor('enc-'+o.id+'-'+pi,day,String(p.date||o.createdAt||''),o.client||'',[p],{locked:true});
-   if(e){e.label='Encomenda '+String(o.number||0).padStart(4,'0');e.parcs.forEach(x=>{x.label=e.label;});out.push(e);}
+   const e=entryFor('enc-'+o.id+'-'+pi,day,String(p.date||o.createdAt||''),o.client||'',[p],{enc:true});
+   if(e){e.enc=true;e.label='Encomenda '+String(o.number||0).padStart(4,'0');e.parcs.forEach(x=>{x.label=e.label;});out.push(e);}
   });
  });
  // receitas de serviços (janela "Serviço" do PDV / Registrar venda): mesmas regras das vendas (dinheiro/Pix na hora, cartão líquido de taxa)
@@ -145,13 +151,18 @@ function balances(){
  return {b,lock,lockRows,lockFab:r2(lockFab),lockFabRows,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda)};
 }
 
+// Crédito com a fábrica das encomendas abertas (já pagas pelo cliente, produto ainda não entregue): já é saldo utilizável.
+function encCreditos(){return autoEntries().filter(a=>a.enc&&Number(a.fcr)>0.004).map(a=>({key:a.key,date:a.date,client:a.client,label:a.label,credit:r2(a.fcr)}));}
+window.ckrEncomendaCreditos=encCreditos;
+window.ckrEncomendaCredito=()=>r2(encCreditos().reduce((n,x)=>n+x.credit,0));
 // Saldo disponivel do credito com a fabrica (leitura; nao entra no saldo total)
 function fabSaldo(){
  const sales=r2((data.movements||[]).filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0));
  const sv=typeof window.ckrServicoCredito==='function'?window.ckrServicoCredito():0;   // crédito com a fábrica dos serviços
  const man=r2((data.factoryCreditsManual||[]).reduce((x,e)=>x+Number(e.amount||0),0));
  const used=r2((data.factoryLedger||[]).reduce((x,e)=>x+Number(e.amount||0),0));
- return r2(sales+sv+man-used);
+ const enc=window.ckrEncomendaCredito();   // crédito das encomendas abertas
+ return r2(sales+sv+enc+man-used);
 }
 // ---------- tela ----------
 function renderCard(S){
@@ -168,12 +179,12 @@ function renderCard(S){
   return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button><button type="button" class="row-action" data-cx="extrato" data-acc="${a.k}">Extrato</button>${lk>0.004?`<button type="button" class="row-action" data-cx="lock" data-acc="${a.k}">⚠ ${money(lk)} de encomenda · saiba mais</button>`:''}</div></div>`;
  }).join('')+(()=>{const fs=fabSaldo();return `<div class="cx-acc"><div class="cx-acc-top"><div><b>Crédito com a fábrica</b><small>Saldo disponível · não entra no saldo total</small></div><strong class="${fs<0?'cx-neg':''}">${signed(fs)}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="extratofab">Extrato</button>${S.lockFab>0.004?`<button type="button" class="row-action" data-cx="lockfab">⚠ ${money(S.lockFab)} de encomenda · saiba mais</button>`:''}</div></div>`;})();
  const fabPct=100-getSettings().factoryCreditPct;
- $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Regra do 1º dia útil:</b> vendas no cartão (Registrar venda e PDV) só entram aqui no 1º dia útil (seg–sex) depois da venda; o que o cliente já pagou numa <b>encomenda</b> também entra no 1º dia útil, mas fica <b>bloqueado</b> (botão ⚠ na conta) até a entrega. <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
+ $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Regra do 1º dia útil:</b> vendas no cartão (Registrar venda e PDV) só entram aqui no 1º dia útil (seg–sex) depois da venda; o que o cliente já pagou numa <b>encomenda</b> segue a mesma regra e já pode ser usado (a encomenda só não baixa estoque até a entrega). <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
 }
 function rowsAll(S){
  const rows=[];
  S.auto.forEach(a=>{
-  const desc=(a.locked||a.service)?`${a.label}${a.client?' · '+a.client:''}`:`Venda #${String(a.key).slice(-6)}${a.client?' · '+a.client:''}`,lk=a.locked?' · BLOQUEADO até a entrega':'';
+  const desc=(a.locked||a.service||a.enc)?`${a.label}${a.client?' · '+a.client:''}`:`Venda #${String(a.key).split('@')[0].slice(-6)}${a.client?' · '+a.client:''}`,lk=a.locked?' · BLOQUEADO até a entrega':(a.enc?' · encomenda (ainda não entregue)':'');
   if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
   if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk});
   if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk});
@@ -229,7 +240,7 @@ function renderAgenda(S){
  const list=(f==='pend'?pend:f==='rec'?rec:S.parcs.slice()).sort((x,y)=>f==='rec'?String(y.date).localeCompare(String(x.date)):String(x.date).localeCompare(String(y.date))).slice(0,300);
  $('cxAgLinhas').innerHTML=list.map(p=>`<tr>
   <td><input type="date" value="${esc(p.date)}" data-pdate="${esc(p.pkey)}" ${INP}></td>
-  <td><span class="product-name">${p.label?esc(p.label):'Venda #'+esc(String(p.saleKey).slice(-6))}${p.client?' · '+esc(p.client):''}</span><small class="fin-sub">${p.label?'paga':'vendida'} em ${dayText(p.saleDay)} · ${esc(p.method)}${p.locked?' · bloqueado até a entrega':''}</small></td>
+  <td><span class="product-name">${p.label?esc(p.label):'Venda #'+esc(String(p.saleKey).split('@')[0].slice(-6))}${p.client?' · '+esc(p.client):''}</span><small class="fin-sub">${p.label?'paga':'vendida'} em ${dayText(p.saleDay)} · ${esc(p.method)}${p.locked?' · bloqueado até a entrega':''}</small></td>
   <td>${p.i}/${p.n}</td>
   <td><input type="text" inputmode="decimal" value="${fmtIn(p.amount)}" data-pamt="${esc(p.pkey)}" style="width:110px;padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px"></td>
   <td>${p.due?'<span class="pill" style="background:#e8f7f0;color:#1b9869">Entrou no Caixa BLU</span>':'<span class="pill cxauto">A receber</span>'}${p.edited?'<small class="fin-sub">editada por você</small>':''}</td>
@@ -410,7 +421,8 @@ function showExtratoFab(){
   if(!x){x={key:k,date:mv.date,client:mv.client||'',credit:0};vendas.set(k,x);}
   x.credit+=Number(mv.factoryCredit||0);
  });
- vendas.forEach(x=>{const v=r2(x.credit);if(v>0.004)rows.push({date:x.date,amount:v,cat:'Venda no cartão fábrica',desc:`Venda #${String(x.key).slice(-6)}${x.client?' · '+x.client:''}`,sub:''});});
+ vendas.forEach(x=>{const v=r2(x.credit);if(v>0.004)rows.push({date:x.date,amount:v,cat:'Venda no cartão fábrica',desc:`Venda #${String(x.key).split('@')[0].slice(-6)}${x.client?' · '+x.client:''}`,sub:''});});
+ encCreditos().forEach(x=>rows.push({date:x.date,amount:x.credit,cat:'Encomenda (cartão fábrica)',desc:x.label+(x.client?' · '+x.client:''),sub:'produto ainda não entregue'}));
  (data.factoryCreditsManual||[]).forEach(e=>rows.push({date:e.date,amount:Number(e.amount||0),cat:'Crédito lançado manualmente',desc:e.note||'Crédito lançado manualmente',sub:e.by?'por '+e.by:''}));
  (data.factoryLedger||[]).forEach(e=>rows.push({date:e.date,amount:-Number(e.amount||0),cat:e.orderId?'Uso em pedido à fábrica':'Uso de crédito',desc:e.note||'Uso de crédito',sub:e.by?'por '+e.by:''}));
  const saldo=fabSaldo(),S=balances(),cls=v=>v<0?'cx-neg':'cx-pos';
