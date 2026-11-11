@@ -613,7 +613,7 @@ function addPaymentRow(){
  updatePaymentRow(row);updatePaymentSummary();return row;
 }
 function readPayments(){
- return [...document.querySelectorAll('.payment-row')].map(row=>{const method=row.querySelector('.pagamentoMetodo').value,amount=round2(parseMoneyInput(row.querySelector('.pagamentoValor').value));return readPayExtra(row.querySelector('.payment-card-options'),method,amount);}).filter(x=>x.method||x.amount>0);
+ return [...document.querySelectorAll('.payment-row')].map(row=>{const method=row.querySelector('.pagamentoMetodo').value,amount=round2(parseMoneyInput(row.querySelector('.pagamentoValor').value));const px=readPayExtra(row.querySelector('.payment-card-options'),method,amount);if(row.dataset.paidDate)px.paidDate=row.dataset.paidDate;return px;}).filter(x=>x.method||x.amount>0);   // paidDate: data em que o cliente realmente pagou (sinal de encomenda)
 }
 // Lucro % da venda (só exibição): mesmo cálculo do lucro gravado (custo PEPS + taxas), dividido pelo total com desconto.
 function saleProfitPct(lines,total,payments,restoreMovs){ window.saleProfitDetail=null;
@@ -865,6 +865,7 @@ function startSaleEdit(saleId){
   row.querySelector('.pagamentoBandeira').value=pm.brand||'vm';
   row.querySelector('.pagamentoVencimento').value=pm.dueDate||'';
   row.querySelector('.pagamentoExtendido').checked=pm.extended!==false;
+  if(pm.paidDate)row.dataset.paidDate=pm.paidDate;
   updatePaymentRow(row);
  });
  document.getElementById('vendaEdicaoTitulo').textContent=`Editando a venda ${s.id}${s.client?' — '+s.client:''}`;
