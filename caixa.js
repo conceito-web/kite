@@ -184,14 +184,15 @@ function renderCard(S){
 function rowsAll(S){
  const rows=[];
  S.auto.forEach(a=>{
+  const src=a.enc?{t:'enc',id:String(a.key).replace(/^enc-/,'').replace(/-\d+$/,'')}:a.service?{t:'srv',id:String(a.key).slice(4)}:{t:'venda',id:String(a.key).split('@')[0]};   // de onde veio (para o botão Editar)
   const desc=(a.locked||a.service||a.enc)?`${a.label}${a.client?' · '+a.client:''}`:`Venda #${String(a.key).split('@')[0].slice(-6)}${a.client?' · '+a.client:''}`,lk=a.locked?' · BLOQUEADO até a entrega':(a.enc?' · encomenda (ainda não entregue)':'');
-  if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
-  if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk});
-  if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk});
-  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,cat:'Parcelas do cartão loja (já sem taxa)',desc,
+  if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,src,cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
+  if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,src,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk});
+  if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,src,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk});
+  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,src,cat:'Parcelas do cartão loja (já sem taxa)',desc,
    sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${lk}`}));
  });
- S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,cat:'Despesas pagas',desc:x.desc,sub:x.sub}));
+ S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,src:{t:'desp',id:String(x.key).split(':')[0]},cat:'Despesas pagas',desc:x.desc,sub:x.sub}));
  ledger().forEach(e=>{
   let desc=KIND[e.kind]||'Lançamento',sub=e.note||'';
   if(e.kind==='transf'){
@@ -208,7 +209,7 @@ function renderList(S){
  const ent=r2(rows.filter(r=>r.amount>0).reduce((n,r)=>n+r.amount,0)),sai=r2(rows.filter(r=>r.amount<0).reduce((n,r)=>n+r.amount,0));
  $('cxExtratoResumo').textContent=`${rows.length} lançamento(s) · entrou ${money(ent)} · saiu ${money(Math.abs(sai))}`;
  shown=rows.slice(0,300);
- $('cxLinhas').innerHTML=shown.map(r=>`<tr><td>${dayText(r.date)}</td><td>${esc(accName(r.acc))}</td><td><span class="product-name">${esc(r.desc)}</span>${r.sub?`<small class="fin-sub">${esc(r.sub)}</small>`:''}</td><td>${r.auto?'<span class="pill cxauto">Automático</span>':'<span class="pill cxman">Manual</span>'}</td><td><b class="${r.amount<0?'cx-neg':'cx-pos'}">${signed(r.amount)}</b></td><td class="fin-actions">${r.auto?'':`<button type="button" class="row-action delete" data-cx-del="${esc(r.id)}">Excluir</button>`}</td></tr>`).join('');
+ $('cxLinhas').innerHTML=shown.map(r=>`<tr><td>${dayText(r.date)}</td><td>${esc(accName(r.acc))}</td><td><span class="product-name">${esc(r.desc)}</span>${r.sub?`<small class="fin-sub">${esc(r.sub)}</small>`:''}</td><td>${r.auto?'<span class="pill cxauto">Automático</span>':'<span class="pill cxman">Manual</span>'}</td><td><b class="${r.amount<0?'cx-neg':'cx-pos'}">${signed(r.amount)}</b></td><td class="fin-actions">${r.auto?(r.src?`<button type="button" class="row-action" data-cx-go="${esc(r.src.t)}" data-id="${esc(r.src.id)}" title="Abre a tela de origem para corrigir">Editar</button>`:''):`<button type="button" class="row-action" data-cx-edit="${esc(r.id)}">Editar</button> <button type="button" class="row-action delete" data-cx-del="${esc(r.id)}">Excluir</button>`}</td></tr>`).join('');
  $('cxVazio').style.display=rows.length?'none':'block';
 }
 // ---------- Agenda BLU: parcelas do cartão loja ----------
@@ -306,6 +307,7 @@ function syncForm(){
 }
 function openForm(op,from,to){
  if(denied())return;
+ editing=null;setEditUi(false);
  $('cxForm').reset();fillSelects();
  $('cxOp').value=op||'transf';
  if(from)$('cxDe').value=from;if(to)$('cxPara').value=to;
@@ -316,12 +318,69 @@ function openForm(op,from,to){
  const c=$('cxFormCard');c.style.display='';c.scrollIntoView({behavior:'smooth',block:'start'});
  setTimeout(()=>$('cxValor').focus({preventScroll:true}),250);
 }
-function closeForm(){$('cxFormCard').style.display='none';}
+function closeForm(){editing=null;setEditUi(false);$('cxFormCard').style.display='none';}
+// ---------- editar lançamento manual (transferência, entrada, saída ou ajuste) ----------
+// O saldo das contas é sempre recalculado a partir do extrato, então corrigir o lançamento já reajusta o Caixa inteiro.
+let editing=null;
+function setEditUi(on,e0){
+ const op=$('cxOp');
+ [...op.options].forEach(o=>{o.disabled=false;});op.disabled=false;
+ $('cxForm').querySelector('button[type=submit]').textContent=on?'Salvar alterações':'Salvar';
+ if(!on)return;
+ if(e0&&e0.pair)op.disabled=true;                       // transferência continua sendo transferência
+ else[...op.options].forEach(o=>{if(o.value==='transf'||o.value==='ajuste')o.disabled=true;});   // entrada/saída: só troca a direção
+}
+function openEdit(id0){
+ if(denied())return;
+ const e0=ledger().find(x=>x.id===id0);if(!e0)return;
+ const par=e0.pair?ledger().filter(x=>x.pair===e0.pair):[e0];
+ if(e0.pair&&par.length<2){toast('Esta transferência está incompleta. Exclua e lance de novo.',true);return;}
+ editing={id:e0.id};
+ $('cxForm').reset();fillSelects();
+ if(e0.pair){
+  const out=par.find(x=>Number(x.amount)<0),inn=par.find(x=>Number(x.amount)>0);
+  $('cxOp').value='transf';$('cxDe').value=out.account;$('cxPara').value=inn.account;$('cxValor').value=fmtIn(Math.abs(out.amount));
+ }else{
+  const neg=Number(e0.amount)<0;
+  $('cxOp').value=neg?'saida':'entrada';
+  if(neg)$('cxDe').value=e0.account;else $('cxPara').value=e0.account;
+  $('cxValor').value=fmtIn(Math.abs(e0.amount));
+ }
+ $('cxData').value=/^\d{4}-\d{2}-\d{2}/.test(e0.date||'')?String(e0.date).slice(0,10):todayISO();
+ $('cxDesc').value=e0.note||'';
+ $('cxFormTitulo').textContent='Editar lançamento do caixa';
+ setEditUi(true,e0);syncForm();
+ const c=$('cxFormCard');c.style.display='';c.scrollIntoView({behavior:'smooth',block:'start'});
+ setTimeout(()=>$('cxValor').focus({preventScroll:true}),250);
+}
+function saveEdit(){
+ const e0=ledger().find(x=>x.id===editing.id);if(!e0){closeForm();return;}
+ const par=e0.pair?ledger().filter(x=>x.pair===e0.pair):[e0],ids=new Set(par.map(x=>x.id));
+ const op=e0.pair?'transf':$('cxOp').value,de=$('cxDe').value,para=$('cxPara').value,v=r2(parseMoneyInput($('cxValor').value)),
+  date=$('cxData').value||todayISO(),note=$('cxDesc').value.trim();
+ if(!(v>0)){toast('Informe um valor maior que zero.',true);$('cxValor').focus();return;}
+ if(op==='transf'&&de===para){toast('Escolha contas diferentes para transferir.',true);return;}
+ // saldo da conta de origem SEM este lançamento (para avisar se a correção deixaria a conta negativa)
+ const keep=data.cashLedger;data.cashLedger=keep.filter(x=>!ids.has(x.id));
+ let BS;try{BS=balances();}finally{data.cashLedger=keep;}
+ if((op==='transf'||op==='saida')&&v>BS.b[de]+0.009&&!confirm(`${accName(de)} ficará com ${signed(r2(BS.b[de]-v))}. Salvar mesmo assim?`))return;
+ const snap=JSON.parse(JSON.stringify(par)),now=new Date().toISOString(),by=(typeof currentUserName==='function'?currentUserName():'');
+ const touch=x=>{x.date=date;x.note=note;x.editedAt=now;x.editedBy=by;};
+ if(e0.pair){
+  const out=par.find(x=>Number(x.amount)<0),inn=par.find(x=>Number(x.amount)>0);
+  out.account=de;out.amount=-v;inn.account=para;inn.amount=v;touch(out);touch(inn);
+ }else{
+  e0.account=op==='saida'?de:para;e0.amount=op==='saida'?-v:v;if(e0.kind!=='ajuste')e0.kind=op;touch(e0);
+ }
+ if(saveData()){closeForm();toast('Lançamento atualizado. Os saldos do Caixa foram recalculados.');}
+ else snap.forEach(s=>{const x=ledger().find(y=>y.id===s.id);if(x)Object.assign(x,s);});
+}
 function push(account,amount,kind,date,note,pair){
  ledger().push({id:id(),date,account,amount:r2(amount),kind,pair:pair||'',note,by:(typeof currentUserName==='function'?currentUserName():''),createdAt:new Date().toISOString()});
 }
 function save(ev){
  ev.preventDefault();if(denied())return;
+ if(editing){saveEdit();return;}
  const op=$('cxOp').value,de=$('cxDe').value,para=$('cxPara').value,raw=$('cxValor').value.trim(),v=r2(parseMoneyInput(raw)),
   date=$('cxData').value||todayISO(),note=$('cxDesc').value.trim(),BS=balances(),bal=BS.b,lkd=BS.lock;
  if(op==='ajuste'){
@@ -439,7 +498,16 @@ function onCardClick(ev){
  if(b.dataset.cx==='transf')openForm('transf',k,k==='blu'?'nubank':k==='nubank'?'blu':'nubank');
  else openForm('ajuste',null,k);
 }
+function goEdit(t,sid){
+ if(denied())return;
+ if(t==='venda'){if(typeof startSaleEdit==='function'){startSaleEdit(sid);toast('Corrija a venda e confirme. O Caixa se ajusta sozinho.');}return;}
+ if(t==='desp'){if(window.ckrDespesaEdit)window.ckrDespesaEdit(sid);return;}
+ if(t==='enc'){if(window.ckrEncomendaEdit)window.ckrEncomendaEdit(sid);return;}
+ if(t==='srv'){if(window.ckrServicoEdit)window.ckrServicoEdit(sid);return;}
+}
 function onListClick(ev){
+ const go=ev.target.closest('[data-cx-go]');if(go){goEdit(go.dataset.cxGo,go.dataset.id);return;}
+ const ed=ev.target.closest('[data-cx-edit]');if(ed){openEdit(ed.dataset.cxEdit);return;}
  const b=ev.target.closest('[data-cx-del]');if(!b||denied())return;
  const e=ledger().find(x=>x.id===b.dataset.cxDel);if(!e)return;
  const par=e.pair?ledger().filter(x=>x.pair===e.pair):[e];
