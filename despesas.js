@@ -407,5 +407,7 @@ const baseRender=window.renderAll;
 window.renderAll=function(){baseRender();render();};
 const baseGoTo=window.goTo;
 window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='financeiro')render();};
+// Usado pelo extrato do Caixa: abre a despesa para edição.
+window.ckrDespesaEdit=function(eid){if(denied())return;const x=list().find(i=>i.id===eid);if(!x){toast('Despesa não encontrada.',true);return;}fillForm(x);};
 render();
 })();
