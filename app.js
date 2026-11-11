@@ -814,19 +814,32 @@ function renderSaleSearch(){
   if(notaFiltro==='com'&&!s.taxNote)return false;if(notaFiltro==='sem'&&s.taxNote)return false;
   return saleMatches(s,tokens);
  });
- const active=sales.filter(s=>!s.canceled),LIMIT=100;
+ // Receitas de serviços (servicos.js) aparecem junto das vendas; não têm nota, cancelamento nem recibo.
+ const svc=(typeof window.ckrServicos==='function'&&status!=='canceladas'&&notaFiltro!=='com'?window.ckrServicos():[]).map(v=>({isService:true,id:v.id,date:v.date,client:v.client||'',description:v.description||'',total:Number(v.amount||0),profit:Math.round((Number(v.amount||0)-Number((v.payment||{}).fee||0))*100)/100,profitKnown:true,canceled:false,edited:!!v.editedAt}))
+  .filter(v=>{const day=localDateKey(v.date);if(start&&day<start)return false;if(end&&day>end)return false;
+   return !tokens.length||tokens.every(t=>fold([v.client,v.description,'servico',new Date(v.date).toLocaleDateString('pt-BR'),day].join(' ')).includes(t));});
+ const all=[...sales,...svc].sort((a,b)=>new Date(b.date)-new Date(a.date));
+ // serviços já prestados a cada cliente (para o aviso dentro da linha da venda)
+ const svcByClient={};(typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(v=>{const k=fold(v.client||'');if(!k)return;const o=svcByClient[k]||(svcByClient[k]={n:0,total:0});o.n++;o.total+=Number(v.amount||0);});
+ const active=all.filter(s=>!s.canceled),LIMIT=100;
  const totalAtivas=active.reduce((n,s)=>n+s.total,0),lucroAtivas=active.filter(s=>s.profitKnown).reduce((n,s)=>n+s.profit,0);
  const comNota=active.filter(s=>s.taxNote),totalNotas=comNota.reduce((n,s)=>n+Number(s.taxNote.value||0),0);
- document.getElementById('vendasResumo').innerHTML=`<span><b>${sales.length}</b> ${sales.length===1?'venda encontrada':'vendas encontradas'}</span><span>Total das ativas: <b>${esc(money(totalAtivas))}</b></span><span>Lucro das ativas: <b>${esc(money(lucroAtivas))}</b></span><span>Canceladas: <b>${sales.length-active.length}</b></span><span>Total das notas: <b>${esc(money(totalNotas))}</b> (${comNota.length} ${comNota.length===1?'nota':'notas'})</span>${sales.length>LIMIT?`<span>Mostrando as ${LIMIT} mais recentes — refine a busca para ver as demais.</span>`:''}`;
- body.innerHTML=sales.slice(0,LIMIT).map(s=>`<tr class="${s.canceled?'row-canceled':''}">`
+ document.getElementById('vendasResumo').innerHTML=`<span><b>${sales.length}</b> ${sales.length===1?'venda encontrada':'vendas encontradas'}${svc.length?` + <b>${svc.length}</b> ${svc.length===1?'serviço':'serviços'}`:''}</span><span>Total das ativas: <b>${esc(money(totalAtivas))}</b></span><span>Lucro das ativas: <b>${esc(money(lucroAtivas))}</b></span><span>Canceladas: <b>${all.length-active.length}</b></span><span>Total das notas: <b>${esc(money(totalNotas))}</b> (${comNota.length} ${comNota.length===1?'nota':'notas'})</span>${all.length>LIMIT?`<span>Mostrando as ${LIMIT} mais recentes — refine a busca para ver as demais.</span>`:''}`;
+ body.innerHTML=all.slice(0,LIMIT).map(s=>s.isService?(`<tr>`
+  +`<td>${esc(dateText(s.date))}<br><small>Serviço ${esc(String(s.id).slice(-6))}</small></td>`
+  +`<td><span class="product-name">${esc(s.client||'Sem cliente')}</span></td>`
+  +`<td><ul class="sale-items"><li>Serviço: ${esc(s.description)}</li></ul></td>`
+  +`<td>${esc(money(s.total))}</td><td>${esc(money(s.profit))}</td>`
+  +`<td class="sale-status"><span class="pill ativa">Ativa</span><br><small>Receita de serviço${s.edited?' · editada':''}</small></td>`
+  +`<td><button type="button" class="row-action" data-svc-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-svc-delete="${esc(s.id)}">Excluir serviço</button></td></tr>`):(`<tr class="${s.canceled?'row-canceled':''}">`
   +`<td>${esc(dateText(s.date))}<br><small>Venda ${esc(s.id)}</small></td>`
-  +`<td><span class="product-name">${esc(s.client||'Sem cliente')}</span>${s.cpf?`<br><small>CPF ${esc(s.cpf)}</small>`:''}</td>`
+  +`<td><span class="product-name">${esc(s.client||'Sem cliente')}</span>${s.cpf?`<br><small>CPF ${esc(s.cpf)}</small>`:''}${(()=>{const o=svcByClient[fold(s.client||'')];return o?`<br><button type="button" class="nota-badge com" data-svc-cliente="${esc(s.client)}" title="Ver os serviços deste cliente">🛠 ${o.n} ${o.n===1?'serviço':'serviços'} · ${esc(money(o.total))}</button>`:'';})()}</td>`
   +`<td><ul class="sale-items">${s.items.map(i=>`<li>${i.quantity}× ${esc(i.name)}</li>`).join('')}</ul></td>`
   +`<td class="${s.canceled?'sale-money-canceled':''}">${esc(money(s.total))}</td>`
   +`<td>${s.canceled||!s.profitKnown?'—':esc(money(s.profit))}</td>`
   +`<td class="sale-status">${s.canceled?`<span class="pill cancelada">Cancelada</span>${s.canceledAt?`<br><small>${esc(dateText(s.canceledAt))}</small>`:''}`:'<span class="pill ativa">Ativa</span>'}${s.canceled?'':(s.taxNote?`<br><button type="button" class="nota-badge com" data-sale-nota="${esc(s.id)}" title="Clique para trocar ou remover a nota desta venda">✓ Com nota</button><br><small>Nota ${esc(s.taxNote.number)} · emitida em ${esc(noteDateBR(s.taxNote.date))}</small>`:`<br><button type="button" class="nota-badge sem" data-sale-nota="${esc(s.id)}" title="Clique para vincular uma nota a esta venda">✕ Sem nota</button>`)}${s.edited?'<br><small>editada</small>':''}</td>`
-  +`<td>${s.canceled?'—':`<button type="button" class="row-action" data-sale-receipt="${esc(s.id)}">Recibo PDF</button><button type="button" class="row-action" data-sale-whatsapp="${esc(s.id)}">WhatsApp</button><button type="button" class="row-action" data-sale-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-sale-cancel="${esc(s.id)}">Cancelar venda</button>`}</td></tr>`).join('');
- document.getElementById('semVendasBusca').style.display=sales.length?'none':'block';
+  +`<td>${s.canceled?'—':`<button type="button" class="row-action" data-sale-receipt="${esc(s.id)}">Recibo PDF</button><button type="button" class="row-action" data-sale-whatsapp="${esc(s.id)}">WhatsApp</button><button type="button" class="row-action" data-sale-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-sale-cancel="${esc(s.id)}">Cancelar venda</button>`}</td></tr>`)).join('');
+ document.getElementById('semVendasBusca').style.display=all.length?'none':'block';
 }
 function exitSaleEdit(){
  editingSale=null;
@@ -893,6 +906,11 @@ function cancelSale(saleId){
  if(saveData())toast(missing.length?`Venda cancelada. Não foi possível devolver ao estoque (produto excluído): ${missing.join(', ')}.`:'Venda cancelada. Estoque e valores atualizados.',missing.length>0);
 }
 document.getElementById('listaVendasBusca').addEventListener('click',e=>{
+ const sc=e.target.closest('[data-svc-cliente]');
+ if(sc){document.getElementById('buscaVenda').value=sc.dataset.svcCliente;renderSaleSearch();return;}   // filtra: vendas e serviços deste cliente
+ const se=e.target.closest('[data-svc-edit]'),sd=e.target.closest('[data-svc-delete]');
+ if(se){if(window.ckrServicoEdit)window.ckrServicoEdit(se.dataset.svcEdit);return;}
+ if(sd){if(window.ckrServicoDelete)window.ckrServicoDelete(sd.dataset.svcDelete);return;}
  const nota=e.target.closest('[data-sale-nota]');if(nota){if(!hasFullAccess()){toast('Seu perfil não tem permissão para vincular notas.',true);return;}if(window.ckrVincularNota)window.ckrVincularNota(nota.dataset.saleNota);return;}
  const edit=e.target.closest('[data-sale-edit]'),cancel=e.target.closest('[data-sale-cancel]'),pdf=e.target.closest('[data-sale-receipt]'),wa=e.target.closest('[data-sale-whatsapp]');
  if(pdf||wa){
