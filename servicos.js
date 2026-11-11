@@ -103,7 +103,7 @@ function editar(sid){
  sync();renderLista();$('svcModal').hidden=false;
  setTimeout(()=>$('svcDesc').focus(),50);
 }
-window.ckrServicoEdit=editar;   // usado pelo extrato do Caixa
+window.ckrServicoEdit=editar;   // usado pelo extrato do Caixa e por Movimentações
 function fechar(){
  editId=null;
  if($('svcModal'))$('svcModal').hidden=true;
@@ -143,7 +143,9 @@ function excluir(sid){
  if(saveData()){toast('Serviço excluído.');renderLista();}
 }
 
+window.ckrServicoDelete=excluir;   // usado por Movimentações
 function renderLista(){
+ if(!$('svcLista'))return;   // a janela pode ainda não ter sido criada (exclusão feita por Movimentações)
  const all=window.ckrServicos().slice().sort((a,b)=>String(b.createdAt||b.date).localeCompare(String(a.createdAt||a.date)));
  const mes=todayISO().slice(0,7),doMes=all.filter(s=>localDateKey(s.date).slice(0,7)===mes),total=r2(doMes.reduce((n,s)=>n+Number(s.amount||0),0));
  $('svcResumo').textContent=all.length?`Neste mês: ${doMes.length} serviço(s) · ${money(total)}. Mostrando os 15 mais recentes.`:'Nenhum serviço lançado ainda.';
