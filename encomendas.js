@@ -1,7 +1,7 @@
 'use strict';
 // Conceito: ENCOMENDAS — venda de produto que ainda não chegou.
 // A encomenda guarda cliente + itens + desconto + o que o cliente já pagou (sinal ou valor total),
-// SEM baixar estoque e SEM lançar nada no financeiro/caixa/lucro. Quando o produto chega e é dado entrada
+// SEM baixar estoque (o que o cliente pagou entra no Caixa e no crédito com a fábrica, já liberado; DRE e lucro só na entrega). Quando o produto chega e é dado entrada
 // no estoque, o botão "Entregar" carrega tudo em "Registrar venda": o sinal já vem preenchido nos pagamentos,
 // o saldo vem numa linha à parte, e ao confirmar a venda a encomenda passa para "Entregue".
 // Usa as funções e dados do app.js (data, saleCart, readPayments, saveData...).
@@ -95,7 +95,7 @@ window.ckrEncomendaSubmit=function(){
  let alloc=0;
  const items=saleCart.map((it,i)=>{let lt;if(i===saleCart.length-1)lt=r2(t.total-alloc);else{lt=t.subtotal?r2(r2(it.quantity*it.price)*(t.total/t.subtotal)):0;alloc+=lt;}return {productId:it.productId,name:it.name,quantity:it.quantity,price:it.price,cost:Number(it.cost||0),lineTotal:lt};});
  const date=saleDateISO('vendaData',old?old.date:null);
- const payments=pays.map((p,i)=>({...p,id:id(),date:(old&&old.payments&&old.payments[i]&&old.payments[i].date)||date,by}));
+ const payments=pays.map((p,i)=>({...p,id:id(),date:p.paidDate||(old&&old.payments&&old.payments[i]&&old.payments[i].date)||date,by}));
  const base={client,note:$('vendaObs').value.trim(),eta:$('vendaEncPrevisao').value||'',items,subtotal:t.subtotal,discountCash:t.discountCash,discountPercent:t.discountPercent,discount:r2(t.subtotal-t.total),total:t.total,payments};
  let o;
  if(old){Object.assign(old,base,{editedAt:now,editedBy:by});o=old;}
@@ -103,7 +103,7 @@ window.ckrEncomendaSubmit=function(){
  pending=null;
  saleCart=[];$('formVenda').reset();setSaleDateToday();$('linhasPagamento').innerHTML='';addPaymentRow();renderVendaProdutoSelect(false);
  renderCart();updateSalePreview();
- if(saveData()){toast(`Encomenda ${num(o)} ${old?'atualizada':'salva'}. Estoque não foi alterado; o valor pago entra no Caixa no 1º dia útil (bloqueado até a entrega).`);goTo('encomendas');}
+ if(saveData()){toast(`Encomenda ${num(o)} ${old?'atualizada':'salva'}. Estoque não foi alterado; o valor pago já entra no Caixa (cartão no 1º dia útil) e pode ser usado.`);goTo('encomendas');}
  return true;
 };
 
@@ -141,6 +141,7 @@ function load(o,deliver){
   row.querySelector('.pagamentoBandeira').value=pm.brand||'vm';
   row.querySelector('.pagamentoVencimento').value=pm.dueDate||'';
   row.querySelector('.pagamentoExtendido').checked=pm.extended!==false;
+  if(pm.date)row.dataset.paidDate=localDateKey(pm.date);   // na entrega o sinal continua com a data em que foi pago
   updatePaymentRow(row);
  });
  const rem=restOf(o);
@@ -158,9 +159,17 @@ function openPay(o){
  $('encModalInfo').textContent=`${o.client} · ${num(o)} · total ${money(o.total)} · falta ${money(restOf(o))}`;
  $('encModalValor').value=fmt(restOf(o));
  $('encModalForma').innerHTML='<option value="">Selecione...</option>'+PAY_METHODS.filter(m=>m!==PM.PROM).map(m=>`<option>${esc(m)}</option>`).join('');
- $('encModalData').value=todayISO();$('encModalErro').textContent='';$('encModal').hidden=false;
+ $('encModalData').value=todayISO();$('encModalErro').textContent='';
+ $('encModalExtra').innerHTML=payExtraHtml();syncPay();$('encModal').hidden=false;
  setTimeout(()=>{$('encModalValor').focus();$('encModalValor').select();},50);
 }
+// bandeira, parcelas e "pela loja / pela fábrica" conforme a forma escolhida (mesmas regras de Registrar venda)
+function syncPay(){syncPayExtra($('encModalExtra'),$('encModalForma').value,r2(parseMoneyInput($('encModalValor').value)));}
+$('encModalForma').addEventListener('change',syncPay);
+$('encModalValor').addEventListener('input',syncPay);
+$('encModalValor').addEventListener('money-mask-updated',syncPay);
+$('encModalExtra').addEventListener('input',syncPay);
+$('encModalExtra').addEventListener('change',syncPay);
 function closePay(){$('encModal').hidden=true;payId=null;}
 bindMoneyMask($('encModalValor'));
 $('encModalFechar').addEventListener('click',closePay);
@@ -173,7 +182,9 @@ $('encModalForm').addEventListener('submit',e=>{
  if(!(v>0))return err('Informe o valor recebido.');
  if(!m)return err('Escolha a forma de pagamento.');
  if(v>restOf(o)+0.009)return err(`O valor é maior que o que falta receber (${money(restOf(o))}).`);
- (o.payments=o.payments||[]).push({id:id(),date:saleDateISO('encModalData'),method:m,amount:v,installments:null,responsible:null,brand:null,dueDate:null,extended:null,by:currentUserName()});
+ const px=readPayExtra($('encModalExtra'),m,v),perr=validatePayments([px],o.client);
+ if(perr)return err(perr);
+ (o.payments=o.payments||[]).push({...enrichPayment(px),id:id(),date:saleDateISO('encModalData'),by:currentUserName()});
  if(saveData()){closePay();toast(`Recebimento de ${money(v)} registrado na encomenda ${num(o)}.`);}
 });
 
