@@ -16,6 +16,7 @@ const list=()=>{const c=data.cashConfig||(data.cashConfig={});return Array.isArr
 window.ckrServicos=()=>list().filter(s=>s&&Number(s.amount)>0);
 // Crédito com a fábrica gerado pelos serviços pagos "pela fábrica" (entra no saldo de crédito com a fábrica).
 window.ckrServicoCredito=()=>r2(window.ckrServicos().reduce((n,s)=>n+Number((s.payment||{}).factoryCredit||0),0));
+let editId=null;   // serviço em edição (vem do extrato do Caixa)
 const METHODS=PAY_METHODS.filter(m=>m!==PM.PROM);   // promissória exige cliente e controle de parcelas: fica só nas vendas
 
 const CSS=`
@@ -77,6 +78,7 @@ function dateISO(v){
 
 function abrir(clienteInputId){
  build();
+ editId=null;$('svcTitulo').textContent='Cadastrar serviço';$('svcForm').querySelector('button[type=submit]').textContent='Salvar receita de serviço';
  $('svcForm').reset();
  $('svcErro').textContent='';
  $('svcData').value=todayISO();
@@ -85,7 +87,25 @@ function abrir(clienteInputId){
  $('svcModal').hidden=false;
  setTimeout(()=>$('svcDesc').focus(),50);
 }
+function editar(sid){
+ if(!hasFullAccess()){toast('Seu perfil não tem permissão para editar serviços.',true);return;}
+ const s=list().find(x=>x.id===sid);if(!s){toast('Serviço não encontrado.',true);return;}
+ build();$('svcForm').reset();$('svcErro').textContent='';editId=sid;
+ $('svcTitulo').textContent='Editar serviço';$('svcForm').querySelector('button[type=submit]').textContent='Salvar alterações';
+ $('svcDesc').value=s.description||'';$('svcCliente').value=s.client||'';
+ $('svcValor').value=Number(s.amount||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+ $('svcData').value=localDateKey(s.date);
+ const p=s.payment||{};$('svcForma').value=p.method||'';sync();
+ const q=sel=>$('svcExtra').querySelector(sel);
+ if(p.installments)q('.pagamentoParcelas').value=p.installments;
+ q('.pagamentoResponsavel').value=p.responsible||'loja';q('.pagamentoBandeira').value=p.brand||'vm';
+ q('.pagamentoVencimento').value=p.dueDate||'';q('.pagamentoExtendido').checked=p.extended!==false;
+ sync();renderLista();$('svcModal').hidden=false;
+ setTimeout(()=>$('svcDesc').focus(),50);
+}
+window.ckrServicoEdit=editar;   // usado pelo extrato do Caixa
 function fechar(){
+ editId=null;
  if($('svcModal'))$('svcModal').hidden=true;
  document.querySelectorAll('.svcChk').forEach(c=>{c.checked=false;});   // o quadradinho desmarca para poder abrir de novo
 }
@@ -100,6 +120,14 @@ function salvar(ev){
  if(!method)return err('Escolha a forma de pagamento.');
  const pay=readPayExtra($('svcExtra'),method,amount),verr=validatePayments([pay],client);
  if(verr)return err(verr);
+ if(editId){
+  const s=list().find(x=>x.id===editId);if(!s){fechar();return;}
+  const back={...s},dv=$('svcData').value;
+  Object.assign(s,{date:localDateKey(s.date)===dv?s.date:dateISO(dv),client,description,amount,payment:enrichPayment(pay),editedAt:new Date().toISOString(),editedBy:currentUserName()});
+  if(!saveData()){Object.assign(s,back);return;}
+  toast(`Serviço atualizado para ${money(amount)}. Caixa, DRE e lucro foram recalculados.`);
+  fechar();return;
+ }
  const rec={id:id(),date:dateISO($('svcData').value),client,description,amount,payment:enrichPayment(pay),createdAt:new Date().toISOString(),by:currentUserName()};
  list().push(rec);
  if(!saveData()){list().pop();return;}
