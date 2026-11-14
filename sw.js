@@ -1,5 +1,5 @@
-const CACHE = 'conceito-v70';
-const CORE = ['./', 'index.html', 'app.js?v=36', 'modulos.js?v=30', 'encomendas.js?v=6', 'despesas.js?v=8', 'caixa.js?v=17', 'impostos.js?v=13', 'dre.js?v=5', 'servicos.js?v=4', 'style.css?v=35', 'manifest.webmanifest',
+const CACHE = 'conceito-v65';
+const CORE = ['./', 'index.html', 'app.js?v=34', 'modulos.js?v=29', 'encomendas.js?v=3', 'despesas.js?v=8', 'caixa.js?v=13', 'impostos.js?v=13', 'dre.js?v=4', 'servicos.js?v=2', 'style.css?v=35', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
