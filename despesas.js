@@ -2,6 +2,7 @@
 // Conceito: Despesas, lucro líquido, gráficos financeiros, previsão de gastos.
 // Usa as funções e dados do app.js (data, money, saveData, localDateKey, shortMoney, ...).
 // Lucro líquido = lucro bruto das vendas (já com custo PEPS e taxas de cartão/crédito) − despesas.
+// Catálogo de itens (data.expenseCatalog): a Descrição da despesa é um item do catálogo; o item define a linha da DRE e a competência padrão.
 (function(){
 const $=x=>document.getElementById(x), r2=n=>Math.round(Number(n||0)*100)/100;
 const DEFAULT_CATS=[
@@ -27,12 +28,55 @@ const PALETTE=['#3468f5','#1b9b6b','#e89b3b','#8c6be8','#d74b55','#14a3b8','#c25
 const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const list=()=>data.expenses||(data.expenses=[]);
 const cfg=()=>data.settings||(data.settings={});
-let editId=null,catSig='';
+let editId=null,catSig='',compManual=false,legacyText='';
+
+// ---------- catálogo de itens de despesa ----------
+// Item = {id (código estável), name, category, line (linha da DRE), comp ('pag' mês do pagamento | 'ant' mês anterior), active}.
+// O nome pode mudar sem quebrar o histórico: a despesa guarda o id do item. Item que sai de uso é desativado, nunca apagado.
+const CAT_DEFAULTS=[
+ ['it_simples','Simples Nacional (DAS)','Impostos','simples','ant'],
+ ['it_gps','GPS','Impostos','gps','ant'],
+ ['it_fgts_f','FGTS (fixo)','Impostos','fgtsF','ant'],
+ ['it_fgts_op','FGTS (vendas)','Impostos','fgtsOp','ant'],
+ ['it_iptu','IPTU/TMRSD','Impostos','iptu','pag'],
+ ['it_alvara','Alvará e taxas','Impostos','iptu','pag'],
+ ['it_juros_imp','Juros e multa de impostos','Impostos','jurosPassivos','pag'],
+ ['it_parcel_imp','Parcelamento de impostos','Impostos','ignorar','pag'],
+ ['it_comissao','Comissão','Pessoal','comissao','pag'],
+ ['it_prolabore','Pró-labore','Pessoal','salariosF','pag'],
+ ['it_13','13º salário','Pessoal','salariosF','pag'],
+ ['it_ferias','Férias','Pessoal','salariosF','pag'],
+ ['it_aluguel','Aluguel','Fixas','aluguel','pag'],
+ ['it_contab','Serviços contábeis','Fixas','contabeis','ant'],
+ ['it_nfce','Solução NF-CE','Fixas','nfce','pag'],
+ ['it_servprof','Serviços profissionais','Fixas','servprof','pag'],
+ ['it_energia','Energia','Consumo','energia','ant'],
+ ['it_agua','Água e esgoto','Consumo','agua','ant'],
+ ['it_telefone','Telefone e internet','Consumo','telefone','ant'],
+ ['it_frete','Frete e entregas','Operacionais','frete','pag'],
+ ['it_comb','Combustível e manutenção','Operacionais','outras','pag'],
+ ['it_propaganda','Propaganda e publicidade','Marketing','propaganda','pag'],
+ ['it_tarifas','Tarifas bancárias','Financeiras','despBancarias','pag'],
+ ['it_juros_pagos','Juros pagos','Financeiras','jurosPassivos','pag'],
+ ['it_desc_conc','Descontos concedidos','Financeiras','descontosConc','pag'],
+ ['it_material','Material de consumo','Outras','material','pag'],
+ ['it_devolucao','Devolução de venda','Outras','devolucoes','pag'],
+ ['it_outras','Outras despesas','Outras','outras','pag']
+];
+function seedCatalog(){
+ const now=new Date().toISOString();
+ data.expenseCatalog=CAT_DEFAULTS.map(([id,name,category,line,comp])=>({id,name,category,line,comp,active:true,createdAt:now}));
+ try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(_){}
+}
+const catalog=()=>{if(!Array.isArray(data.expenseCatalog))seedCatalog();return data.expenseCatalog;};
+const itemById=i=>i?(catalog().find(x=>x.id===i)||null):null;
+const byNamePt=(a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR');
+catalog();
 
 // ---------- utilidades ----------
 function cats(){
- const base=DEFAULT_CATS.map(c=>c[0]),extra=cfg().expenseCats||[],used=list().map(e=>e.category).filter(Boolean);
- return [...new Set([...base,...extra,...used])];
+ const base=DEFAULT_CATS.map(c=>c[0]),extra=cfg().expenseCats||[],used=list().map(e=>e.category).filter(Boolean),fromCat=catalog().map(i=>i.category).filter(Boolean);
+ return [...new Set([...base,...extra,...fromCat,...used])];
 }
 // ---------- contas de origem do dinheiro ----------
 function accountList(){
@@ -196,7 +240,7 @@ function syncCats(){
  $('finFiltroCat').innerHTML='<option value="">Todas as categorias</option>'+cs.map(c=>`<option>${esc(c)}</option>`).join('');
  if(cs.includes(cur))$('finCat').value=cur;
  if(cs.includes(curF))$('finFiltroCat').value=curF;
- catHint();
+ catHint();renderItems();
 }
 function catHint(){$('finCatHint').textContent='Exemplos: '+hintOf($('finCat').value);}
 
@@ -289,7 +333,7 @@ function updateBadges(){
  }
 }
 function render(){
- updateBadges();
+ catalog();updateBadges();
  const panel=$('panel-financeiro');if(!panel||!panel.classList.contains('active'))return;
  syncCats();renderSummary();renderYear();renderGoalAndCompare();renderList();
 }
@@ -299,29 +343,56 @@ function syncForm(){
  $('finPagoBox').hidden=$('finStatus').value!=='pago';
  $('finRepeteBox').hidden=!($('finTipo').value==='rec'&&!editId);
  if(!$('finPagoBox').hidden&&!$('finPago').value)$('finPago').value=$('finData').value||todayISO();
+ syncComp();
+}
+// ----- Descrição = item do catálogo (filtrado pela categoria) -----
+function renderItems(selectId){
+ const ct=$('finCat').value,cur=selectId!==undefined?selectId:$('finItem').value;
+ const items=catalog().filter(i=>i.category===ct&&(i.active!==false||i.id===cur)).sort(byNamePt);
+ let h='<option value="">Escolha o item…</option>'+items.map(i=>`<option value="${esc(i.id)}">${esc(i.name)}${i.active===false?' (inativo)':''}</option>`).join('');
+ if(legacyText)h+=`<option value="__legacy">Texto livre (lançamento antigo): ${esc(legacyText)}</option>`;
+ $('finItem').innerHTML=h;
+ $('finItem').value=[...$('finItem').options].some(o=>o.value===cur)?cur:'';
+}
+const selectedItem=()=>{const v=$('finItem').value;return v&&v!=='__legacy'?itemById(v):null;};
+// Mês de competência padrão do item: mês anterior ao pagamento ('ant') ou o próprio mês do pagamento ('pag').
+function formBase(){return ($('finStatus').value==='pago'?($('finPago').value||$('finData').value):$('finData').value)||todayISO();}
+function compDefault(it){
+ if(!it||(it.comp!=='ant'&&it.comp!=='pag'))return '';
+ const b=formBase();return (it.comp==='ant'?addMonths(b,-1):b).slice(0,7);
+}
+function syncComp(){
+ const it=selectedItem(),def=compDefault(it);
+ if(!compManual)$('finComp').value=def;
+ $('finCompHint').textContent=it?(it.comp==='ant'?'Padrão deste item: mês anterior ao pagamento.':'Padrão deste item: mês do pagamento.')+(compManual&&def&&$('finComp').value!==def?' (alterado por você)':''):'Sem item do catálogo: a DRE decide a competência sozinha.';
 }
 function resetForm(){
  editId=null;$('finForm').reset();$('finData').value=todayISO();$('finPago').value='';
  $('finFormTitulo').textContent='Nova despesa';$('finSalvar').textContent='Salvar despesa';$('finFormBadge').textContent='LANÇAMENTO';
+ legacyText='';compManual=false;$('finComp').value='';renderItems('');
  setPays(null);syncForm();catHint();
 }
-function openForm(){const c=$('finFormCard');c.style.display='';c.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('finDesc').focus({preventScroll:true}),250);}
+function openForm(){const c=$('finFormCard');c.style.display='';c.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('finItem').focus({preventScroll:true}),250);}
 function closeForm(){$('finFormCard').style.display='none';resetForm();}
 function fillForm(x){
  editId=x.id;syncCats();
- $('finData').value=x.date||todayISO();$('finCat').value=x.category||'Outras';$('finDesc').value=x.description||'';
+ $('finData').value=x.date||todayISO();const it0=itemById(x.itemId);$('finCat').value=it0?it0.category:(x.category||'Outras');$('finDesc').value=x.description||'';legacyText=it0?'':(x.description||'');
  $('finValor').value=Number(x.amount||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
  setPays(payList(x).map(p=>({...p})));$('finStatus').value=x.status||'pendente';$('finVenc').value=x.dueDate||'';$('finPago').value=x.paidDate||'';
  $('finTipo').value=x.recurring?'rec':'avulsa';$('finObs').value=x.note||'';
  $('finFormTitulo').textContent='Editar despesa';$('finSalvar').textContent='Salvar alterações';$('finFormBadge').textContent='EDIÇÃO';
+ renderItems(it0?it0.id:'__legacy');
+ {const def=compDefault(it0);$('finComp').value=x.compMonth||'';compManual=(!!x.compMonth&&x.compMonth!==def)||(!x.compMonth&&!!x.dreComp);}
  syncForm();catHint();openForm();
 }
 function denied(){if(hasFullAccess())return false;toast('Seu perfil não tem permissão para alterar despesas.',true);return true;}
 
 function save(ev){
  ev.preventDefault();if(denied())return;
- const amount=r2(parseMoneyInput($('finValor').value)),desc=$('finDesc').value.trim();
- if(!desc){toast('Informe a descrição da despesa.',true);$('finDesc').focus();return;}
+ const amount=r2(parseMoneyInput($('finValor').value));
+ const it=selectedItem(),selV=$('finItem').value,desc=it?it.name:(selV==='__legacy'?legacyText:'');
+ if(!desc){toast('Escolha o item da despesa (use “＋ Novo item” se ele ainda não existe).',true);$('finItem').focus();return;}
+ const compMonth=/^\d{4}-\d{2}$/.test($('finComp').value)?$('finComp').value:'';
  if(!(amount>0)){toast('Informe o valor da despesa.',true);$('finValor').focus();return;}
  const date=$('finData').value||todayISO(),status=$('finStatus').value;
  let pays=readPays();
@@ -333,7 +404,7 @@ function save(ev){
   const soma=r2(pays.reduce((n,p)=>n+p.amount,0));
   if(Math.abs(soma-amount)>0.004){toast(`A soma das formas de pagamento (${money(soma)}) precisa ser igual ao valor da despesa (${money(amount)}).`,true);return;}
  }
- const rec={date,category:$('finCat').value||'Outras',description:desc,amount,payments:pays,method:[...new Set(pays.map(p=>p.method))].join(' + '),account:pays.length===1?pays[0].account:'',status,
+ const rec={date,category:$('finCat').value||'Outras',description:desc,itemId:it?it.id:'',compMonth,amount,payments:pays,method:[...new Set(pays.map(p=>p.method))].join(' + '),account:pays.length===1?pays[0].account:'',status,
   dueDate:$('finVenc').value||'',paidDate:status==='pago'?($('finPago').value||date):'',recurring:$('finTipo').value==='rec',note:$('finObs').value.trim()};
  const now=new Date().toISOString();let msg='Despesa salva.';
  if(editId){
@@ -343,7 +414,7 @@ function save(ev){
   const group=rec.recurring?id():'';
   list().push({id:id(),...rec,group,createdAt:now});
   const n=rec.recurring?Math.max(0,Math.min(24,parseInt($('finRepete').value,10)||0)):0;
-  for(let i=1;i<=n;i++)list().push({id:id(),...rec,date:addMonths(date,i),dueDate:rec.dueDate?addMonths(rec.dueDate,i):'',status:'pendente',paidDate:'',group,createdAt:now});
+  for(let i=1;i<=n;i++)list().push({id:id(),...rec,date:addMonths(date,i),dueDate:rec.dueDate?addMonths(rec.dueDate,i):'',status:'pendente',paidDate:'',compMonth:rec.compMonth?addMonths(rec.compMonth+'-01',i).slice(0,7):'',group,createdAt:now});
   if(n)msg=`Despesa salva e repetida por mais ${n} mês(es) como pendente.`;
  }
  if(saveData()){toast(msg);if(editId)closeForm();else resetForm();}
@@ -355,7 +426,7 @@ function onListClick(ev){
  if(act==='edit'){fillForm(x);return;}
  if(act==='pay'){x.status='pago';x.paidDate=todayISO();if(saveData())toast(payList(x).some(p=>p.account)?'Despesa marcada como paga.':'Despesa marcada como paga. Em Editar, escolha de qual conta saiu para descontar do caixa.');return;}
  if(act==='repeat'){
-  const c={...x,id:id(),date:addMonths(x.date,1),dueDate:x.dueDate?addMonths(x.dueDate,1):'',status:'pendente',paidDate:'',recurring:true,createdAt:new Date().toISOString()};
+  const c={...x,id:id(),date:addMonths(x.date,1),dueDate:x.dueDate?addMonths(x.dueDate,1):'',status:'pendente',paidDate:'',compMonth:x.compMonth?addMonths(x.compMonth+'-01',1).slice(0,7):'',recurring:true,createdAt:new Date().toISOString()};
   x.recurring=true;list().push(c);if(saveData())toast(`Lançada de novo em ${dayText(c.date)} (pendente).`);return;
  }
  if(act==='del'){
@@ -370,6 +441,75 @@ function exportCsv(){
  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
  a.href=URL.createObjectURL(blob);a.download=`despesas-${todayISO()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
  toast('Planilha de despesas exportada.');
+}
+
+// ---------- gerenciar itens do catálogo ----------
+function closeItems(){const m=document.getElementById('finItemsModal');if(m)m.remove();document.removeEventListener('keydown',itemsEsc);}
+function itemsEsc(ev){if(ev.key==='Escape')closeItems();}
+const dupItem=(name,category,exceptId)=>catalog().some(i=>i.id!==exceptId&&i.category===category&&fold(i.name)===fold(name));
+function lineOptions(sel){
+ const L=window.ckrDreLines||[],G=window.ckrDreGroups||[];
+ return '<option value="">Escolha a linha da DRE…</option>'+G.map(([g,n])=>`<optgroup label="${esc(n)}">${L.filter(l=>l[2]===g).map(l=>`<option value="${l[0]}"${l[0]===sel?' selected':''}>${esc(l[1])}</option>`).join('')}</optgroup>`).join('');
+}
+function openItems(fromForm){
+ if(denied())return;
+ if(!(window.ckrDreLines&&window.ckrDreLines.length)){toast('A DRE não carregou: recarregue a página e tente de novo.',true);return;}
+ closeItems();
+ const S='padding:8px 10px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px;min-height:40px;box-sizing:border-box';
+ const m=document.createElement('div');m.id='finItemsModal';m.className='users-modal';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');
+ m.innerHTML=`<div class="users-card" style="width:min(100%,920px)">
+  <div class="users-heading"><div><p class="auth-eyebrow">DESPESAS</p><h2>Itens do catálogo</h2><p>Cada item define a linha da DRE e a competência padrão. Renomear não quebra o histórico; item sem uso é desativado, não apagado.</p></div><button type="button" class="users-close" data-it-close aria-label="Fechar">×</button></div>
+  <div id="finItCriar" style="margin-top:14px;padding:12px;border:1px solid #e6eaf1;border-radius:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+   <label style="flex:1 1 180px;display:grid;gap:4px;font-size:12px;font-weight:700;color:#536178">Nome do item<input id="finItNome" maxlength="60" placeholder="Ex.: Salário Maria" style="${S};width:100%"></label>
+   <label style="flex:1 1 140px;display:grid;gap:4px;font-size:12px;font-weight:700;color:#536178">Categoria<select id="finItCat" style="${S};width:100%">${cats().map(c=>`<option>${esc(c)}</option>`).join('')}</select></label>
+   <label style="flex:1 1 220px;display:grid;gap:4px;font-size:12px;font-weight:700;color:#536178">Linha da DRE (obrigatória)<select id="finItLinha" style="${S};width:100%">${lineOptions('')}</select></label>
+   <label style="flex:1 1 150px;display:grid;gap:4px;font-size:12px;font-weight:700;color:#536178">Competência padrão<select id="finItComp" style="${S};width:100%"><option value="pag">Mês do pagamento</option><option value="ant">Mês anterior</option></select></label>
+   <button type="button" class="button button-primary" id="finItSalvar">＋ Criar item</button>
+  </div>
+  <p id="finItErro" class="auth-error" role="alert"></p>
+  <div id="finItLista"></div></div>`;
+ document.body.appendChild(m);
+ const q=id=>m.querySelector('#'+id);
+ if($('finCat').value)q('finItCat').value=$('finCat').value;
+ function draw(){
+  const all=catalog(),cs=cats().filter(c=>all.some(i=>i.category===c));
+  q('finItLista').innerHTML=cs.map(c=>`<h4 style="margin:16px 0 4px;font-size:13px">${esc(c)}</h4>`+all.filter(i=>i.category===c).sort(byNamePt).map(i=>`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:7px 0;border-bottom:1px solid #f0f2f6${i.active===false?';opacity:.55':''}"><input data-it="${esc(i.id)}" data-f="name" value="${esc(i.name)}" maxlength="60" style="${S};flex:1 1 200px;min-width:0"><select data-it="${esc(i.id)}" data-f="line" style="${S};flex:1 1 200px;min-width:0">${lineOptions(i.line)}</select><select data-it="${esc(i.id)}" data-f="comp" style="${S};flex:0 1 160px"><option value="pag"${i.comp!=='ant'?' selected':''}>Mês do pagamento</option><option value="ant"${i.comp==='ant'?' selected':''}>Mês anterior</option></select><label style="display:flex;gap:5px;align-items:center;font-size:12px;white-space:nowrap"><input type="checkbox" data-it="${esc(i.id)}" data-f="active"${i.active!==false?' checked':''} style="width:18px;min-height:0;height:18px"> Ativo</label></div>`).join('')).join('');
+ }
+ draw();
+ m.addEventListener('click',ev=>{if(ev.target===m||ev.target.closest('[data-it-close]'))closeItems();});
+ m.addEventListener('change',ev=>{
+  const el=ev.target,it=itemById(el.dataset.it),f=el.dataset.f;if(!it||!f)return;
+  if(denied()){draw();return;}
+  if(f==='name'){
+   const n=el.value.trim().slice(0,60);
+   if(!n){toast('O nome não pode ficar vazio.',true);draw();return;}
+   if(dupItem(n,it.category,it.id)){toast('Já existe um item com esse nome nesta categoria.',true);draw();return;}
+   if(n!==it.name){it.name=n;list().forEach(x=>{if(x.itemId===it.id)x.description=n;});}   // o histórico acompanha o novo nome
+  }else if(f==='line'){
+   if(!el.value){toast('Escolha a linha da DRE do item.',true);draw();return;}
+   it.line=el.value;
+  }else if(f==='comp')it.comp=el.value==='ant'?'ant':'pag';
+  else if(f==='active')it.active=el.checked;
+  if(saveData()){toast('Item atualizado.');if(m.isConnected)draw();}
+ });
+ q('finItSalvar').addEventListener('click',()=>{
+  if(denied())return;
+  const err=t=>{q('finItErro').textContent=t;},name=q('finItNome').value.trim(),category=q('finItCat').value,line=q('finItLinha').value,comp=q('finItComp').value==='ant'?'ant':'pag';
+  err('');
+  if(!name)return err('Informe o nome do item.');
+  if(!category)return err('Escolha a categoria.');
+  if(!line)return err('Escolha a linha da DRE: é ela que decide onde a despesa aparece.');
+  if(dupItem(name,category,''))return err('Já existe um item com esse nome nesta categoria.');
+  const it={id:'it_'+id().replace(/-/g,'').slice(0,12),name,category,line,comp,active:true,createdAt:new Date().toISOString()};
+  catalog().push(it);
+  if(saveData()){
+   toast('Item criado no catálogo.');
+   if(fromForm){closeItems();$('finCat').value=category;renderItems(it.id);compManual=false;syncComp();$('finValor').focus();return;}
+   q('finItNome').value='';q('finItLinha').value='';draw();
+  }
+ });
+ document.addEventListener('keydown',itemsEsc);
+ setTimeout(()=>q('finItNome').focus(),50);
 }
 
 // ---------- ligações ----------
@@ -388,7 +528,12 @@ function init(){
  $('finForm').addEventListener('submit',save);$('finNovaConta').addEventListener('click',newAccount);
  $('finStatus').addEventListener('change',syncForm);$('finTipo').addEventListener('change',syncForm);
  $('finData').addEventListener('change',syncForm);
- $('finCat').addEventListener('change',catHint);
+ $('finCat').addEventListener('change',()=>{catHint();renderItems();compManual=false;syncComp();});
+ $('finItem').addEventListener('change',()=>{compManual=false;syncComp();});
+ $('finComp').addEventListener('input',()=>{compManual=true;syncComp();});
+ $('finPago').addEventListener('change',syncComp);
+ $('finNovoItem').addEventListener('click',()=>openItems(true));
+ $('finGerItens').addEventListener('click',()=>openItems(false));
  $('finNovaCat').addEventListener('click',()=>{
   if(denied())return;
   const n=(prompt('Nome da nova categoria:')||'').trim().slice(0,30);if(!n)return;
@@ -407,7 +552,5 @@ const baseRender=window.renderAll;
 window.renderAll=function(){baseRender();render();};
 const baseGoTo=window.goTo;
 window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='financeiro')render();};
-// Usado pelo extrato do Caixa: abre a despesa para edição.
-window.ckrDespesaEdit=function(eid){if(denied())return;const x=list().find(i=>i.id===eid);if(!x){toast('Despesa não encontrada.',true);return;}fillForm(x);};
 render();
 })();
