@@ -324,4 +324,4 @@ const baseGoTo=window.goTo;
 window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='dre')render();};
 })();
 // Carrega o módulo de receitas de serviços (servicos.js) sem precisar mexer no index.html.
-(function(){const s=document.createElement('script');s.src='servicos.js?v=2';document.body.appendChild(s);})();
+(function(){const s=document.createElement('script');s.src='servicos.js?v=4';document.body.appendChild(s);})();
