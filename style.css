@@ -494,3 +494,4 @@ body[data-ckr-role="usuario"] #encLista [data-enc-act="editar"],body[data-ckr-ro
 .dre-avisos p{margin:0 0 6px;font-size:13px;line-height:1.45}.dre-avisos p:last-child{margin-bottom:0}
 select.dre-sel{max-width:100%;min-height:36px;margin:2px 6px 2px 0;border:1px solid #d0d5dd;border-radius:8px;padding:6px 8px;font:inherit;font-size:12px;background:#fff;color:#1f2a44}
 @media(max-width:600px){.dre-table tr.dre-sub td:first-child{padding-left:16px}}
+.form-badge-btn{border:0;cursor:pointer;font-family:inherit}.form-badge-btn:hover{background:#dbe5ff}.form-badge-btn:active{transform:translateY(1px)}
