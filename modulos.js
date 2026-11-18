@@ -28,6 +28,7 @@ window.pfThumb=id=>pf.has(id)?`<img class="p-thumb" src="${pf.get(id)}" alt="">`
 pfOpen().then(db=>{pfDb=db;return new Promise(ok=>{const r=db.transaction('fotos').objectStore('fotos').openCursor();r.onsuccess=()=>{const c=r.result;if(c){pf.set(c.key,c.value);c.continue();}else ok();};r.onerror=()=>ok();});}).then(()=>{if(typeof window.renderAll==='function')window.renderAll();}).catch(()=>{});
 // o backup leva as fotos junto (adicionadas só durante a exportação)
 document.getElementById('fazerBackup').addEventListener('click',()=>{if(pf.size)data.productPhotos=Object.fromEntries(pf);setTimeout(()=>{delete data.productPhotos;},0);},true);
+document.getElementById('copiarBackupTexto').addEventListener('click',()=>{if(pf.size)data.productPhotos=Object.fromEntries(pf);setTimeout(()=>{delete data.productPhotos;},0);},true);
 
 // formulário de produto
 const pfForm={pending:undefined};
@@ -113,6 +114,7 @@ function finish(){
  const s=openSession();
  if(!s){toast('Abra o caixa primeiro.',true);return;}
  if(!cart.length){toast('O carrinho está vazio.',true);return;}
+ if(!$('pdvCliente').value.trim()){toast('Informe o cliente para finalizar a venda.',true);$('pdvCliente').focus();return;}
  const t=totals();
  for(const it of cart){const p=productById(it.productId);if(!p||it.quantity>Number(p.stock)){toast(`Estoque insuficiente ou produto removido: ${it.name}.`,true);return;}}
  if(t.rest>0.009){toast(`Falta receber ${money(t.rest)}.`,true);return;}
