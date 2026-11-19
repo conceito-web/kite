@@ -92,7 +92,7 @@ function accountOptions(){
 }
 // Campo "Saiu de qual conta?" da Nova despesa: só as 4 contas do Conceito caixa (Pedidos à fábrica continua usando accountOptions)
 function expenseAccountOptions(){
- return '<option value="">Não informar</option>'+CAIXA.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
+ return CAIXA.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
 }
 function syncAccounts(){
  const opts=expenseAccountOptions();
