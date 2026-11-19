@@ -90,8 +90,12 @@ function accountList(){
 function accountOptions(){
  return '<option value="">Não informar</option><optgroup label="Conceito caixa (desconta do saldo)">'+CAIXA.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('')+'</optgroup>'+[...accountList()].map(([b,cs])=>`<optgroup label="${esc(b)}">${cs.map(c=>`<option value="${esc(b+SEP+c)}">${esc(b)}: ${esc(c)}</option>`).join('')}</optgroup>`).join('');
 }
+// Campo "Saiu de qual conta?" da Nova despesa: só as 4 contas do Conceito caixa (Pedidos à fábrica continua usando accountOptions)
+function expenseAccountOptions(){
+ return '<option value="">Não informar</option>'+CAIXA.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
+}
 function syncAccounts(){
- const opts=accountOptions();
+ const opts=expenseAccountOptions();
  document.querySelectorAll('#finPagtos .pg-c').forEach(sel=>{const cur=sel.value;sel.innerHTML=opts;if([...sel.options].some(o=>o.value===cur))sel.value=cur;});
 }
 // ---------- formas de pagamento (uma despesa pode ser paga de várias formas/contas) ----------
@@ -100,12 +104,12 @@ function payList(x){
  if(Array.isArray(x.payments)&&x.payments.length)return x.payments;
  return [{method:x.method||'',account:x.account||'',amount:Number(x.amount||0)}];
 }
-const payRowHtml=()=>`<div class="fin-pag-row"><label class="field">Forma<select class="pg-m">${METHODS.map(m=>`<option>${esc(m)}</option>`).join('')}</select></label><label class="field">Saiu de qual conta?<select class="pg-c">${accountOptions()}</select></label><label class="field pg-vbox">Valor (R$)<input class="pg-v" type="text" inputmode="numeric" placeholder="0,00"></label><button class="button button-light pg-rm" type="button" title="Remover esta forma">✕</button></div>`;
+const payRowHtml=()=>`<div class="fin-pag-row"><label class="field">Forma<select class="pg-m">${METHODS.map(m=>`<option>${esc(m)}</option>`).join('')}</select></label><label class="field">Saiu de qual conta?<select class="pg-c">${expenseAccountOptions()}</select></label><label class="field pg-vbox">Valor (R$)<input class="pg-v" type="text" inputmode="numeric" placeholder="0,00"></label><button class="button button-light pg-rm" type="button" title="Remover esta forma">✕</button></div>`;
 const fmtIn=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 function addPayRow(p){
  const box=$('finPagtos');box.insertAdjacentHTML('beforeend',payRowHtml());
  const row=box.lastElementChild;
- if(p){row.querySelector('.pg-m').value=p.method||METHODS[0];row.querySelector('.pg-c').value=p.account||'';row.querySelector('.pg-v').value=p.amount>0?fmtIn(p.amount):'';}
+ if(p){row.querySelector('.pg-m').value=p.method||METHODS[0];{const sc=row.querySelector('.pg-c');sc.value=p.account||'';if(p.account&&sc.value!==p.account){const op=document.createElement('option');op.value=p.account;op.textContent=accLabel(p.account);sc.appendChild(op);sc.value=p.account;}}row.querySelector('.pg-v').value=p.amount>0?fmtIn(p.amount):'';}
  bindMoneyMask(row.querySelector('.pg-v'));
  return row;
 }
@@ -539,7 +543,7 @@ function init(){
  $('finNovo').addEventListener('click',()=>{if(denied())return;resetForm();openForm();});
  $('finCancelar').addEventListener('click',closeForm);
  $('finAddPag').addEventListener('click',onAddPay);$('finPagtos').addEventListener('click',onPagClick);$('finPagtos').addEventListener('input',paySum);$('finValor').addEventListener('input',paySum);
- $('finForm').addEventListener('submit',save);$('finNovaConta').addEventListener('click',newAccount);
+ $('finForm').addEventListener('submit',save);$('finNovaConta').style.display='none';
  $('finStatus').addEventListener('change',syncForm);$('finTipo').addEventListener('change',syncForm);
  $('finData').addEventListener('change',syncForm);
  $('finCat').addEventListener('change',()=>{catHint();renderItems();compManual=false;syncComp();});
