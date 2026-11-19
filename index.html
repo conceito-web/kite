@@ -463,7 +463,7 @@
         </section>
 
         <section class="panel" id="panel-financeiro">
-          <div class="page-heading fin-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Despesas e lucro líquido</h1><p class="subtitle">Lance os gastos da loja e veja quanto realmente sobrou: o sistema desconta as despesas pagas do total de recebimentos.</p></div><button class="button button-primary" id="finNovo" type="button"><span>＋</span> Nova despesa</button></div>
+          <div class="page-heading fin-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Despesas e lucro líquido</h1><p class="subtitle">Lance os gastos da loja e veja quanto realmente sobrou: o sistema desconta as despesas do lucro bruto das vendas.</p></div><button class="button button-primary" id="finNovo" type="button"><span>＋</span> Nova despesa</button></div>
 
           <section class="surface form-surface">
             <div class="surface-heading"><div><h2>Período da análise</h2><p id="finPeriodoDesc"></p></div></div>
@@ -476,7 +476,7 @@
 
           <div class="stats-grid fin-stats">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">R$</span><span class="stat-label">Faturamento</span></div><strong id="finVendas">R$ 0,00</strong><div class="stat-foot" id="finVendasNota"></div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Total de Recebimentos</span></div><strong id="finBruto">R$ 0,00</strong><div class="stat-foot" id="finBrutoNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Lucro bruto</span></div><strong id="finBruto">R$ 0,00</strong><div class="stat-foot" id="finBrutoNota"></div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">↘</span><span class="stat-label">Despesas</span></div><strong id="finDesp">R$ 0,00</strong><div class="stat-foot" id="finDespNota"></div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">=</span><span class="stat-label">Lucro líquido</span></div><strong id="finLiquido">R$ 0,00</strong><div class="stat-foot" id="finLiquidoNota"></div></article>
           </div>
@@ -484,14 +484,14 @@
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">✓</span><span class="stat-label">Despesas pagas</span></div><strong id="finPagas">R$ 0,00</strong></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">◔</span><span class="stat-label">Despesas pendentes</span></div><strong id="finPend">R$ 0,00</strong></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="stat-label">Vencidas</span></div><strong id="finVenc2">R$ 0,00</strong><div class="stat-foot" id="finVencNota"></div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">%</span><span class="stat-label">Margem líquida</span></div><strong id="finMargem">—</strong><div class="stat-foot">Lucro líquido ÷ total de recebimentos</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">%</span><span class="stat-label">Margem líquida</span></div><strong id="finMargem">—</strong><div class="stat-foot">Lucro líquido ÷ faturamento</div></article>
           </div>
 
-          <div class="notice"><span class="notice-icon">i</span><p><b>Como o lucro é calculado:</b> o Total de Recebimentos considera só o que efetivamente entrou, pelas regras do Caixa, sem descontar o custo dos produtos (CMV). As despesas e os pagamentos à fábrica entram somente quando pagos, na data do pagamento. As parcelas do cartão da loja já entram líquidas de taxa, então <b>não lance taxa de maquininha como despesa</b>. Pagamentos feitos com crédito da fábrica não saem do caixa e não entram aqui.</p></div>
+          <div class="notice"><span class="notice-icon">i</span><p><b>Como o lucro é calculado:</b> o lucro bruto das vendas já desconta o custo dos produtos (PEPS) e as taxas de cartão/crédito. Por isso <b>não lance taxa de maquininha como despesa</b>, para não descontar duas vezes. Impostos e devoluções também: lance aqui só o que ainda não foi descontado.</p></div>
 
           <div class="fin-grid-2">
             <section class="surface fin-card">
-              <div class="surface-heading"><div><h2>Resultado do período</h2><p>Vendas, total de recebimentos, despesas e lucro líquido</p></div></div>
+              <div class="surface-heading"><div><h2>Resultado do período</h2><p>Vendas, lucro bruto, despesas e lucro líquido</p></div></div>
               <div id="finChartResultado"></div>
             </section>
             <section class="surface fin-card">
@@ -893,10 +893,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=38"></script>
-  <script src="modulos.js?v=33"></script>
+  <script src="modulos.js?v=32"></script>
   <script src="encomendas.js?v=6"></script>
   <script src="despesas.js?v=10"></script>
-  <script src="caixa.js?v=18"></script>
+  <script src="caixa.js?v=17"></script>
   <script src="impostos.js?v=13"></script>
   <script src="dre.js?v=6"></script>
 </body>
