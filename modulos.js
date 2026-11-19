@@ -917,9 +917,47 @@ function renderPedidos(){
  $('pedVazio').style.display=list.length?'none':'block';
 }
 $('pedBusca').addEventListener('input',renderPedidos);$('pedFiltroEntrega').addEventListener('change',renderPedidos);
+// Marcar paga: pede data, forma de pagamento e conta de origem. A saída entra no extrato da conta (Caixa) e em Despesas e Lucro (não na DRE).
+// Pago com crédito da fábrica: não sai dinheiro do caixa; só baixa o saldo de crédito. Desmarcar reverte tudo.
+const PED_CRED='Crédito da fábrica';
+function pedAskPayment(o,inst){
+ const ov=document.createElement('div');ov.className='ped-modal';
+ const metodos=[...PED_PAY,PED_CRED],def=metodos.includes(inst.method)?inst.method:PED_PAY[0];
+ const opts=(typeof window.ckrAccountOptions==='function'?window.ckrAccountOptions():'<option value="">Não informar</option>').replace('>Não informar<','>Selecione a conta…<');
+ ov.innerHTML=`<div class="ped-modal-box" role="dialog" aria-modal="true"><h3>Marcar parcela como paga</h3><p class="ped-modal-sub">Pedido nº ${o.num} · parcela ${inst.n}/${inst.of} · ${money(inst.amount)}</p><label class="field">Data do pagamento<input type="date" class="pedPagData" value="${localDateKey(new Date())}"></label><label class="field" style="margin-top:10px">Forma de pagamento<select class="pedPagForma">${metodos.map(m=>`<option${m===def?' selected':''}>${esc(m)}</option>`).join('')}</select></label><label class="field pedPagContaBox" style="margin-top:10px">Conta financeira de origem<select class="pedPagConta">${opts}</select></label><p class="ped-modal-prev"></p><div class="form-actions"><button class="button button-primary pedPagOk" type="button">Confirmar pagamento</button><button class="button button-light pedPagCancel" type="button">Cancelar</button></div></div>`;
+ document.body.appendChild(ov);
+ const forma=ov.querySelector('.pedPagForma'),box=ov.querySelector('.pedPagContaBox'),conta=ov.querySelector('.pedPagConta'),prev=ov.querySelector('.ped-modal-prev');
+ const fechar=()=>{ov.remove();document.removeEventListener('keydown',onEsc);};
+ const onEsc=e=>{if(e.key==='Escape')fechar();};
+ const mostra=()=>{
+  const cred=forma.value===PED_CRED;box.hidden=cred;
+  prev.innerHTML=cred?`Pago com crédito da fábrica: <b>não sai dinheiro do caixa</b>. O valor é descontado do saldo de crédito (disponível: ${money(factoryStats().bal)}).`:'A saída será lançada no extrato da conta escolhida (se for uma conta do Caixa) e entra em Despesas e Lucro. Não afeta a DRE.';
+ };
+ forma.addEventListener('change',mostra);mostra();
+ document.addEventListener('keydown',onEsc);
+ ov.addEventListener('click',e=>{if(e.target===ov)fechar();});
+ ov.querySelector('.pedPagCancel').addEventListener('click',fechar);
+ ov.querySelector('.pedPagOk').addEventListener('click',()=>{
+  const date=ov.querySelector('.pedPagData').value,method=forma.value,cred=method===PED_CRED,account=cred?'':conta.value;
+  if(!date){toast('Informe a data do pagamento.',true);return;}
+  if(!cred&&!account){toast('Escolha a conta financeira de origem.',true);return;}
+  if(cred&&inst.amount>factoryStats().bal+0.009){toast(`O crédito da fábrica disponível (${money(factoryStats().bal)}) é menor que a parcela (${money(inst.amount)}).`,true);return;}
+  const now=new Date().toISOString(),by=currentUserName(),led=cred?{id:id(),date:keyToIso(date),amount:inst.amount,note:`Pedido nº ${o.num} · parcela ${inst.n}/${inst.of}`,by,orderId:o.id,instN:inst.n}:null;
+  inst.paid=true;inst.paidAt=keyToIso(date);inst.payment={date,method,account,credit:cred,by,at:now};
+  if(led)ledger().push(led);
+  fechar();
+  if(saveData())toast(cred?'Parcela paga com crédito da fábrica. Nenhuma saída de caixa foi lançada.':'Parcela marcada como paga. A saída foi lançada na conta e em Despesas e Lucro.');
+  else{inst.paid=false;inst.paidAt='';delete inst.payment;if(led)data.factoryLedger=ledger().filter(x=>x.id!==led.id);}
+ });
+ ov.querySelector('.pedPagData').focus();
+}
 function pedTogglePay(btn){
  const [oid,n]=btn.dataset.pedPay.split('|'),o=orders().find(x=>x.id===oid),inst=o&&o.installments.find(x=>String(x.n)===n);if(!inst)return;
- inst.paid=!inst.paid;inst.paidAt=inst.paid?new Date().toISOString():'';if(saveData())toast(inst.paid?'Parcela marcada como paga.':'Parcela reaberta.');
+ if(!inst.paid){pedAskPayment(o,inst);return;}
+ const had=!!inst.payment;
+ inst.paid=false;inst.paidAt='';delete inst.payment;
+ data.factoryLedger=ledger().filter(x=>!(x.orderId===o.id&&x.instN===inst.n));   // devolve o crédito, se a parcela tinha sido paga com ele
+ if(saveData())toast(had?'Parcela reaberta. A saída financeira foi revertida.':'Parcela reaberta.');
 }
 $('pedAgenda').addEventListener('click',e=>{const p=e.target.closest('[data-ped-pay]');if(p)pedTogglePay(p);});
 // Mudar a data ou o valor de um boleto/parcela em aberto: os dias são recalculados a partir da data base (nota ou pedido)
