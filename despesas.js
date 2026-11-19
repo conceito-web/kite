@@ -1,7 +1,7 @@
 'use strict';
 // Conceito: Despesas, lucro líquido, gráficos financeiros, previsão de gastos.
 // Usa as funções e dados do app.js (data, money, saveData, localDateKey, shortMoney, ...).
-// Lucro líquido = lucro bruto das vendas (já com custo PEPS e taxas de cartão/crédito) − despesas.
+// Lucro líquido = Total de Recebimentos (o que efetivamente entrou, pelas regras do Caixa) − despesas e pagamentos a fornecedores efetivamente pagos (regime de caixa, sem CMV).
 // Catálogo de itens (data.expenseCatalog): a Descrição da despesa é um item do catálogo; o item define a linha da DRE e a competência padrão.
 (function(){
 const $=x=>document.getElementById(x), r2=n=>Math.round(Number(n||0)*100)/100;
@@ -21,6 +21,7 @@ const DEFAULT_ACCOUNTS=[
  ['Itaú',['Poupança CA*','Poupança CA','Poupança CE','Poupança AN']]
 ];
 const SEP=' — ';
+const FAB_CAT='Pagamentos à fábrica';   // parcelas de pedidos à fábrica pagas (vêm de Pedidos à fábrica; não passam pela DRE)
 // Contas do Conceito caixa (value 'caixa:<chave>'): despesa PAGA com uma delas sai do saldo da conta.
 const CAIXA=[['caixa:blu','Caixa BLU'],['caixa:nubank','Caixa NUBANK'],['caixa:dinheiro','Dinheiro CAIXA'],['caixa:agenda','Caixa AGENDA BLU']];
 const isCaixa=a=>String(a||'').indexOf('caixa:')===0;
@@ -153,7 +154,7 @@ function newAccount(){
 }
 const accLabel=a=>isCaixa(a)?((CAIXA.find(c=>c[0]===a)||[])[1]||a):(a?a.replace(SEP,': '):'');
 const hintOf=c=>(DEFAULT_CATS.find(x=>x[0]===c)||[])[1]||'Categoria criada por você.';
-const colorOf=c=>PALETTE[Math.max(0,cats().indexOf(c))%PALETTE.length];
+const colorOf=c=>{const i=cats().indexOf(c);return i<0?'#7a8699':PALETTE[i%PALETTE.length];};
 function addMonths(key,n){
  const [y,m,d]=key.split('-').map(Number),t=new Date(y,m-1+n,1),last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();
  return localDateKey(new Date(t.getFullYear(),t.getMonth(),Math.min(d,last)));
@@ -171,24 +172,37 @@ const signed=v=>(v<0?'−':'')+money(Math.abs(v));
 
 // ---------- cálculo central ----------
 function calc(s,e){
- let vendas=0,bruto=0,rec=0,sem=0;const sales=new Set();
+ // Faturamento (informativo): vendas e serviços lançados no período.
+ let vendas=0;const sales=new Set();
  data.movements.forEach(m=>{
   if(m.type!=='venda'||m.canceled||!inR(localDateKey(m.date),s,e))return;
-  const t=Number(m.total||0);vendas+=t;sales.add(m.saleId||m.id);
-  const p=profitOf(m);if(Number.isFinite(p)){bruto+=p;rec+=t;}else sem++;
+  vendas+=Number(m.total||0);sales.add(m.saleId||m.id);
  });
- // receitas de serviços: entram em vendas e no lucro bruto (valor − taxa do cartão; serviço não tem custo, mesmo se pago pela fábrica)
- (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{if(!inR(localDateKey(sv.date),s,e))return;const t=Number(sv.amount||0);vendas+=t;rec+=t;bruto+=t-Number((sv.payment||{}).fee||0);});
- let desp=0,pagas=0,pend=0,venc=0,qtd=0;const byCat={},today=todayISO();
+ (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{if(!inR(localDateKey(sv.date),s,e))return;vendas+=Number(sv.amount||0);});
+ // Total de Recebimentos: só o que efetivamente entrou, pelas regras do Caixa (sem CMV; crédito retido com a fábrica não entra).
+ const recebido=typeof window.ckrRecebimentos==='function'?window.ckrRecebimentos(s,e):0;
+ // Despesas: só as efetivamente pagas, na data do pagamento. As pendentes ficam à parte.
+ let desp=0,pagas=0,pend=0,venc=0,qtd=0,fab=0;const byCat={},today=todayISO();
  list().forEach(x=>{
-  if(!inR(x.date,s,e))return;
-  const v=Number(x.amount||0);desp+=v;qtd++;
-  if(x.status==='pago')pagas+=v;else{pend+=v;if(x.dueDate&&x.dueDate<today)venc+=v;}
-  const c=x.category||'Outras';byCat[c]=(byCat[c]||0)+v;
+  const v=Number(x.amount||0);
+  if(x.status==='pago'){
+   if(!inR(x.paidDate||x.date,s,e))return;
+   desp+=v;pagas+=v;qtd++;
+   const c=x.category||'Outras';byCat[c]=(byCat[c]||0)+v;
+  }else{
+   if(!inR(x.date,s,e))return;
+   pend+=v;if(x.dueDate&&x.dueDate<today)venc+=v;
+  }
  });
- bruto=r2(bruto);desp=r2(desp);
- return {vendas:r2(vendas),bruto,rec:r2(rec),sem,vendasQtd:sales.size,desp,pagas:r2(pagas),pend:r2(pend),venc:r2(venc),qtd,byCat,
-  liquido:r2(bruto-desp),liquidoPagas:r2(bruto-pagas),margem:rec>0?(bruto-desp)/rec*100:null,margemBruta:rec>0?bruto/rec*100:null};
+ // Pagamentos a fornecedor (parcelas de pedidos à fábrica) pagos com dinheiro: entram aqui, não na DRE. Pagamento com crédito da fábrica não sai do caixa.
+ (data.factoryOrders||[]).forEach(o=>(o.installments||[]).forEach(p=>{
+  const pg=p&&p.paid&&p.payment;
+  if(!pg||pg.credit||!inR(pg.date,s,e))return;
+  const v=Number(p.amount||0);fab+=v;desp+=v;pagas+=v;qtd++;byCat[FAB_CAT]=(byCat[FAB_CAT]||0)+v;
+ }));
+ desp=r2(desp);
+ return {vendas:r2(vendas),vendasQtd:sales.size,recebido:r2(recebido),desp,pagas:r2(pagas),pend:r2(pend),venc:r2(venc),qtd,fab:r2(fab),byCat,
+  liquido:r2(recebido-desp),margem:recebido>0?(recebido-desp)/recebido*100:null};
 }
 
 // ---------- gráficos (SVG) ----------
@@ -246,22 +260,22 @@ function catHint(){$('finCatHint').textContent='Exemplos: '+hintOf($('finCat').v
 
 function renderSummary(){
  const {s,e}=period(),c=calc(s,e);
- $('finPeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · valores de vendas e despesas dentro deste período.`;
- setMoney('finVendas',c.vendas);setMoney('finBruto',c.bruto);setMoney('finDesp',c.desp);setMoney('finLiquido',c.liquido,'sign');
+ $('finPeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · recebimentos e pagamentos efetivos dentro deste período.`;
+ setMoney('finVendas',c.vendas);setMoney('finBruto',c.recebido);setMoney('finDesp',c.desp);setMoney('finLiquido',c.liquido,'sign');
  setMoney('finPagas',c.pagas);setMoney('finPend',c.pend);setMoney('finVenc2',c.venc);
  $('finVendasNota').textContent=`${c.vendasQtd} venda(s) registrada(s)`;
- $('finBrutoNota').textContent=(c.margemBruta==null?'Sem vendas com custo no período':`Margem bruta: ${pct(c.margemBruta)}`)+(c.sem?` · ${c.sem} item(ns) sem custo histórico fora do cálculo`:'');
- $('finDespNota').textContent=`${c.qtd} lançamento(s) · ${c.vendas>0?pct(c.desp/c.vendas*100)+' do faturamento':'sem vendas no período'}`;
- $('finLiquidoNota').textContent=`Se contar só as despesas pagas: ${signed(c.liquidoPagas)}`;
+$('finBrutoNota').textContent='Dinheiro, Pix e cartão já recebidos, conforme o Caixa (sem crédito com a fábrica)';
+$('finDespNota').textContent=`${c.qtd} pagamento(s) efetuado(s) · ${c.recebido>0?pct(c.desp/c.recebido*100)+' dos recebimentos':'sem recebimentos no período'}${c.fab>0?' · inclui '+money(c.fab)+' pagos à fábrica':''}`;
+$('finLiquidoNota').textContent='Total de Recebimentos − despesas pagas';
  const mg=$('finMargem');mg.textContent=c.margem==null?'—':pct(c.margem);mg.classList.remove('fin-pos','fin-neg');if(c.margem!=null&&c.margem!==0)mg.classList.add(c.margem>0?'fin-pos':'fin-neg');
  $('finVencNota').textContent=c.venc>0?'Pendentes com vencimento já passado':'Nenhuma conta vencida';
  // gráfico: resultado do período
  $('finChartResultado').innerHTML=barChart([
   {label:'Vendas',value:c.vendas,color:'#3468f5'},
-  {label:'Lucro bruto',value:c.bruto,color:'#1b9b6b',negColor:'#d74b55'},
+  {label:'Recebimentos',value:c.recebido,color:'#1b9b6b',negColor:'#d74b55'},
   {label:'Despesas',value:c.desp,color:'#e89b3b'},
   {label:'Lucro líquido',value:c.liquido,color:'#8c6be8',negColor:'#d74b55'}
- ],'Vendas, lucro bruto, despesas e lucro líquido do período');
+ ],'Vendas, total de recebimentos, despesas e lucro líquido do período');
  // composição das despesas
  const rows=Object.entries(c.byCat).sort((a,b)=>b[1]-a[1]),tot=rows.reduce((n,x)=>n+x[1],0);
  let acc=0;const stops=rows.map(([k,v])=>{const a=acc/tot*100;acc+=v;return `${colorOf(k)} ${a}% ${acc/tot*100}%`;});
@@ -287,7 +301,7 @@ function renderGoalAndCompare(){
   return `<span class="${p===0?'fin-muted':good?'fin-pos':'fin-neg'}">${p>0?'▲':p<0?'▼':''} ${pct(Math.abs(p))}</span>`;
  };
  const line=(n,a,b,badUp)=>`<tr><td>${n}</td><td>${signed(a)}</td><td>${signed(b)}</td><td>${var_(a,b,badUp)}</td></tr>`;
- $('finComparativo').innerHTML=line('Vendas',cur.vendas,prev.vendas,false)+line('Lucro bruto',cur.bruto,prev.bruto,false)+line('Despesas',cur.desp,prev.desp,true)+line('Lucro líquido',cur.liquido,prev.liquido,false);
+ $('finComparativo').innerHTML=line('Vendas',cur.vendas,prev.vendas,false)+line('Total de Recebimentos',cur.recebido,prev.recebido,false)+line('Despesas',cur.desp,prev.desp,true)+line('Lucro líquido',cur.liquido,prev.liquido,false);
  // previsão
  const past=[-1,-2,-3].map(o=>calc(...monthRange(o)).desp).filter(v=>v>0),avg=past.length?r2(past.reduce((a,b)=>a+b,0)/past.length):0;
  const lim=localDateKey(new Date(Date.now()+30*864e5));
@@ -552,6 +566,7 @@ const baseRender=window.renderAll;
 window.renderAll=function(){baseRender();render();};
 const baseGoTo=window.goTo;
 window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='financeiro')render();};
+window.ckrAccountOptions=accountOptions;   // usado por Pedidos à fábrica (conta de origem do pagamento)
 // Usado pelo extrato do Caixa: abre a despesa para edição.
 window.ckrDespesaEdit=function(eid){if(denied())return;const x=list().find(i=>i.id===eid);if(!x){toast('Despesa não encontrada.',true);return;}fillForm(x);};
 render();
