@@ -894,7 +894,7 @@ function renderPedidos(){
  const proxima=soon.length?` (próximo: ${brDate(soon[0].p.dueDate)})`:'';
  const txt=[late.length?`${late.length} boleto(s)/parcela(s) da fábrica vencido(s) (${money(sum(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sum(soon))})${proxima}`:''].filter(Boolean).join(' · ');
  $('pedAlerta').hidden=!urgent;$('pedAlertaPainel').hidden=!urgent;$('pedAlertaTexto').textContent=txt;$('pedAlertaPainelTexto').textContent=txt;
- $('pedAgenda').innerHTML=open.map(({o,p,st})=>`<tr><td><b>${esc(brDate(p.dueDate))}</b></td><td><span class="pill ${st.k}">${esc(st.t)}</span></td><td><b>${money(p.amount)}</b></td><td>${p.n}/${p.of} · ${esc(p.method||o.payMethod||'')} · ${keyDiff(pedBaseFor(o,p),p.dueDate)} dias</td><td><b>Pedido nº ${o.num}</b> · ${esc(brDate(o.date))}${o.invoiceNumber?` · NF ${esc(o.invoiceNumber)}`:''}<br><small>${esc(o.items.map(i=>i.name).join(', '))}</small></td><td><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">Marcar paga</button></td></tr>`).join('');
+ $('pedAgenda').innerHTML=open.map(({o,p,st})=>`<tr><td><b>${esc(brDate(p.dueDate))}</b></td><td><span class="pill ${st.k}">${esc(st.t)}</span></td><td><b>${money(p.amount)}</b></td><td>${p.n}/${p.of} · ${esc(p.method||o.payMethod||'')} · ${keyDiff(pedBaseFor(o,p),p.dueDate)} dias</td><td><b>Pedido nº ${o.num}</b> · ${esc(brDate(o.date))}${o.invoiceNumber?` · NF ${esc(o.invoiceNumber)}`:''}<br><small>${esc(o.items.map(i=>i.name).join(', '))}</small></td><td><button type="button" class="row-action" data-ped-edit="${esc(o.id)}|${p.n}">Editar</button><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">Marcar paga</button></td></tr>`).join('');
  $('pedAgendaVazio').style.display=open.length?'none':'block';
  $('pedProdutos').innerHTML=data.products.map(p=>`<option value="${esc(p.name)}"></option>`).join('');
  const fe=$('pedFiltroEntrega').value;
@@ -905,7 +905,7 @@ function renderPedidos(){
   const parc=o.installments.length?o.installments.map(p=>{
    const st=pedStatus(p,lim),dias=keyDiff(pedBaseFor(o,p),p.dueDate),m=p.method||o.payMethod||'';
    const edit=p.paid?`${esc(brDate(p.dueDate))} · <b>${money(p.amount)}</b>`:`<input type="date" class="ped-inline pedInstData" value="${esc(p.dueDate)}" ${ds} data-n="${p.n}" aria-label="Vencimento"> <input type="text" inputmode="numeric" autocomplete="off" class="ped-inline pedInstVal" value="${fmtBR(p.amount)}" ${ds} data-n="${p.n}" aria-label="Valor da parcela">`;
-   return `<span class="p">${p.n}/${p.of} · ${esc(m)} · ${p.paid&&dias===0?'à vista':`<b>${dias} dias</b>`} · ${edit} <span class="pill ${st.k}">${esc(st.t)}</span><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">${p.paid?'Desmarcar':'Marcar paga'}</button></span>`;
+   return `<span class="p">${p.n}/${p.of} · ${esc(m)} · ${p.paid&&dias===0?'à vista':`<b>${dias} dias</b>`} · ${edit} <span class="pill ${st.k}">${esc(st.t)}</span>${p.paid?'':`<button type="button" class="row-action" data-ped-edit="${esc(o.id)}|${p.n}">Editar</button>`}<button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">${p.paid?'Desmarcar':'Marcar paga'}</button></span>`;
   }).join(''):'<span class="p">Pago totalmente com crédito da fábrica</span>';
   const somaP=r2(o.installments.reduce((a,p)=>a+p.amount,0)),dif=r2(somaP-(o.remainder||0));
   const difHtml=(o.installments.length&&Math.abs(dif)>0.009)?`<span class="p"><span class="pill vencida">Parcelas somam ${money(somaP)}: ${dif>0?'acima':'abaixo'} do restante do pedido em ${money(Math.abs(dif))}</span></span>`:'';
@@ -959,7 +959,43 @@ function pedTogglePay(btn){
  data.factoryLedger=ledger().filter(x=>!(x.orderId===o.id&&x.instN===inst.n));   // devolve o crédito, se a parcela tinha sido paga com ele
  if(saveData())toast(had?'Parcela reaberta. A saída financeira foi revertida.':'Parcela reaberta.');
 }
-$('pedAgenda').addEventListener('click',e=>{const p=e.target.closest('[data-ped-pay]');if(p)pedTogglePay(p);});
+// Editar valor e vencimento de um boleto/parcela em aberto (botão "Editar" na agenda e na lista de pedidos)
+function pedEditInst(o,inst){
+ if(!o||!inst)return;
+ if(inst.paid){toast('Parcela já paga. Use "Desmarcar" para reabrir e depois edite.',true);return;}
+ const ov=document.createElement('div');ov.className='ped-modal';
+ ov.innerHTML=`<div class="ped-modal-box" role="dialog" aria-modal="true"><h3>Editar boleto / parcela</h3><p class="ped-modal-sub">Pedido nº ${o.num} · parcela ${inst.n}/${inst.of} · ${esc(inst.method||o.payMethod||'')}</p><label class="field">Vencimento<input type="date" class="pedEdData" value="${esc(inst.dueDate)}"></label><label class="field" style="margin-top:10px">Valor (R$)<input type="text" inputmode="numeric" autocomplete="off" class="pedEdVal" value="${fmtBR(inst.amount)}"></label><p class="ped-modal-prev"></p><div class="form-actions"><button class="button button-primary pedEdOk" type="button">Salvar alterações</button><button class="button button-light pedEdCancel" type="button">Cancelar</button></div></div>`;
+ document.body.appendChild(ov);
+ const dt=ov.querySelector('.pedEdData'),vl=ov.querySelector('.pedEdVal'),prev=ov.querySelector('.ped-modal-prev');
+ bindMoneyMask(vl);
+ const fechar=()=>{ov.remove();document.removeEventListener('keydown',onEsc);};
+ const onEsc=e=>{if(e.key==='Escape')fechar();};
+ const mostra=()=>{
+  const v=r2(parseMoneyInput(vl.value));
+  const outras=r2(o.installments.filter(x=>x!==inst).reduce((a,x)=>a+x.amount,0)),dif=r2(outras+v-(o.remainder||0));
+  prev.innerHTML=(dt.value?`Prazo: <b>${keyDiff(pedBaseFor(o,inst),dt.value)} dias</b> a partir de ${esc(brDate(pedBaseFor(o,inst)))}.`:'')+(Math.abs(dif)>0.009?`<br>Atenção: as parcelas somariam ${money(r2(outras+v))}, ${dif>0?'acima':'abaixo'} do restante do pedido em ${money(Math.abs(dif))}.`:'');
+ };
+ dt.addEventListener('input',mostra);dt.addEventListener('change',mostra);vl.addEventListener('input',mostra);vl.addEventListener('money-mask-updated',mostra);mostra();
+ document.addEventListener('keydown',onEsc);
+ ov.addEventListener('click',e=>{if(e.target===ov)fechar();});
+ ov.querySelector('.pedEdCancel').addEventListener('click',fechar);
+ ov.querySelector('.pedEdOk').addEventListener('click',()=>{
+  const v=r2(parseMoneyInput(vl.value));
+  if(!dt.value){toast('Informe o vencimento.',true);return;}
+  if(!(v>0)){toast('Informe um valor maior que zero.',true);return;}
+  const back={dueDate:inst.dueDate,days:inst.days,amount:inst.amount};
+  inst.dueDate=dt.value;inst.days=keyDiff(pedBaseFor(o,inst),dt.value);inst.amount=v;
+  fechar();
+  if(saveData())toast(`Parcela atualizada: vence em ${brDate(inst.dueDate)} · ${money(v)}.`);
+  else Object.assign(inst,back);
+ });
+ dt.focus();
+}
+function pedEditBtn(btn){
+ const [oid,n]=btn.dataset.pedEdit.split('|'),o=orders().find(x=>x.id===oid);
+ pedEditInst(o,o&&o.installments.find(x=>String(x.n)===n));
+}
+$('pedAgenda').addEventListener('click',e=>{const ed=e.target.closest('[data-ped-edit]');if(ed){pedEditBtn(ed);return;}const p=e.target.closest('[data-ped-pay]');if(p)pedTogglePay(p);});
 // Mudar a data ou o valor de um boleto/parcela em aberto: os dias são recalculados a partir da data base (nota ou pedido)
 $('pedLista').addEventListener('change',e=>{
  const dt=e.target.closest('.pedInstData'),vl=e.target.closest('.pedInstVal'),el=dt||vl;if(!el)return;
@@ -1001,6 +1037,7 @@ function pedAskInvoiceDate(o){
  inp.focus();
 }
 $('pedLista').addEventListener('click',e=>{
+ const edb=e.target.closest('[data-ped-edit]');if(edb){pedEditBtn(edb);return;}
  const pf=e.target.closest('[data-ped-pdf]');if(pf){const o=orders().find(x=>x.id===pf.dataset.pedPdf);if(o)pedPdf(o);return;}
  const d=e.target.closest('[data-ped-del]'),p=e.target.closest('[data-ped-pay]'),en=e.target.closest('[data-ped-ent]');
  if(d){
