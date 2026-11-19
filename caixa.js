@@ -125,6 +125,15 @@ function expenseEntries(){
    out.push({key:x.id+':'+i,date:day,ts:String(x.updatedAt||x.createdAt||''),acc,amount:-amt,desc:'Despesa: '+(x.description||'sem descrição'),sub:(x.category||'')+(pays.length>1?(x.category?' · ':'')+'pagamento dividido':'')});
   });
  });
+ // Parcelas de pedidos à fábrica pagas (Pedidos à fábrica ▸ Marcar paga) com uma conta do caixa. Pagamento com crédito da fábrica não sai do caixa.
+ (data.factoryOrders||[]).forEach(o=>(o.installments||[]).forEach(p=>{
+  const pg=p&&p.paid&&p.payment;
+  if(!pg||pg.credit||String(pg.account||'').indexOf('caixa:')!==0)return;
+  const acc=pg.account.slice(6);if(!ACCS.some(a=>a.k===acc))return;
+  const day=pg.date||'',amt=r2(p.amount);
+  if(!day||(start&&day<start)||!(amt>0))return;
+  out.push({key:'ped:'+o.id+':'+p.n,date:day,ts:String(pg.at||''),acc,amount:-amt,fab:true,desc:'Pedido à fábrica nº '+(o.num||'')+' · parcela '+p.n+'/'+p.of,sub:pg.method||''});
+ }));
  return out;
 }
 function balances(){
@@ -151,6 +160,17 @@ function balances(){
  return {b,lock,lockRows,lockFab:r2(lockFab),lockFabRows,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda)};
 }
 
+// Total de Recebimentos no período (usado por Despesas e Lucro): só o que efetivamente entrou, pelas mesmas regras do Caixa
+// (dinheiro/Pix na hora; cartão fábrica = parte que não vira crédito; cartão loja = parcelas líquidas já vencidas). Crédito com a fábrica não entra.
+window.ckrRecebimentos=function(s,e){
+ const hoje=todayISO(),inR=k=>!!k&&(!s||k>=s)&&(!e||k<=e);let t=0;
+ autoEntries().forEach(a=>{
+  if(inR(a.dFab))t+=a.fab;
+  if(inR(a.dNon))t+=a.cash+a.pix;
+  a.parcs.forEach(p=>{if(p.date<=hoje&&inR(p.date))t+=p.amount;});
+ });
+ return r2(t);
+};
 // Crédito com a fábrica das encomendas abertas (já pagas pelo cliente, produto ainda não entregue): já é saldo utilizável.
 function encCreditos(){return autoEntries().filter(a=>a.enc&&Number(a.fcr)>0.004).map(a=>({key:a.key,date:a.date,client:a.client,label:a.label,credit:r2(a.fcr)}));}
 window.ckrEncomendaCreditos=encCreditos;
@@ -192,7 +212,7 @@ function rowsAll(S){
   a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,src,cat:'Parcelas do cartão loja (já sem taxa)',desc,
    sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${lk}`}));
  });
- S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,src:{t:'desp',id:String(x.key).split(':')[0]},cat:'Despesas pagas',desc:x.desc,sub:x.sub}));
+ S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,src:x.fab?null:{t:'desp',id:String(x.key).split(':')[0]},cat:x.fab?'Pagamentos à fábrica':'Despesas pagas',desc:x.desc,sub:x.sub}));
  ledger().forEach(e=>{
   let desc=KIND[e.kind]||'Lançamento',sub=e.note||'';
   if(e.kind==='transf'){
