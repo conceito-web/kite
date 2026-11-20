@@ -1,7 +1,7 @@
 'use strict';
-// Conceito: Despesas, lucro líquido, gráficos financeiros, previsão de gastos.
+// Conceito: Gestão de Despesas, geração líquida de caixa, gráficos financeiros, previsão de gastos.
 // Usa as funções e dados do app.js (data, money, saveData, localDateKey, shortMoney, ...).
-// Lucro líquido = Total de Recebimentos (o que efetivamente entrou, pelas regras do Caixa) − despesas e pagamentos a fornecedores efetivamente pagos (regime de caixa, sem CMV).
+// Geração líquida de caixa = Total de Recebimentos (o que efetivamente entrou, pelas regras do Caixa) − despesas e pagamentos a fornecedores efetivamente pagos (regime de caixa, sem CMV).
 // Catálogo de itens (data.expenseCatalog): a Descrição da despesa é um item do catálogo; o item define a linha da DRE e a competência padrão.
 (function(){
 const $=x=>document.getElementById(x), r2=n=>Math.round(Number(n||0)*100)/100;
@@ -206,7 +206,7 @@ function calc(s,e){
  }));
  desp=r2(desp);
  return {vendas:r2(vendas),vendasQtd:sales.size,recebido:r2(recebido),desp,pagas:r2(pagas),pend:r2(pend),venc:r2(venc),qtd,fab:r2(fab),byCat,
-  liquido:r2(recebido-desp),margem:recebido>0?(recebido-desp)/recebido*100:null};
+  liquido:r2(recebido-desp)};
 }
 
 // ---------- gráficos (SVG) ----------
