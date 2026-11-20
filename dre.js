@@ -240,7 +240,7 @@ function renderAvisos(R,s,e){
  }
  {const sem=R.itens.filter(o=>!itemOf(o.x)).length;if(sem)av.push(`${sem} despesa(s) do período ainda sem item do catálogo (classificadas pelas palavras-chave). Veja a lista “Despesas sem item do catálogo” abaixo para reclassificar.`);}
  if(R.ignorado>0)av.push(`${money(R.ignorado)} em despesas marcadas como “Não entra na DRE” (ex.: parcelamento de impostos, que não é despesa do período).`);
- av.push('Contas pagas no mês seguinte (contador, internet, luz, água, GPS, FGTS, Simples) entram no mês anterior; o mês de competência de cada despesa pode ser ajustado ao lançá-la em Despesas e lucro. Por isso o mês atual pode mostrar essas contas zeradas até o pagamento ser lançado.');
+ av.push('Contas pagas no mês seguinte (contador, internet, luz, água, GPS, FGTS, Simples) entram no mês anterior; o mês de competência de cada despesa pode ser ajustado ao lançá-la em Fluxo de Caixa. Por isso o mês atual pode mostrar essas contas zeradas até o pagamento ser lançado.');
  av.push('Devoluções, comissões, frete, salários, FGTS e as demais linhas vêm das despesas lançadas. Confira na lista abaixo em qual linha cada despesa caiu.');
  $('dreAvisos').innerHTML=av.map(t=>`<p>${esc(t)}</p>`).join('');
  $('drePeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · vendas e Simples pelo mês da venda/nota (competência); despesas pelo mês a que se referem.`;
