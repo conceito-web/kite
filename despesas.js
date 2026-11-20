@@ -230,7 +230,9 @@ function barChart(items,label){
   const col=it.value<0&&it.negColor?it.negColor:it.color;
   bars+=`<rect x="${cx-bw/2}" y="${yt}" width="${bw}" height="${h}" rx="7" fill="${col}" opacity=".93"><title>${esc(it.label)}: ${esc(signed(it.value))}</title></rect>`;
   if(showVal)bars+=`<text x="${cx}" y="${it.value>=0?yt-7:yt+h+15}" text-anchor="middle" fill="#253249" font-size="11" font-weight="700">${esc(signed(it.value))}</text>`;
-  bars+=`<text x="${cx}" y="${H-15}" text-anchor="middle" fill="#74839a" font-size="${items.length>6?10:12}">${esc(it.label)}</text>`;
+  const lab=String(it.label),sp=[...lab].map((c,k)=>c===' '?k:-1).filter(k=>k>=0).sort((a,b)=>Math.abs(a-lab.length/2)-Math.abs(b-lab.length/2))[0];
+  if(items.length<=6&&lab.length>16&&sp!==undefined)bars+=`<text text-anchor="middle" fill="#74839a" font-size="12"><tspan x="${cx}" y="${H-28}">${esc(lab.slice(0,sp))}</tspan><tspan x="${cx}" y="${H-14}">${esc(lab.slice(sp+1))}</tspan></text>`;
+  else bars+=`<text x="${cx}" y="${H-15}" text-anchor="middle" fill="#74839a" font-size="${items.length>6?10:12}">${esc(it.label)}</text>`;
  });
  return `<svg class="fin-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">${g}${bars}</svg>`;
 }
@@ -271,15 +273,14 @@ function renderSummary(){
 $('finBrutoNota').textContent='Dinheiro, Pix e cartão já recebidos, conforme o Caixa (sem crédito com a fábrica)';
 $('finDespNota').textContent=`${c.qtd} pagamento(s) efetuado(s) · ${c.recebido>0?pct(c.desp/c.recebido*100)+' dos recebimentos':'sem recebimentos no período'}${c.fab>0?' · inclui '+money(c.fab)+' pagos à fábrica':''}`;
 $('finLiquidoNota').textContent='Total de Recebimentos − despesas pagas';
- const mg=$('finMargem');mg.textContent=c.margem==null?'—':pct(c.margem);mg.classList.remove('fin-pos','fin-neg');if(c.margem!=null&&c.margem!==0)mg.classList.add(c.margem>0?'fin-pos':'fin-neg');
  $('finVencNota').textContent=c.venc>0?'Pendentes com vencimento já passado':'Nenhuma conta vencida';
  // gráfico: resultado do período
  $('finChartResultado').innerHTML=barChart([
-  {label:'Vendas',value:c.vendas,color:'#3468f5'},
+  {label:'Faturamento (informativo)',value:c.vendas,color:'#3468f5'},
   {label:'Recebimentos',value:c.recebido,color:'#1b9b6b',negColor:'#d74b55'},
-  {label:'Despesas',value:c.desp,color:'#e89b3b'},
-  {label:'Lucro líquido',value:c.liquido,color:'#8c6be8',negColor:'#d74b55'}
- ],'Vendas, total de recebimentos, despesas e lucro líquido do período');
+  {label:'Total de pagamentos',value:c.desp,color:'#e89b3b'},
+  {label:'Geração líquida de caixa',value:c.liquido,color:'#8c6be8',negColor:'#d74b55'}
+ ],'Faturamento (informativo), total de recebimentos, total de pagamentos e geração líquida de caixa do período');
  // composição das despesas
  const rows=Object.entries(c.byCat).sort((a,b)=>b[1]-a[1]),tot=rows.reduce((n,x)=>n+x[1],0);
  let acc=0;const stops=rows.map(([k,v])=>{const a=acc/tot*100;acc+=v;return `${colorOf(k)} ${a}% ${acc/tot*100}%`;});
@@ -293,7 +294,7 @@ function renderYear(){
   const [s,e]=monthRange(-i),c=calc(s,e),d=new Date(s+'T12:00:00');
   items.push({label:`${MES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`,value:c.liquido,color:'#1b9b6b',negColor:'#d74b55'});
  }
- $('finChartAno').innerHTML=barChart(items,'Lucro líquido dos últimos 12 meses');
+ $('finChartAno').innerHTML=barChart(items,'Geração líquida de caixa dos últimos 12 meses');
  const total=r2(items.reduce((n,x)=>n+x.value,0));$('finAnoTotal').textContent=`Acumulado: ${signed(total)}`;
 }
 function renderGoalAndCompare(){
@@ -305,7 +306,7 @@ function renderGoalAndCompare(){
   return `<span class="${p===0?'fin-muted':good?'fin-pos':'fin-neg'}">${p>0?'▲':p<0?'▼':''} ${pct(Math.abs(p))}</span>`;
  };
  const line=(n,a,b,badUp)=>`<tr><td>${n}</td><td>${signed(a)}</td><td>${signed(b)}</td><td>${var_(a,b,badUp)}</td></tr>`;
- $('finComparativo').innerHTML=line('Vendas',cur.vendas,prev.vendas,false)+line('Total de Recebimentos',cur.recebido,prev.recebido,false)+line('Despesas',cur.desp,prev.desp,true)+line('Lucro líquido',cur.liquido,prev.liquido,false);
+ $('finComparativo').innerHTML=line('Faturamento (informativo)',cur.vendas,prev.vendas,false)+line('Total de Recebimentos',cur.recebido,prev.recebido,false)+line('Total de pagamentos',cur.desp,prev.desp,true)+line('Geração líquida de caixa',cur.liquido,prev.liquido,false);
  // previsão
  const past=[-1,-2,-3].map(o=>calc(...monthRange(o)).desp).filter(v=>v>0),avg=past.length?r2(past.reduce((a,b)=>a+b,0)/past.length):0;
  const lim=localDateKey(new Date(Date.now()+30*864e5));
