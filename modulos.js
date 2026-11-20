@@ -242,8 +242,8 @@ function parseNfe(text){
  const ide=inf.getElementsByTagNameNS('*','ide')[0],emit=inf.getElementsByTagNameNS('*','emit')[0],tot=inf.getElementsByTagNameNS('*','ICMSTot')[0];
  const items=[...inf.getElementsByTagNameNS('*','det')].map(d=>{
   const pr=d.getElementsByTagNameNS('*','prod')[0],n=x=>Number(g(pr,x))||0,qty=n('qCom'),ean=g(pr,'cEAN');
-  const base=r2(n('vProd')-n('vDesc')),frete=n('vFrete'),seg=n('vSeg'),outro=n('vOutro'),own=r2(frete+seg+outro);
-  return {code:g(pr,'cProd'),ean:/^\d{8,14}$/.test(ean)?ean:'',name:g(pr,'xProd'),un:g(pr,'uCom'),qty,base,frete,seg,outro,cost:qty?r2((base+own)/qty):0};
+  const ipi=r2(Number(g(d,'vIPI'))||0),base=r2(n('vProd')-n('vDesc')),frete=n('vFrete'),seg=n('vSeg'),outro=n('vOutro'),own=r2(frete+seg+outro);
+  return {code:g(pr,'cProd'),ean:/^\d{8,14}$/.test(ean)?ean:'',name:g(pr,'xProd'),un:g(pr,'uCom'),qty,base,ipi,ipiUn:qty?r2(ipi/qty):0,frete,seg,outro,cost:qty?r2((base+own)/qty):0};
  });
  // Rateio: frete, seguro e outras despesas informados só no TOTAL da nota (o que sobra depois do que já veio item a item).
  const nt=x=>Number(g(tot,x))||0,left=(k,sum)=>Math.max(0,r2(nt(k)-sum));
@@ -267,26 +267,29 @@ $('xmlMargem').placeholder='0,00';
 const margemOk=()=>!!$('xmlMargem').value.trim();
 function syncMargem(){const b=$('xmlConfirmar');b.disabled=!margemOk();b.title=margemOk()?'':'Preencha a margem para produtos novos (%) para confirmar.';}
 $('xmlMargem').addEventListener('input',syncMargem);$('xmlMargem').addEventListener('money-mask-updated',syncMargem);$('xmlMargem').addEventListener('blur',syncMargem);syncMargem();
+// Preço de venda sugerido = (custo unitário + IPI unitário) × (1 + margem). O IPI vem do XML (vIPI do item ÷ quantidade) e pode ser ajustado na linha.
+const salePrice=(cost,ipiUn)=>r2((Number(cost||0)+Number(ipiUn||0))*(1+margin()/100));
 const rateioOn=()=>$('xmlRateio').checked;
 function xmlRow(ni,it,ii){
  const n=xmlNotes[ni],lp=linkedProduct(n,it),p=lp||matchProduct(it),cost=rateioOn()?it.costRateio:it.cost;
  const encIds=(window.ckrEncXmlProducts&&window.ckrEncXmlProducts())||[],optP=q=>`<option value="${esc(q.id)}"${p&&p.id===q.id?' selected':''}>${esc(q.name)}</option>`;
  const opts='<option value="">Cadastrar como novo</option><option value="skip">Ignorar este item</option>'+(encIds.length?`<optgroup label="⧖ Produtos da encomenda">${data.products.filter(q=>encIds.includes(q.id)).sort(byName).map(optP).join('')}</optgroup><optgroup label="Demais produtos">${data.products.filter(q=>!encIds.includes(q.id)).sort(byName).map(optP).join('')}</optgroup>`:data.products.slice().sort(byName).map(optP).join(''));
- return `<tr data-xn="${ni}" data-xi="${ii}"><td>${esc(it.name)}<br><small>${esc(it.code||it.ean)}</small><br><small class="xml-share"></small></td><td>${it.qty} ${esc(it.un)}</td><td><select class="xml-act">${opts}</select>${lp?'<br><small class="xml-linked">✓ vínculo lembrado</small>':''}</td><td><input class="xml-cost" inputmode="numeric" value="${brl(cost)}"></td><td><input class="xml-price" inputmode="numeric" value="${brl(p?p.price:r2(cost*(1+margin()/100)))}"${p?' disabled':''}></td></tr>`;
+ return `<tr data-xn="${ni}" data-xi="${ii}"><td>${esc(it.name)}<br><small>${esc(it.code||it.ean)}</small><br><small class="xml-share"></small></td><td>${it.qty} ${esc(it.un)}</td><td><select class="xml-act">${opts}</select>${lp?'<br><small class="xml-linked">✓ vínculo lembrado</small>':''}</td><td><input class="xml-cost" inputmode="numeric" value="${brl(cost)}"></td><td><input class="xml-ipi" inputmode="numeric" value="${brl(it.ipiUn)}"></td><td><input class="xml-price" inputmode="numeric" value="${brl(p?p.price:salePrice(cost,it.ipiUn))}"${p?' disabled':''}></td></tr>`;
 }
 function applyRateio(){
  const on=rateioOn();
  document.querySelectorAll('#xmlRevisao tr[data-xn]').forEach(tr=>{
   const it=xmlNotes[+tr.dataset.xn].items[+tr.dataset.xi];
   tr.querySelector('.xml-cost').value=brl(on?it.costRateio:it.cost);
+  tr.querySelector('.xml-ipi').value=brl(it.ipiUn);
   tr.querySelector('.xml-share').textContent=on&&it.share>0?`+ ${money(it.share)} de frete/despesas rateados`:'';
   setPrice(tr);
  });
  document.querySelectorAll('.xml-rateio-note').forEach(p=>{const t=xmlNotes[+p.dataset.ni].rateio.total;p.hidden=!(t>0);p.textContent=t>0?(on?`Frete/despesas de ${money(t)} cobrados no total da nota foram rateados entre os itens, proporcional ao valor de cada um.`:`Atenção: ${money(t)} de frete/despesas cobrados no total da nota NÃO entraram no custo dos itens.`):'';});
 }
 function xmlRender(){
- $('xmlRevisao').innerHTML=xmlNotes.map((n,ni)=>`<section class="surface list-surface xml-note"><h3>${esc(n.supplier||'Fornecedor')} · NF ${esc(n.number)}/${esc(n.serie)}</h3><p class="subtitle">${esc(n.file)} · emitida em ${n.date?esc(new Date(n.date).toLocaleDateString('pt-BR')):'—'} · total ${money(n.total)}${n.dup?' · <b>já importada, será ignorada</b>':''}</p>${n.dup?'':`<p class="subtitle xml-rateio-note" data-ni="${ni}" hidden></p>`}${n.dup?'':`<div class="table-wrap"><table class="xml-table"><thead><tr><th>ITEM DA NOTA</th><th>QTD.</th><th>ENTRA COMO</th><th>CUSTO UNIT.</th><th>PREÇO DE VENDA</th></tr></thead><tbody>${n.items.map((it,ii)=>xmlRow(ni,it,ii)).join('')}</tbody></table></div>`}</section>`).join('');
- document.querySelectorAll('.xml-cost,.xml-price').forEach(i=>bindMoneyMask(i));
+ $('xmlRevisao').innerHTML=xmlNotes.map((n,ni)=>`<section class="surface list-surface xml-note"><h3>${esc(n.supplier||'Fornecedor')} · NF ${esc(n.number)}/${esc(n.serie)}</h3><p class="subtitle">${esc(n.file)} · emitida em ${n.date?esc(new Date(n.date).toLocaleDateString('pt-BR')):'—'} · total ${money(n.total)}${n.dup?' · <b>já importada, será ignorada</b>':''}</p>${n.dup?'':`<p class="subtitle xml-rateio-note" data-ni="${ni}" hidden></p>`}${n.dup?'':`<div class="table-wrap"><table class="xml-table"><thead><tr><th>ITEM DA NOTA</th><th>QTD.</th><th>ENTRA COMO</th><th>CUSTO UNIT.</th><th>IPI UNIT.</th><th>PREÇO DE VENDA</th></tr></thead><tbody>${n.items.map((it,ii)=>xmlRow(ni,it,ii)).join('')}</tbody></table></div>`}</section>`).join('');
+ document.querySelectorAll('.xml-cost,.xml-ipi,.xml-price').forEach(i=>bindMoneyMask(i));
  applyRateio();
  $('xmlAcoes').hidden=!xmlNotes.some(n=>!n.dup);syncMargem();
 }
@@ -303,10 +306,12 @@ function setPrice(tr){
  const act=tr.querySelector('.xml-act').value,pi=tr.querySelector('.xml-price'),p=productById(act);
  pi.disabled=act!==''; 
  if(p)pi.value=brl(p.price);
- else if(act==='')pi.value=brl(r2(parseMoneyInput(tr.querySelector('.xml-cost').value)*(1+margin()/100)));
+ else if(act==='')pi.value=brl(salePrice(parseMoneyInput(tr.querySelector('.xml-cost').value),parseMoneyInput(tr.querySelector('.xml-ipi').value)));
 }
 $('xmlRevisao').addEventListener('change',e=>{if(e.target.classList.contains('xml-act'))setPrice(e.target.closest('tr'));});
 $('xmlRateio').addEventListener('change',applyRateio);
+// mudou o IPI da linha: recalcula o preço sugerido (só produto novo; vinculado mantém o preço atual)
+['input','money-mask-updated'].forEach(ev=>$('xmlRevisao').addEventListener(ev,e=>{if(e.target.classList.contains('xml-ipi'))setPrice(e.target.closest('tr'));}));
 $('xmlMargem').addEventListener('input',()=>document.querySelectorAll('#xmlRevisao tr[data-xn]').forEach(tr=>{if(tr.querySelector('.xml-act').value==='')setPrice(tr);}));
 $('xmlArquivos').addEventListener('change',async e=>{
  xmlNotes=[];const keys=new Set(imports().map(n=>n.key)),bad=[];
@@ -917,7 +922,7 @@ function renderPedidos(){
  $('pedVazio').style.display=list.length?'none':'block';
 }
 $('pedBusca').addEventListener('input',renderPedidos);$('pedFiltroEntrega').addEventListener('change',renderPedidos);
-// Marcar paga: pede data, forma de pagamento e conta de origem. A saída entra no extrato da conta (Caixa) e em Despesas e Lucro (não na DRE).
+// Marcar paga: pede data, forma de pagamento e conta de origem. A saída entra no extrato da conta (Caixa) e em Gestão de Despesas (não na DRE).
 // Pago com crédito da fábrica: não sai dinheiro do caixa; só baixa o saldo de crédito. Desmarcar reverte tudo.
 const PED_CRED='Crédito da fábrica';
 function pedAskPayment(o,inst){
