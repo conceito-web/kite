@@ -175,6 +175,10 @@ window.ckrRecebimentos=function(s,e){
 function encCreditos(){return autoEntries().filter(a=>a.enc&&Number(a.fcr)>0.004).map(a=>({key:a.key,date:a.date,client:a.client,label:a.label,credit:r2(a.fcr)}));}
 window.ckrEncomendaCreditos=encCreditos;
 window.ckrEncomendaCredito=()=>r2(encCreditos().reduce((n,x)=>n+x.credit,0));
+// Linhas do extrato do Caixa (mesma fonte da tela Extrato) para o Fluxo de Caixa (fluxo.js). Somente leitura.
+// flow: 'auto' (vendas/encomendas/serviços/parcelas) | 'desp' (despesas e pedidos à fábrica pagos) | tipo do lançamento manual ('transf','entrada','saida','ajuste').
+// pairAcc: conta do outro lado de uma transferência. 'saldos' = saldo atual de cada conta no Conceito Caixa. 'inicio' = data de corte.
+window.ckrCaixaLinhas=function(){ensureStart();const S=balances();return {rows:rowsAll(S),saldos:Object.assign({},S.b),inicio:conf().start||''};};
 // Saldo disponivel do credito com a fabrica (leitura; nao entra no saldo total)
 function fabSaldo(){
  const sales=r2((data.movements||[]).filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0));
@@ -206,20 +210,20 @@ function rowsAll(S){
  S.auto.forEach(a=>{
   const src=a.enc?{t:'enc',id:String(a.key).replace(/^enc-/,'').replace(/-\d+$/,'')}:a.service?{t:'srv',id:String(a.key).slice(4)}:{t:'venda',id:String(a.key).split('@')[0]};   // de onde veio (para o botão Editar)
   const desc=(a.locked||a.service||a.enc)?`${a.label}${a.client?' · '+a.client:''}`:`Venda #${String(a.key).split('@')[0].slice(-6)}${a.client?' · '+a.client:''}`,lk=a.locked?' · BLOQUEADO até a entrega':(a.enc?' · encomenda (ainda não entregue)':'');
-  if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,src,cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
-  if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,src,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk});
-  if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,src,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk});
-  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,src,cat:'Parcelas do cartão loja (já sem taxa)',desc,
+  if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,flow:'auto',src,cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
+  if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,flow:'auto',src,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk});
+  if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,flow:'auto',src,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk});
+  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,flow:'auto',src,cat:'Parcelas do cartão loja (já sem taxa)',desc,
    sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${lk}`}));
  });
- S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,src:x.fab?null:{t:'desp',id:String(x.key).split(':')[0]},cat:x.fab?'Pagamentos à fábrica':'Despesas pagas',desc:x.desc,sub:x.sub}));
+ S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,flow:'desp',src:x.fab?null:{t:'desp',id:String(x.key).split(':')[0]},cat:x.fab?'Pagamentos à fábrica':'Despesas pagas',desc:x.desc,sub:x.sub}));
  ledger().forEach(e=>{
   let desc=KIND[e.kind]||'Lançamento',sub=e.note||'';
   if(e.kind==='transf'){
    const o=ledger().find(x=>x.pair===e.pair&&x.id!==e.id);
    desc=Number(e.amount)<0?`Transferência para ${accName(o?o.account:'')}`:`Transferência de ${accName(o?o.account:'')}`;
   }
-  rows.push({acc:e.account,date:e.date,ts:e.createdAt||'',amount:Number(e.amount||0),auto:false,cat:e.kind==='transf'?'Transferências entre contas':(KIND[e.kind]||'Lançamento manual'),id:e.id,desc,sub});
+  rows.push({acc:e.account,date:e.date,ts:e.createdAt||'',amount:Number(e.amount||0),auto:false,flow:e.kind||'',pairAcc:e.pair?((ledger().find(x=>x.pair===e.pair&&x.id!==e.id)||{}).account||''):'',cat:e.kind==='transf'?'Transferências entre contas':(KIND[e.kind]||'Lançamento manual'),id:e.id,desc,sub});
  });
  return rows.sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.ts).localeCompare(String(a.ts)));
 }
