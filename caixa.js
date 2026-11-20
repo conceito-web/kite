@@ -29,6 +29,8 @@ const addDays=(day,n)=>{const p=String(day).split('-').map(Number);return localD
 // 1º dia útil (seg–sex) DEPOIS da data informada (feriados não são considerados).
 const nextBiz=day=>{let d=addDays(day,1);for(let i=0;i<10;i++){const p=d.split('-').map(Number),w=new Date(p[0],p[1]-1,p[2]).getDay();if(w!==0&&w!==6)return d;d=addDays(d,1);}return d;};
 const maxD=(a,b)=>a>b?a:b;
+window.ckrProxDiaUtil=nextBiz;   // usado pela conferência do Fluxo de Caixa
+
 const dias=deb=>{const v=Number(conf()[deb?'debitDays':'creditDays']);return Number.isFinite(v)&&v>=0?Math.floor(v):(deb?1:30);};
 const pixAcc=()=>{const k=conf().pixAccount;return ACCS.some(a=>a.k===k)?k:'nubank';};
 const monthStart=()=>{const n=new Date();return localDateKey(new Date(n.getFullYear(),n.getMonth(),1));};
@@ -210,11 +212,16 @@ function rowsAll(S){
  S.auto.forEach(a=>{
   const src=a.enc?{t:'enc',id:String(a.key).replace(/^enc-/,'').replace(/-\d+$/,'')}:a.service?{t:'srv',id:String(a.key).slice(4)}:{t:'venda',id:String(a.key).split('@')[0]};   // de onde veio (para o botão Editar)
   const desc=(a.locked||a.service||a.enc)?`${a.label}${a.client?' · '+a.client:''}`:`Venda #${String(a.key).split('@')[0].slice(-6)}${a.client?' · '+a.client:''}`,lk=a.locked?' · BLOQUEADO até a entrega':(a.enc?' · encomenda (ainda não entregue)':'');
-  if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,flow:'auto',src,cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
-  if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,flow:'auto',src,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk});
-  if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,flow:'auto',src,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk});
-  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,flow:'auto',src,cat:'Parcelas do cartão loja (já sem taxa)',desc,
-   sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${lk}`}));
+  const ot=a.enc?'enc':a.service?'srv':'venda';   // origem: venda | encomenda aberta | serviço
+  const verbo=a.enc?'pago em':a.service?'serviço de':'venda realizada em';
+  // data em que a venda/pagamento aconteceu x data em que o dinheiro entrou no Caixa (1º dia útil no cartão)
+  const orig=ent=>ent===a.date?'':` · ${verbo} ${dayText(a.date)}, entrou em ${dayText(ent)}`;
+  const base={ts:a.ts,auto:true,flow:'auto',src,ot,orig:a.date};
+  if(a.fab>0)rows.push(Object.assign({},base,{acc:'blu',date:a.dFab,amount:a.fab,gross:r2(a.fab+a.fcr),fcr:r2(a.fcr),cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}${orig(a.dFab)}`}));
+  if(a.cash>0)rows.push(Object.assign({},base,{acc:'dinheiro',date:a.dNon,amount:a.cash,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk+orig(a.dNon)}));
+  if(a.pix>0)rows.push(Object.assign({},base,{acc:S.pa,date:a.dNon,amount:a.pix,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk+orig(a.dNon)}));
+  a.parcs.forEach(p=>rows.push(Object.assign({},base,{acc:p.due?'blu':'agenda',date:p.date,amount:p.amount,cat:'Parcelas do cartão loja (já sem taxa)',desc,
+   sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${lk}${orig(p.date)}`})));
  });
  S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,flow:'desp',src:x.fab?null:{t:'desp',id:String(x.key).split(':')[0]},cat:x.fab?'Pagamentos à fábrica':'Despesas pagas',desc:x.desc,sub:x.sub}));
  ledger().forEach(e=>{
@@ -233,7 +240,7 @@ function renderList(S){
  const ent=r2(rows.filter(r=>r.amount>0).reduce((n,r)=>n+r.amount,0)),sai=r2(rows.filter(r=>r.amount<0).reduce((n,r)=>n+r.amount,0));
  $('cxExtratoResumo').textContent=`${rows.length} lançamento(s) · entrou ${money(ent)} · saiu ${money(Math.abs(sai))}`;
  shown=rows.slice(0,300);
- $('cxLinhas').innerHTML=shown.map(r=>`<tr><td>${dayText(r.date)}</td><td>${esc(accName(r.acc))}</td><td><span class="product-name">${esc(r.desc)}</span>${r.sub?`<small class="fin-sub">${esc(r.sub)}</small>`:''}</td><td>${r.auto?'<span class="pill cxauto">Automático</span>':'<span class="pill cxman">Manual</span>'}</td><td><b class="${r.amount<0?'cx-neg':'cx-pos'}">${signed(r.amount)}</b></td><td class="fin-actions">${r.auto?(r.src?`<button type="button" class="row-action" data-cx-go="${esc(r.src.t)}" data-id="${esc(r.src.id)}" title="Abre a tela de origem para corrigir">Editar</button>`:''):`<button type="button" class="row-action" data-cx-edit="${esc(r.id)}">Editar</button> <button type="button" class="row-action delete" data-cx-del="${esc(r.id)}">Excluir</button>`}</td></tr>`).join('');
+ $('cxLinhas').innerHTML=shown.map(r=>`<tr><td>${dayText(r.date)}</td><td>${esc(accName(r.acc))}</td><td><span class="product-name">${esc(r.desc)}</span>${r.sub?`<small class="fin-sub">${esc(r.sub)}</small>`:''}</td><td>${r.auto?'<span class="pill cxauto">'+(r.ot==='enc'?'Encomenda aberta':r.ot==='srv'?'Serviço':'Automático')+'</span>':'<span class="pill cxman">Manual</span>'}</td><td><b class="${r.amount<0?'cx-neg':'cx-pos'}">${signed(r.amount)}</b></td><td class="fin-actions">${r.auto?(r.src?`<button type="button" class="row-action" data-cx-go="${esc(r.src.t)}" data-id="${esc(r.src.id)}" title="Abre a tela de origem para corrigir">Editar</button>`:''):`<button type="button" class="row-action" data-cx-edit="${esc(r.id)}">Editar</button> <button type="button" class="row-action delete" data-cx-del="${esc(r.id)}">Excluir</button>`}</td></tr>`).join('');
  $('cxVazio').style.display=rows.length?'none':'block';
 }
 // ---------- Agenda BLU: parcelas do cartão loja ----------
