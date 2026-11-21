@@ -464,7 +464,7 @@
         </section>
 
         <section class="panel" id="panel-financeiro">
-          <div class="page-heading fin-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Gestão de Despesas</h1><p class="subtitle">Lance os gastos da loja e veja quanto caixa o negócio gerou: o sistema desconta os pagamentos efetivos do total de recebimentos.</p></div><button class="button button-primary" id="finNovo" type="button"><span>＋</span> Nova despesa</button></div>
+          <div class="page-heading fin-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Gestão de Despesas</h1><p class="subtitle">Lance os gastos da loja e acompanhe o que foi pago, o que está pendente e o que já venceu.</p></div><button class="button button-primary" id="finNovo" type="button"><span>＋</span> Nova despesa</button></div>
 
           <section class="surface form-surface">
             <div class="surface-heading"><div><h2>Período da análise</h2><p id="finPeriodoDesc"></p></div></div>
@@ -476,34 +476,26 @@
           </section>
 
           <div class="stats-grid fin-stats">
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">R$</span><span class="stat-label">Faturamento (informativo)</span></div><strong id="finVendas">R$ 0,00</strong><div class="stat-foot" id="finVendasNota"></div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Total de Recebimentos</span></div><strong id="finBruto">R$ 0,00</strong><div class="stat-foot" id="finBrutoNota"></div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">↘</span><span class="stat-label">Total de pagamentos</span></div><strong id="finDesp">R$ 0,00</strong><div class="stat-foot" id="finDespNota"></div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">=</span><span class="stat-label">Geração líquida de caixa</span></div><strong id="finLiquido">R$ 0,00</strong><div class="stat-foot" id="finLiquidoNota"></div></article>
           </div>
           <div class="stats-grid fin-stats">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">✓</span><span class="stat-label">Despesas pagas</span></div><strong id="finPagas">R$ 0,00</strong></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">◔</span><span class="stat-label">Despesas pendentes</span></div><strong id="finPend">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">◔</span><span class="stat-label">Despesas pendentes (vencidas + a vencer)</span></div><strong id="finPend">R$ 0,00</strong><div class="stat-foot" id="finPendNota"></div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="stat-label">Vencidas</span></div><strong id="finVenc2">R$ 0,00</strong><div class="stat-foot" id="finVencNota"></div></article>
           </div>
 
-          <div class="notice"><span class="notice-icon">i</span><p><b>Como a geração líquida de caixa é calculada:</b> Total de Recebimentos (o que efetivamente entrou, pelas regras do Caixa) menos o total de pagamentos efetivamente realizados (despesas e parcelas pagas à fábrica). O faturamento é só informativo e não entra na conta.</p></div>
+          <div class="notice"><span class="notice-icon">i</span><p><b>Como as despesas são contadas:</b> despesas pagas entram na data do pagamento (inclui parcelas pagas à fábrica com dinheiro). Pendentes e vencidas ficam à parte até serem pagas.</p></div>
 
           <div class="fin-grid-2">
             <section class="surface fin-card">
-              <div class="surface-heading"><div><h2>Resultado do período</h2><p>Faturamento (informativo), recebimentos, pagamentos e geração líquida de caixa</p></div></div>
-              <div id="finChartResultado"></div>
+              <div class="surface-heading"><div><h2>Evolução mensal das despesas pagas</h2><p>Últimos 12 meses</p></div><span class="report-total" id="finAnoTotal"></span></div>
+              <div id="finChartAno"></div>
             </section>
             <section class="surface fin-card">
               <div class="surface-heading"><div><h2>Composição das despesas</h2><p>Para onde o dinheiro está indo</p></div></div>
               <div class="fin-donut-wrap"><div class="fin-donut" id="finDonut" role="img" aria-label="Gráfico de rosca das despesas por categoria"><div class="fin-donut-center"><strong id="finDonutTotal">R$ 0,00</strong><span>em despesas</span></div></div><ul class="fin-legend" id="finLegenda"></ul></div>
             </section>
           </div>
-
-          <section class="surface fin-card" style="margin-bottom:17px">
-            <div class="surface-heading"><div><h2>Evolução da geração líquida de caixa</h2><p>Últimos 12 meses</p></div><span class="report-total" id="finAnoTotal"></span></div>
-            <div id="finChartAno"></div>
-          </section>
 
           <div class="fin-grid-2 fin-grid-even">
             <section class="surface fin-card" id="cxCard">
@@ -572,14 +564,14 @@
           </section>
 
           <section class="surface list-surface">
-            <div class="surface-heading responsive-heading"><div><h2>Despesas lançadas</h2><p id="finListaTotal">Dentro do período escolhido acima</p></div><div class="search-tools"><button class="button button-light button-small" id="finCsv" type="button">⬇ Exportar CSV</button></div></div>
+            <div class="surface-heading responsive-heading"><div><h2>Despesas lançadas</h2><p id="finListaTotal">Período pela data do lançamento</p></div><div class="search-tools"><button class="button button-light button-small" id="finCsv" type="button">⬇ Exportar CSV</button></div></div>
             <div class="fin-list-filters">
               <label class="field">Buscar<input id="finBusca" type="search" placeholder="Descrição, categoria..."></label>
               <label class="field">Categoria<select id="finFiltroCat"></select></label>
               <label class="field">Pagamento<select id="finFiltroForma"></select></label>
               <label class="field">Situação<select id="finFiltroStatus"><option value="">Todas</option><option value="pago">Pagas</option><option value="pendente">Pendentes</option><option value="vencida">Vencidas</option></select></label>
             </div>
-            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>CATEGORIA</th><th>DESCRIÇÃO</th><th>PAGAMENTO</th><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>AÇÕES</th></tr></thead><tbody id="finLista"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>LANÇAMENTO</th><th>CATEGORIA</th><th>DESCRIÇÃO</th><th>PAGAMENTO</th><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>AÇÕES</th></tr></thead><tbody id="finLista"></tbody></table></div>
             <div id="finVazio" class="empty-state"><div class="empty-symbol">$</div><b>Nenhuma despesa encontrada</b><p>Use “Nova despesa” para lançar o primeiro gasto ou altere os filtros.</p></div>
           </section>
         </section>
@@ -929,7 +921,7 @@
   <script src="app.js?v=38"></script>
   <script src="modulos.js?v=33"></script>
   <script src="encomendas.js?v=6"></script>
-  <script src="despesas.js?v=12"></script>
+  <script src="despesas.js?v=14"></script>
   <script src="caixa.js?v=18"></script>
   <script src="impostos.js?v=13"></script>
   <script src="dre.js?v=6"></script>
