@@ -176,26 +176,14 @@ const signed=v=>(v<0?'−':'')+money(Math.abs(v));
 
 // ---------- cálculo central ----------
 function calc(s,e){
- // Faturamento (informativo): vendas e serviços lançados no período.
- let vendas=0;const sales=new Set();
- data.movements.forEach(m=>{
-  if(m.type!=='venda'||m.canceled||!inR(localDateKey(m.date),s,e))return;
-  vendas+=Number(m.total||0);sales.add(m.saleId||m.id);
- });
- (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{if(!inR(localDateKey(sv.date),s,e))return;vendas+=Number(sv.amount||0);});
- // Total de Recebimentos: só o que efetivamente entrou, pelas regras do Caixa (sem CMV; crédito retido com a fábrica não entra).
- const recebido=typeof window.ckrRecebimentos==='function'?window.ckrRecebimentos(s,e):0;
- // Despesas: só as efetivamente pagas, na data do pagamento. As pendentes ficam à parte.
- let desp=0,pagas=0,pend=0,venc=0,qtd=0,fab=0;const byCat={},today=todayISO();
+ // Despesas: só as efetivamente pagas, na data do pagamento. Pendentes e vencidas não dependem de período: ver abertas().
+ let desp=0,pagas=0,qtd=0,fab=0;const byCat={};
  list().forEach(x=>{
   const v=Number(x.amount||0);
   if(x.status==='pago'){
    if(!inR(x.paidDate||x.date,s,e))return;
    desp+=v;pagas+=v;qtd++;
    const c=x.category||'Outras';byCat[c]=(byCat[c]||0)+v;
-  }else{
-   if(!inR(x.date,s,e))return;
-   pend+=v;if(x.dueDate&&x.dueDate<today)venc+=v;
   }
  });
  // Pagamentos a fornecedor (parcelas de pedidos à fábrica) pagos com dinheiro: entram aqui, não na DRE. Pagamento com crédito da fábrica não sai do caixa.
@@ -205,8 +193,20 @@ function calc(s,e){
   const v=Number(p.amount||0);fab+=v;desp+=v;pagas+=v;qtd++;byCat[FAB_CAT]=(byCat[FAB_CAT]||0)+v;
  }));
  desp=r2(desp);
- return {vendas:r2(vendas),vendasQtd:sales.size,recebido:r2(recebido),desp,pagas:r2(pagas),pend:r2(pend),venc:r2(venc),qtd,fab:r2(fab),byCat,
-  liquido:r2(recebido-desp)};
+ return {desp,pagas:r2(pagas),qtd,fab:r2(fab),byCat};
+}
+// Obrigações em aberto (não pagas), SEM filtro de período e sem olhar a data do lançamento:
+//  pend = tudo que não foi pago (vencidas + a vencer + sem vencimento) | venc = dueDate anterior a hoje | avencer = dueDate de hoje em diante | sem = sem dueDate (nunca vira "vencida" sozinha)
+function abertas(){
+ const today=todayISO();let pend=0,venc=0,avencer=0,sem=0,nPend=0,nVenc=0;
+ list().forEach(x=>{
+  if(x.status==='pago')return;
+  const v=Number(x.amount||0);pend+=v;nPend++;
+  if(!x.dueDate)sem+=v;
+  else if(x.dueDate<today){venc+=v;nVenc++;}
+  else avencer+=v;
+ });
+ return {pend:r2(pend),venc:r2(venc),avencer:r2(avencer),sem:r2(sem),nPend,nVenc};
 }
 
 // ---------- gráficos (SVG) ----------
@@ -265,22 +265,14 @@ function syncCats(){
 function catHint(){$('finCatHint').textContent='Exemplos: '+hintOf($('finCat').value);}
 
 function renderSummary(){
- const {s,e}=period(),c=calc(s,e);
- $('finPeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · recebimentos e pagamentos efetivos dentro deste período.`;
- setMoney('finVendas',c.vendas);setMoney('finBruto',c.recebido);setMoney('finDesp',c.desp);setMoney('finLiquido',c.liquido,'sign');
- setMoney('finPagas',c.pagas);setMoney('finPend',c.pend);setMoney('finVenc2',c.venc);
- $('finVendasNota').textContent=`${c.vendasQtd} venda(s) registrada(s)`;
-$('finBrutoNota').textContent='Dinheiro, Pix e cartão já recebidos, conforme o Caixa (sem crédito com a fábrica)';
-$('finDespNota').textContent=`${c.qtd} pagamento(s) efetuado(s) · ${c.recebido>0?pct(c.desp/c.recebido*100)+' dos recebimentos':'sem recebimentos no período'}${c.fab>0?' · inclui '+money(c.fab)+' pagos à fábrica':''}`;
-$('finLiquidoNota').textContent='Total de Recebimentos − despesas pagas';
- $('finVencNota').textContent=c.venc>0?'Pendentes com vencimento já passado':'Nenhuma conta vencida';
- // gráfico: resultado do período
- $('finChartResultado').innerHTML=barChart([
-  {label:'Faturamento (informativo)',value:c.vendas,color:'#3468f5'},
-  {label:'Recebimentos',value:c.recebido,color:'#1b9b6b',negColor:'#d74b55'},
-  {label:'Total de pagamentos',value:c.desp,color:'#e89b3b'},
-  {label:'Geração líquida de caixa',value:c.liquido,color:'#8c6be8',negColor:'#d74b55'}
- ],'Faturamento (informativo), total de recebimentos, total de pagamentos e geração líquida de caixa do período');
+ const {s,e}=period(),c=calc(s,e),ab=abertas();
+ $('finPeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · pagamentos pela data do pagamento; lista pela data do lançamento. Pendentes e vencidas somam todas as despesas em aberto, sem filtro de período.`;
+ setMoney('finDesp',c.desp);
+ setMoney('finPagas',c.pagas);setMoney('finPend',ab.pend);setMoney('finVenc2',ab.venc);
+ $('finDespNota').textContent=`${c.qtd} pagamento(s) efetuado(s)${c.fab>0?' · inclui '+money(c.fab)+' pagos à fábrica':''}`;
+
+ $('finPendNota').textContent=ab.nPend?`${ab.nPend} em aberto · vencidas ${money(ab.venc)} · a vencer ${money(ab.avencer)}${ab.sem>0?' · sem vencimento '+money(ab.sem):''}`:'Nenhuma despesa em aberto';
+ $('finVencNota').textContent=ab.venc>0?`${ab.nVenc} não paga(s) com vencimento anterior a hoje, de qualquer mês`:'Nenhuma conta vencida';
  // composição das despesas
  const rows=Object.entries(c.byCat).sort((a,b)=>b[1]-a[1]),tot=rows.reduce((n,x)=>n+x[1],0);
  let acc=0;const stops=rows.map(([k,v])=>{const a=acc/tot*100;acc+=v;return `${colorOf(k)} ${a}% ${acc/tot*100}%`;});
@@ -292,10 +284,10 @@ function renderYear(){
  const items=[];
  for(let i=11;i>=0;i--){
   const [s,e]=monthRange(-i),c=calc(s,e),d=new Date(s+'T12:00:00');
-  items.push({label:`${MES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`,value:c.liquido,color:'#1b9b6b',negColor:'#d74b55'});
+  items.push({label:`${MES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`,value:c.desp,color:'#e89b3b'});
  }
- $('finChartAno').innerHTML=barChart(items,'Geração líquida de caixa dos últimos 12 meses');
- const total=r2(items.reduce((n,x)=>n+x.value,0));$('finAnoTotal').textContent=`Acumulado: ${signed(total)}`;
+ $('finChartAno').innerHTML=barChart(items,'Despesas pagas por mês nos últimos 12 meses');
+ const total=r2(items.reduce((n,x)=>n+x.value,0));$('finAnoTotal').textContent=`Total em 12 meses: ${signed(total)}`;
 }
 function renderGoalAndCompare(){
  const [cs,ce]=monthRange(0),[ps,pe]=monthRange(-1),cur=calc(cs,ce),prev=calc(ps,pe);
@@ -306,20 +298,22 @@ function renderGoalAndCompare(){
   return `<span class="${p===0?'fin-muted':good?'fin-pos':'fin-neg'}">${p>0?'▲':p<0?'▼':''} ${pct(Math.abs(p))}</span>`;
  };
  const line=(n,a,b,badUp)=>`<tr><td>${n}</td><td>${signed(a)}</td><td>${signed(b)}</td><td>${var_(a,b,badUp)}</td></tr>`;
- $('finComparativo').innerHTML=line('Faturamento (informativo)',cur.vendas,prev.vendas,false)+line('Total de Recebimentos',cur.recebido,prev.recebido,false)+line('Total de pagamentos',cur.desp,prev.desp,true)+line('Geração líquida de caixa',cur.liquido,prev.liquido,false);
+ $('finComparativo').innerHTML=line('Total de pagamentos',cur.desp,prev.desp,true)+line('Pagos à fábrica',cur.fab,prev.fab,true);
  // previsão
  const past=[-1,-2,-3].map(o=>calc(...monthRange(o)).desp).filter(v=>v>0),avg=past.length?r2(past.reduce((a,b)=>a+b,0)/past.length):0;
- const lim=localDateKey(new Date(Date.now()+30*864e5));
- const prox=r2(list().filter(x=>x.status!=='pago'&&x.dueDate&&x.dueDate<=lim).reduce((n,x)=>n+Number(x.amount||0),0));
- $('finPrevisao').innerHTML=`<div><span>Média mensal de despesas (até 3 meses anteriores)</span><strong>${money(avg)}</strong></div><div><span>A pagar nos próximos 30 dias (inclui vencidas)</span><strong>${money(prox)}</strong></div>`;
+ const hoje=todayISO(),lim=localDateKey(new Date(Date.now()+30*864e5)),abr=list().filter(x=>x.status!=='pago'&&x.dueDate);
+ const sumV=a=>r2(a.reduce((n,x)=>n+Number(x.amount||0),0));
+ const vencidas=sumV(abr.filter(x=>x.dueDate<hoje)),prox=sumV(abr.filter(x=>x.dueDate>=hoje&&x.dueDate<=lim));
+ $('finPrevisao').innerHTML=`<div><span>Média mensal de despesas (até 3 meses anteriores)</span><strong>${money(avg)}</strong></div><div><span>Já vencidas e não pagas (em atraso)</span><strong>${money(vencidas)}</strong></div><div><span>A vencer nos próximos 30 dias (de hoje até ${dayText(lim)})</span><strong>${money(prox)}</strong></div>`;
 }
 function filtered(){
  const {s,e}=period(),cat=$('finFiltroCat').value,forma=$('finFiltroForma').value,st=$('finFiltroStatus').value,q=fold($('finBusca').value.trim()),today=todayISO();
  return list().filter(x=>{
-  if(!inR(x.date,s,e))return false;
+  const sit=statusOf(x,today);
+  // "Vencidas" mostra todas as não pagas com vencimento passado, de qualquer mês; os demais filtros usam a data do lançamento.
+  if(st!=='vencida'&&!inR(x.date,s,e))return false;
   if(cat&&x.category!==cat)return false;
   if(forma&&!payList(x).some(p=>p.method===forma))return false;
-  const sit=statusOf(x,today);
   if(st==='pago'&&sit!=='pago')return false;
   if(st==='pendente'&&sit==='pago')return false;
   if(st==='vencida'&&sit!=='vencida')return false;
@@ -339,7 +333,7 @@ function renderList(){
   return `<tr><td>${dayText(x.date)}</td><td><span class="fin-dot" style="background:${colorOf(x.category)}"></span>${esc(x.category||'Outras')}</td><td><span class="product-name">${esc(x.description)}</span>${x.recurring?' <small class="fin-muted">↻ recorrente</small>':''}${x.note?`<small class="fin-sub">${esc(x.note)}</small>`:''}</td><td>${payCell(x)}</td><td>${dayText(x.dueDate)}</td><td>${pill}</td><td><b>${money(x.amount)}</b></td><td class="fin-actions">${x.status==='pago'?'':`<button type="button" class="row-action" data-fin="pay" data-id="${esc(x.id)}">Pagar</button>`}<button type="button" class="row-action" data-fin="edit" data-id="${esc(x.id)}">Editar</button><button type="button" class="row-action" data-fin="repeat" data-id="${esc(x.id)}" title="Lançar de novo no mês seguinte">Repetir</button><button type="button" class="row-action delete" data-fin="del" data-id="${esc(x.id)}">Excluir</button></td></tr>`;
  }).join('');
  $('finVazio').style.display=rows.length?'none':'block';
- $('finListaTotal').textContent=`${rows.length} lançamento(s) · total ${money(total)}`;
+ $('finListaTotal').textContent=`${rows.length} lançamento(s) · total ${money(total)} · `+($('finFiltroStatus').value==='vencida'?'vencidas em aberto de qualquer mês (sem filtro de período)':'período pela data do lançamento');
 }
 // contador no menu e alerta na Visão geral (rodam sempre)
 function updateBadges(){
@@ -455,7 +449,7 @@ function onListClick(ev){
 }
 function exportCsv(){
  const rows=filtered(),cell=v=>{const s=String(v??'');return /[";\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;},today=todayISO();
- const head=['Data','Categoria','Descrição','Forma de pagamento','Conta de origem','Vencimento','Pagamento','Situação','Valor (R$)','Recorrente','Observação'];
+ const head=['Lançamento','Categoria','Descrição','Forma de pagamento','Conta de origem','Vencimento','Pagamento','Situação','Valor (R$)','Recorrente','Observação'];
  const lines=[head.join(';')].concat(rows.map(x=>[dayText(x.date),x.category,x.description,payList(x).map(p=>p.method+(payList(x).length>1?' '+money(p.amount):'')).join(' + '),payList(x).map(p=>accLabel(p.account)||'—').join(' + '),x.dueDate?dayText(x.dueDate):'',x.paidDate?dayText(x.paidDate):'',statusOf(x,today),Number(x.amount||0).toFixed(2).replace('.',','),x.recurring?'Sim':'Não',x.note].map(cell).join(';')));
  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
  a.href=URL.createObjectURL(blob);a.download=`despesas-${todayISO()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
