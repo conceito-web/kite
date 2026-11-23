@@ -15,7 +15,9 @@ const DEFAULT_CATS=[
  ['Impostos','Impostos sobre vendas e outras obrigações (se já não estiverem no custo)'],
  ['Outras','Materiais, reparos e gastos diversos']
 ];
-const METHODS=['Dinheiro','Pix','Cartão de débito','Cartão de crédito','Boleto','Transferência','Débito automático','Outro'];
+const METHODS=['Dinheiro','Pix','Cartão de débito','Cartão de crédito','Boleto','Transferência','Débito automático','Outro'];   // só para ler/filtrar o histórico: o formulário não pede mais a forma
+const SEM_FORMA='Não informada';   // valor técnico neutro de 'method' nos lançamentos novos (compatibilidade)
+const formaTxt=p=>(p&&p.method&&p.method!==SEM_FORMA)?p.method:'';   // forma real (despesas antigas); vazio nos lançamentos novos
 const DEFAULT_ACCOUNTS=[
  ['Nubank',['Poupança','Jurídica']],
  ['Itaú',['Poupança CA*','Poupança CA','Poupança CE','Poupança AN']]
@@ -98,24 +100,24 @@ function syncAccounts(){
  const opts=expenseAccountOptions();
  document.querySelectorAll('#finPagtos .pg-c').forEach(sel=>{const cur=sel.value;sel.innerHTML=opts;if([...sel.options].some(o=>o.value===cur))sel.value=cur;});
 }
-// ---------- formas de pagamento (uma despesa pode ser paga de várias formas/contas) ----------
-// x.payments = [{method,account,amount}]. Despesas antigas (só x.method/x.account) viram 1 pagamento.
+// ---------- contas de origem (uma despesa pode sair de várias contas) ----------
+// x.payments = [{method,account,amount}]. 'method' é legado: despesas antigas mantêm a forma; as novas gravam SEM_FORMA. Despesas antigas (só x.method/x.account) viram 1 pagamento.
 function payList(x){
  if(Array.isArray(x.payments)&&x.payments.length)return x.payments;
  return [{method:x.method||'',account:x.account||'',amount:Number(x.amount||0)}];
 }
-const payRowHtml=()=>`<div class="fin-pag-row"><label class="field">Forma<select class="pg-m">${METHODS.map(m=>`<option>${esc(m)}</option>`).join('')}</select></label><label class="field">Saiu de qual conta?<select class="pg-c">${expenseAccountOptions()}</select></label><label class="field pg-vbox">Valor (R$)<input class="pg-v" type="text" inputmode="numeric" placeholder="0,00"></label><button class="button button-light pg-rm" type="button" title="Remover esta forma">✕</button></div>`;
+const payRowHtml=()=>`<div class="fin-pag-row"><label class="field">Conta de origem<select class="pg-c">${expenseAccountOptions()}</select></label><label class="field pg-vbox">Valor (R$)<input class="pg-v" type="text" inputmode="numeric" placeholder="0,00"></label><button class="button button-light pg-rm" type="button" title="Remover esta conta">✕</button></div>`;
 const fmtIn=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 function addPayRow(p){
  const box=$('finPagtos');box.insertAdjacentHTML('beforeend',payRowHtml());
  const row=box.lastElementChild;
- if(p){row.querySelector('.pg-m').value=p.method||METHODS[0];{const sc=row.querySelector('.pg-c');sc.value=p.account||'';if(p.account&&sc.value!==p.account){const op=document.createElement('option');op.value=p.account;op.textContent=accLabel(p.account);sc.appendChild(op);sc.value=p.account;}}row.querySelector('.pg-v').value=p.amount>0?fmtIn(p.amount):'';}
+ if(p){row.dataset.method=p.method||'';{const sc=row.querySelector('.pg-c');sc.value=p.account||'';if(p.account&&sc.value!==p.account){const op=document.createElement('option');op.value=p.account;op.textContent=accLabel(p.account);sc.appendChild(op);sc.value=p.account;}}row.querySelector('.pg-v').value=p.amount>0?fmtIn(p.amount):'';}
  bindMoneyMask(row.querySelector('.pg-v'));
  return row;
 }
 function setPays(arr){
  $('finPagtos').innerHTML='';
- (arr&&arr.length?arr:[{method:METHODS[0],account:'',amount:0}]).forEach(addPayRow);
+ (arr&&arr.length?arr:[{method:SEM_FORMA,account:'',amount:0}]).forEach(addPayRow);
  payLayout();
 }
 function payLayout(){
@@ -124,7 +126,7 @@ function payLayout(){
  paySum();
 }
 function readPays(){
- return [...document.querySelectorAll('#finPagtos .fin-pag-row')].map(r=>({method:r.querySelector('.pg-m').value,account:r.querySelector('.pg-c').value,amount:r2(parseMoneyInput(r.querySelector('.pg-v').value))}));
+ return [...document.querySelectorAll('#finPagtos .fin-pag-row')].map(r=>({method:r.dataset.method||SEM_FORMA,account:r.querySelector('.pg-c').value,amount:r2(parseMoneyInput(r.querySelector('.pg-v').value))}));
 }
 function paySum(){
  const el=$('finPagSoma'),rows=document.querySelectorAll('#finPagtos .fin-pag-row');
@@ -136,8 +138,8 @@ function paySum(){
 }
 function onAddPay(){
  const rows=document.querySelectorAll('#finPagtos .fin-pag-row'),tot=r2(parseMoneyInput($('finValor').value));
- if(rows.length>=6){toast('No máximo 6 formas de pagamento por despesa.',true);return;}
- const row=addPayRow({method:METHODS[0],account:'',amount:0});
+ if(rows.length>=6){toast('No máximo 6 contas por despesa.',true);return;}
+ const row=addPayRow({method:SEM_FORMA,account:'',amount:0});
  if(rows.length===1&&tot>0){   // 1ª vez que divide: metade em cada, ajustável
   const a=r2(tot/2),first=rows[0].querySelector('.pg-v');first.value=fmtIn(a);row.querySelector('.pg-v').value=fmtIn(r2(tot-a));
  }
@@ -317,14 +319,14 @@ function filtered(){
   if(st==='pago'&&sit!=='pago')return false;
   if(st==='pendente'&&sit==='pago')return false;
   if(st==='vencida'&&sit!=='vencida')return false;
-  if(q&&!fold([x.description,x.category,payList(x).map(p=>p.method+' '+accLabel(p.account)).join(' '),x.note].join(' ')).includes(q))return false;
+  if(q&&!fold([x.description,x.category,payList(x).map(p=>formaTxt(p)+' '+accLabel(p.account)).join(' '),x.note].join(' ')).includes(q))return false;
   return true;
  }).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
 }
 function payCell(x){
  const ps=payList(x),multi=ps.length>1;
- if(!multi){const p=ps[0];return esc(p.method||'—')+(p.account?`<small class="fin-sub">${esc(accLabel(p.account))}</small>`:'');}
- return ps.map(p=>`<div>${esc(p.method||'—')} <b>${money(p.amount)}</b>${p.account?`<small class="fin-sub">${esc(accLabel(p.account))}</small>`:''}</div>`).join('');
+ if(!multi){const p=ps[0];return esc(formaTxt(p)||accLabel(p.account)||'—')+(formaTxt(p)&&p.account?`<small class="fin-sub">${esc(accLabel(p.account))}</small>`:'');}
+ return ps.map(p=>`<div>${esc(formaTxt(p)||accLabel(p.account)||'—')} <b>${money(p.amount)}</b>${formaTxt(p)&&p.account?`<small class="fin-sub">${esc(accLabel(p.account))}</small>`:''}</div>`).join('');
 }
 function renderList(){
  const rows=filtered(),today=todayISO(),total=r2(rows.reduce((n,x)=>n+Number(x.amount||0),0));
@@ -413,9 +415,9 @@ function save(ev){
  else{
   const blank=pays.filter(p=>!(p.amount>0));
   if(blank.length===1)blank[0].amount=r2(amount-pays.reduce((n,p)=>n+p.amount,0));   // uma linha vazia recebe o que falta
-  if(pays.some(p=>!(p.amount>0))){toast('Informe o valor de cada forma de pagamento.',true);return;}
+  if(pays.some(p=>!(p.amount>0))){toast('Informe o valor de cada conta.',true);return;}
   const soma=r2(pays.reduce((n,p)=>n+p.amount,0));
-  if(Math.abs(soma-amount)>0.004){toast(`A soma das formas de pagamento (${money(soma)}) precisa ser igual ao valor da despesa (${money(amount)}).`,true);return;}
+  if(Math.abs(soma-amount)>0.004){toast(`A soma dos valores por conta (${money(soma)}) precisa ser igual ao valor da despesa (${money(amount)}).`,true);return;}
  }
  const rec={date,category:$('finCat').value||'Outras',description:desc,itemId:it?it.id:'',compMonth,amount,payments:pays,method:[...new Set(pays.map(p=>p.method))].join(' + '),account:pays.length===1?pays[0].account:'',status,
   dueDate:$('finVenc').value||'',paidDate:status==='pago'?($('finPago').value||date):'',recurring:$('finTipo').value==='rec',note:$('finObs').value.trim()};
@@ -450,7 +452,7 @@ function onListClick(ev){
 function exportCsv(){
  const rows=filtered(),cell=v=>{const s=String(v??'');return /[";\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;},today=todayISO();
  const head=['Lançamento','Categoria','Descrição','Forma de pagamento','Conta de origem','Vencimento','Pagamento','Situação','Valor (R$)','Recorrente','Observação'];
- const lines=[head.join(';')].concat(rows.map(x=>[dayText(x.date),x.category,x.description,payList(x).map(p=>p.method+(payList(x).length>1?' '+money(p.amount):'')).join(' + '),payList(x).map(p=>accLabel(p.account)||'—').join(' + '),x.dueDate?dayText(x.dueDate):'',x.paidDate?dayText(x.paidDate):'',statusOf(x,today),Number(x.amount||0).toFixed(2).replace('.',','),x.recurring?'Sim':'Não',x.note].map(cell).join(';')));
+ const lines=[head.join(';')].concat(rows.map(x=>[dayText(x.date),x.category,x.description,payList(x).map(p=>formaTxt(p)+(payList(x).length>1?(formaTxt(p)?' ':'')+money(p.amount):'')).join(' + '),payList(x).map(p=>accLabel(p.account)||'—').join(' + '),x.dueDate?dayText(x.dueDate):'',x.paidDate?dayText(x.paidDate):'',statusOf(x,today),Number(x.amount||0).toFixed(2).replace('.',','),x.recurring?'Sim':'Não',x.note].map(cell).join(';')));
  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
  a.href=URL.createObjectURL(blob);a.download=`despesas-${todayISO()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
  toast('Planilha de despesas exportada.');
