@@ -410,8 +410,8 @@ body[data-ckr-role="usuario"] #pedAlerta{display:none!important}
 .fin-sub{display:block;color:#8490a3;font-size:10px;margin-top:2px}
 .fin-actions{white-space:nowrap}
 .fin-pag>span{font-size:12px;font-weight:700;color:#536178}
-.fin-pag-row{display:grid;grid-template-columns:1fr 1.4fr minmax(0,.9fr) auto;gap:10px;align-items:end;margin-top:8px;padding:10px;background:#f6f8fc;border-radius:12px}
-.fin-pag-row.single{grid-template-columns:1fr 1.4fr}
+.fin-pag-row{display:grid;grid-template-columns:1.4fr minmax(0,.9fr) auto;gap:10px;align-items:end;margin-top:8px;padding:10px;background:#f6f8fc;border-radius:12px}
+.fin-pag-row.single{grid-template-columns:1fr}
 .fin-pag-row.single .pg-vbox,.fin-pag-row.single .pg-rm{display:none}
 .fin-pag-row .button{height:42px;padding:0 12px}
 .fin-pag-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
