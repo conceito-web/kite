@@ -178,7 +178,7 @@ const signed=v=>(v<0?'−':'')+money(Math.abs(v));
 
 // ---------- cálculo central ----------
 function calc(s,e){
- // Despesas: só as efetivamente pagas, na data do pagamento. Pendentes e vencidas não dependem de período: ver abertas().
+ // Despesas pagas: por data do pagamento. Pendências do cartão: por vencimento no período; vencidas gerais: todos os meses.
  let desp=0,pagas=0,qtd=0,fab=0;const byCat={};
  list().forEach(x=>{
   const v=Number(x.amount||0);
@@ -199,10 +199,13 @@ function calc(s,e){
 }
 // Obrigações em aberto (não pagas), SEM filtro de período e sem olhar a data do lançamento:
 //  pend = tudo que não foi pago (vencidas + a vencer + sem vencimento) | venc = dueDate anterior a hoje | avencer = dueDate de hoje em diante | sem = sem dueDate (nunca vira "vencida" sozinha)
-function abertas(){
+function abertas(s,e){
  const today=todayISO();let pend=0,venc=0,avencer=0,sem=0,nPend=0,nVenc=0;
  list().forEach(x=>{
   if(x.status==='pago')return;
+  // Quando há período, considerar somente vencimentos dentro dele.
+  // Sem data de vencimento, a obrigação só entra na visão geral sem filtro.
+  if((s||e)&&!inR(x.dueDate,s,e))return;
   const v=Number(x.amount||0);pend+=v;nPend++;
   if(!x.dueDate)sem+=v;
   else if(x.dueDate<today){venc+=v;nVenc++;}
@@ -267,14 +270,14 @@ function syncCats(){
 function catHint(){$('finCatHint').textContent='Exemplos: '+hintOf($('finCat').value);}
 
 function renderSummary(){
- const {s,e}=period(),c=calc(s,e),ab=abertas();
- $('finPeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · pagamentos pela data do pagamento; lista pela data do lançamento. Pendentes e vencidas somam todas as despesas em aberto, sem filtro de período.`;
+ const {s,e}=period(),c=calc(s,e),ab=abertas(s,e),abGeral=abertas();
+ $('finPeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'sem limite'} · pagamentos pela data do pagamento; lista pela data do lançamento. O cartão Despesas pendentes considera o vencimento no período; o cartão Vencidas continua mostrando todos os atrasos.`;
  setMoney('finDesp',c.desp);
- setMoney('finPagas',c.pagas);setMoney('finPend',ab.pend);setMoney('finVenc2',ab.venc);
+ setMoney('finPagas',c.pagas);setMoney('finPend',ab.pend);setMoney('finVenc2',abGeral.venc);
  $('finDespNota').textContent=`${c.qtd} pagamento(s) efetuado(s)${c.fab>0?' · inclui '+money(c.fab)+' pagos à fábrica':''}`;
 
- $('finPendNota').textContent=ab.nPend?`${ab.nPend} em aberto · vencidas ${money(ab.venc)} · a vencer ${money(ab.avencer)}${ab.sem>0?' · sem vencimento '+money(ab.sem):''}`:'Nenhuma despesa em aberto';
- $('finVencNota').textContent=ab.venc>0?`${ab.nVenc} não paga(s) com vencimento anterior a hoje, de qualquer mês`:'Nenhuma conta vencida';
+ $('finPendNota').textContent=ab.nPend?`${ab.nPend} em aberto${(s||e)?' com vencimento no período':''} · vencidas ${money(ab.venc)} · a vencer ${money(ab.avencer)}${ab.sem>0?' · sem vencimento '+money(ab.sem):''}`:((s||e)?'Nenhuma despesa em aberto com vencimento no período':'Nenhuma despesa em aberto');
+ $('finVencNota').textContent=abGeral.venc>0?`${abGeral.nVenc} não paga(s) com vencimento anterior a hoje, de qualquer mês`:'Nenhuma conta vencida';
  // composição das despesas
  const rows=Object.entries(c.byCat).sort((a,b)=>b[1]-a[1]),tot=rows.reduce((n,x)=>n+x[1],0);
  let acc=0;const stops=rows.map(([k,v])=>{const a=acc/tot*100;acc+=v;return `${colorOf(k)} ${a}% ${acc/tot*100}%`;});
