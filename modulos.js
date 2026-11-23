@@ -947,8 +947,10 @@ function pedAskPayment(o,inst){
   if(!date){toast('Informe a data do pagamento.',true);return;}
   if(!cred&&!account){toast('Escolha a conta financeira de origem.',true);return;}
   if(cred&&inst.amount>factoryStats().bal+0.009){toast(`O crédito da fábrica disponível (${money(factoryStats().bal)}) é menor que a parcela (${money(inst.amount)}).`,true);return;}
+  if(!cred&&account==='caixa:agenda'&&typeof window.ckrAgendaResumo==='function'){const ag=window.ckrAgendaResumo();if(inst.amount>ag.disponivel+0.009){toast(`O saldo disponível da Agenda BLU (${money(Math.max(0,ag.disponivel))}) é menor que a parcela (${money(inst.amount)}).`,true);return;}}   // Agenda BLU: não deixa pagar além do disponível
   const now=new Date().toISOString(),by=currentUserName(),led=cred?{id:id(),date:keyToIso(date),amount:inst.amount,note:`Pedido nº ${o.num} · parcela ${inst.n}/${inst.of}`,by,orderId:o.id,instN:inst.n}:null;
   inst.paid=true;inst.paidAt=keyToIso(date);inst.payment={date,method,account,credit:cred,by,at:now};
+  if(!cred&&account==='caixa:agenda'){inst.payment.agendaConciliacao='pendente';inst.payment.agendaValorUtilizado=inst.amount;}   // Agenda BLU: marca para conciliação futura e guarda o valor usado (sem escolher recebíveis)
   if(led)ledger().push(led);
   fechar();
   if(saveData())toast(cred?'Parcela paga com crédito da fábrica. Nenhuma saída de caixa foi lançada.':'Parcela marcada como paga. A saída foi lançada na conta e em Fluxo de Caixa.');
