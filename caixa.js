@@ -159,8 +159,8 @@ function balances(){
  Object.keys(b).forEach(k=>b[k]=r2(b[k]));
 // Agenda BLU: valores comprometidos = pagamentos à fábrica feitos com a Agenda e ainda pendentes de conciliação.
 // A saída deles JÁ está em b.agenda (expenseEntries), então b.agenda é o saldo disponível: o comprometido só é somado de volta para mostrar o bruto.
-const agComp=r2(exp.filter(x=>x.agPend).reduce((n,x)=>n-x.amount,0));
- return {b,lock,lockRows,lockFab:r2(lockFab),lockFabRows,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda),agComp,agBruto:r2(b.agenda+agComp),agDisp:r2(b.agenda-(lock.agenda||0))};
+const agComp=r2(exp.filter(x=>x.agPend).reduce((n,x)=>n-x.amount,0)),agQtd=exp.filter(x=>x.agPend).length;
+ return {b,lock,lockRows,lockFab:r2(lockFab),lockFabRows,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda),agComp,agQtd,agBruto:r2(b.agenda+agComp),agDisp:r2(b.agenda-(lock.agenda||0))};
 }
 
 // Total de Recebimentos no período (usado por Despesas e Lucro): só o que efetivamente entrou, pelas mesmas regras do Caixa
@@ -181,9 +181,9 @@ window.ckrEncomendaCredito=()=>r2(encCreditos().reduce((n,x)=>n+x.credit,0));
 // Linhas do extrato do Caixa (mesma fonte da tela Extrato) para o Fluxo de Caixa (fluxo.js). Somente leitura.
 // flow: 'auto' (vendas/encomendas/serviços/parcelas) | 'desp' (despesas e pedidos à fábrica pagos) | tipo do lançamento manual ('transf','entrada','saida','ajuste').
 // pairAcc: conta do outro lado de uma transferência. 'saldos' = saldo atual de cada conta no Conceito Caixa. 'inicio' = data de corte.
-window.ckrCaixaLinhas=function(){ensureStart();const S=balances();return {rows:rowsAll(S),saldos:Object.assign({},S.b),inicio:conf().start||''};};
+window.ckrCaixaLinhas=function(){ensureStart();const S=balances();return {rows:rowsAll(S),saldos:Object.assign({},S.b),inicio:conf().start||'',pend:{qtd:S.agQtd,valor:S.agComp}};};   // pend: pagamentos à fábrica com a Agenda BLU aguardando conciliação
 // Agenda BLU: bruto (sem os comprometidos), comprometido (pagamentos pendentes de conciliação) e disponível (já sem comprometidos e sem o bloqueado de encomendas). Somente leitura.
-window.ckrAgendaResumo=function(){ensureStart();const S=balances();return {bruto:S.agBruto,comprometido:S.agComp,disponivel:S.agDisp};};
+window.ckrAgendaResumo=function(){ensureStart();const S=balances();return {pendentes:S.agQtd,bruto:S.agBruto,comprometido:S.agComp,disponivel:S.agDisp};};
 // Saldo disponivel do credito com a fabrica (leitura; nao entra no saldo total)
 function fabSaldo(){
  const sales=r2((data.movements||[]).filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0));
@@ -204,8 +204,9 @@ function renderCard(S){
   if(a.k==='agenda'){sub+=` · a receber ${money(S.lojaPend)}`;if(S.agComp>0.004){sub+=` · bruto ${signed(S.agBruto)} · comprometido (aguardando conciliação) ${money(S.agComp)}`;if(!(S.lock.agenda>0.004))sub+=` · disponível ${signed(S.agDisp)}`;}}
   if(a.k===S.pa)sub+=` · Pix ${money(S.pix)}`;
   const lk=S.lock[a.k]||0;
+  const wp=(a.k==='agenda'&&S.agQtd>0)?`<p class="fin-meta-text" style="margin:8px 0 0">⚠ <b>${S.agQtd} pagamento(s) à fábrica aguardando conciliação · ${money(S.agComp)}.</b> Os recebíveis consumidos ainda não foram identificados: a distribuição dos recebimentos futuros (Agenda BLU × Caixa BLU) pode estar incorreta e estes saldos não são definitivos.</p>`:'';
   if(lk>0.004)sub+=` · bloqueado (encomenda) ${money(lk)} · disponível ${signed(r2(S.b[a.k]-lk))}`;
-  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button><button type="button" class="row-action" data-cx="extrato" data-acc="${a.k}">Extrato</button>${lk>0.004?`<button type="button" class="row-action" data-cx="lock" data-acc="${a.k}">⚠ ${money(lk)} de encomenda · saiba mais</button>`:''}</div></div>`;
+  return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button><button type="button" class="row-action" data-cx="extrato" data-acc="${a.k}">Extrato</button>${lk>0.004?`<button type="button" class="row-action" data-cx="lock" data-acc="${a.k}">⚠ ${money(lk)} de encomenda · saiba mais</button>`:''}</div>${wp}</div>`;
  }).join('')+(()=>{const fs=fabSaldo();return `<div class="cx-acc"><div class="cx-acc-top"><div><b>Crédito com a fábrica</b><small>Saldo disponível · não entra no saldo total</small></div><strong class="${fs<0?'cx-neg':''}">${signed(fs)}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="extratofab">Extrato</button>${S.lockFab>0.004?`<button type="button" class="row-action" data-cx="lockfab">⚠ ${money(S.lockFab)} de encomenda · saiba mais</button>`:''}</div></div>`;})();
  const fabPct=100-getSettings().factoryCreditPct;
  $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Regra do 1º dia útil:</b> vendas no cartão (Registrar venda e PDV) só entram aqui no 1º dia útil (seg–sex) depois da venda; o que o cliente já pagou numa <b>encomenda</b> segue a mesma regra e já pode ser usado (a encomenda só não baixa estoque até a entrega). <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
@@ -221,7 +222,7 @@ function rowsAll(S){
   a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,flow:'auto',src,cat:'Parcelas do cartão loja (já sem taxa)',desc,
    sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${lk}`}));
  });
- S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,flow:'desp',src:x.fab?null:{t:'desp',id:String(x.key).split(':')[0]},cat:x.fab?'Pagamentos à fábrica':'Despesas pagas',desc:x.desc,sub:x.sub}));
+ S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,flow:'desp',src:x.fab?null:{t:'desp',id:String(x.key).split(':')[0]},cat:x.fab?'Pagamentos à fábrica':'Despesas pagas',desc:x.desc,sub:x.agPend?(x.sub?x.sub+' · ':'')+'aguardando conciliação da Agenda BLU':x.sub,pendConc:!!x.agPend}));
  ledger().forEach(e=>{
   let desc=KIND[e.kind]||'Lançamento',sub=e.note||'';
   if(e.kind==='transf'){
