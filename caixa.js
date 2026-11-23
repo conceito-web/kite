@@ -132,7 +132,7 @@ function expenseEntries(){
   const acc=pg.account.slice(6);if(!ACCS.some(a=>a.k===acc))return;
   const day=pg.date||'',amt=r2(p.amount);
   if(!day||(start&&day<start)||!(amt>0))return;
-  out.push({key:'ped:'+o.id+':'+p.n,date:day,ts:String(pg.at||''),acc,amount:-amt,fab:true,desc:'Pedido à fábrica nº '+(o.num||'')+' · parcela '+p.n+'/'+p.of,sub:pg.method||''});
+  out.push({key:'ped:'+o.id+':'+p.n,date:day,ts:String(pg.at||''),acc,amount:-amt,fab:true,agPend:acc==='agenda'&&pg.agendaConciliacao==='pendente',desc:'Pedido à fábrica nº '+(o.num||'')+' · parcela '+p.n+'/'+p.of,sub:pg.method||''});
  }));
  return out;
 }
@@ -157,7 +157,10 @@ function balances(){
  exp.forEach(x=>{b[x.acc]+=x.amount;});
  ledger().forEach(e=>{if(e.account in b)b[e.account]+=Number(e.amount||0);});
  Object.keys(b).forEach(k=>b[k]=r2(b[k]));
- return {b,lock,lockRows,lockFab:r2(lockFab),lockFabRows,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda)};
+// Agenda BLU: valores comprometidos = pagamentos à fábrica feitos com a Agenda e ainda pendentes de conciliação.
+// A saída deles JÁ está em b.agenda (expenseEntries), então b.agenda é o saldo disponível: o comprometido só é somado de volta para mostrar o bruto.
+const agComp=r2(exp.filter(x=>x.agPend).reduce((n,x)=>n-x.amount,0));
+ return {b,lock,lockRows,lockFab:r2(lockFab),lockFabRows,auto,exp,parcs,fab:r2(fab),cash:r2(cash),pix:r2(pix),pa,lojaRec:r2(lojaRec),lojaPend:r2(lojaPend),total:r2(b.blu+b.nubank+b.dinheiro+b.agenda),agComp,agBruto:r2(b.agenda+agComp),agDisp:r2(b.agenda-(lock.agenda||0))};
 }
 
 // Total de Recebimentos no período (usado por Despesas e Lucro): só o que efetivamente entrou, pelas mesmas regras do Caixa
@@ -179,6 +182,8 @@ window.ckrEncomendaCredito=()=>r2(encCreditos().reduce((n,x)=>n+x.credit,0));
 // flow: 'auto' (vendas/encomendas/serviços/parcelas) | 'desp' (despesas e pedidos à fábrica pagos) | tipo do lançamento manual ('transf','entrada','saida','ajuste').
 // pairAcc: conta do outro lado de uma transferência. 'saldos' = saldo atual de cada conta no Conceito Caixa. 'inicio' = data de corte.
 window.ckrCaixaLinhas=function(){ensureStart();const S=balances();return {rows:rowsAll(S),saldos:Object.assign({},S.b),inicio:conf().start||''};};
+// Agenda BLU: bruto (sem os comprometidos), comprometido (pagamentos pendentes de conciliação) e disponível (já sem comprometidos e sem o bloqueado de encomendas). Somente leitura.
+window.ckrAgendaResumo=function(){ensureStart();const S=balances();return {bruto:S.agBruto,comprometido:S.agComp,disponivel:S.agDisp};};
 // Saldo disponivel do credito com a fabrica (leitura; nao entra no saldo total)
 function fabSaldo(){
  const sales=r2((data.movements||[]).filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0));
@@ -196,7 +201,7 @@ function renderCard(S){
   let sub=a.sub;
   if(a.k==='blu')sub+=` · fábrica ${money(S.fab)} + loja ${money(S.lojaRec)}`;
   if(a.k==='dinheiro')sub+=` · vendas em dinheiro ${money(S.cash)}`;
-  if(a.k==='agenda')sub+=` · a receber ${money(S.lojaPend)}`;
+  if(a.k==='agenda'){sub+=` · a receber ${money(S.lojaPend)}`;if(S.agComp>0.004){sub+=` · bruto ${signed(S.agBruto)} · comprometido (aguardando conciliação) ${money(S.agComp)}`;if(!(S.lock.agenda>0.004))sub+=` · disponível ${signed(S.agDisp)}`;}}
   if(a.k===S.pa)sub+=` · Pix ${money(S.pix)}`;
   const lk=S.lock[a.k]||0;
   if(lk>0.004)sub+=` · bloqueado (encomenda) ${money(lk)} · disponível ${signed(r2(S.b[a.k]-lk))}`;
