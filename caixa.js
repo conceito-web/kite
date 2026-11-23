@@ -538,7 +538,7 @@ function showExtratoFab(){
 // ---------- Conciliação da Agenda BLU: seleção dos recebíveis e confirmação ----------
 // Lê os pagamentos à fábrica com agendaConciliacao:'pendente' (S.exp com agPend) e as parcelas da Agenda BLU (S.parcs, as mesmas da tabela "Agenda BLU · parcelas do cartão loja").
 // A seleção fica na memória da janela; só confirmConc() grava, e apenas no pagamento (agendaConciliacao + agendaRecebiveis).
-const CONC={pay:'',date:'',sel:{}};   // sel[chaveDoPagamento][pkey] = texto do valor a utilizar
+const CONC={pay:'',de:'',ate:'',sel:{}};   // sel[chaveDoPagamento][pkey] = texto do valor a utilizar
 function concEsc(ev){if(ev.key==='Escape')closeConc();}
 function closeConc(){const m=$('cxConcModal');if(m)m.remove();document.removeEventListener('keydown',concEsc);}
 const concPend=S=>S.exp.filter(x=>x.agPend);
@@ -548,7 +548,7 @@ function openConc(){
  closeConc();
  const pend=concPend(balances());
  if(!pend.length){toast('Nenhum pagamento aguardando conciliação.');return;}
- CONC.pay=pend[0].key;CONC.date='';CONC.sel={};
+ CONC.pay=pend[0].key;CONC.de='';CONC.ate='';CONC.sel={};
  const m=document.createElement('div');m.id='cxConcModal';
  m.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px';
  m.innerHTML=`<div role="dialog" aria-modal="true" style="background:#fff;color:#1c2433;border-radius:14px;width:100%;max-width:780px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3)">
@@ -559,14 +559,14 @@ function openConc(){
  m.addEventListener('click',ev=>{
   if(ev.target===m||ev.target.closest('[data-conc-close]')){closeConc();return;}
   if(ev.target.closest('[data-conc-ok]')){confirmConc();return;}
-  const ch=ev.target.closest('[data-conc-date]');if(ch){CONC.date=ch.dataset.concDate;drawConc();return;}
-  if(ev.target.closest('[data-conc-limpa]')){CONC.date='';drawConc();return;}
+  if(ev.target.closest('[data-conc-limpa]')){CONC.de='';CONC.ate='';drawConc();return;}   // limpa só o filtro; a seleção e os valores informados continuam
   const rm=ev.target.closest('[data-conc-rm]');if(rm){delete (CONC.sel[CONC.pay]||{})[rm.dataset.concRm];drawConc();}
  });
  m.addEventListener('change',ev=>{
   const el=ev.target;
   if(el.name==='cxConcPay'){CONC.pay=el.value;drawConc();return;}
-  if(el.id==='cxConcDate'){CONC.date=el.value;drawConc();return;}
+  if(el.id==='cxConcDe'){CONC.de=el.value;drawConc();return;}
+  if(el.id==='cxConcAte'){CONC.ate=el.value;drawConc();return;}
   if(el.dataset.concChk){
    const sel=CONC.sel[CONC.pay]||(CONC.sel[CONC.pay]={}),p=concRecs(balances()).find(x=>x.pkey===el.dataset.concChk);
    if(el.checked&&p)sel[p.pkey]=fmtIn(p.amount);else delete sel[el.dataset.concChk];
@@ -586,8 +586,10 @@ function drawConc(){
  const inp='padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px';
  const pays=pend.map(x=>{const on=x.key===CONC.pay;return `<label style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;${box};${on?'border-color:#f97316;background:#fff7f0;':''}cursor:pointer"><input type="radio" name="cxConcPay" value="${esc(x.key)}"${on?' checked':''} style="margin-top:3px"><span style="font-size:13px"><b>Pedido nº ${esc(x.pedNum)}</b> · parcela do boleto ${esc(x.pedN)}/${esc(x.pedOf)}<br><small style="color:#6b7587">Pago em ${esc(dayText(x.date))} · valor utilizado da Agenda BLU <b>${money(-x.amount)}</b></small></span></label>`;}).join('');
  const datas=[...new Set(recs.map(p=>p.date))].sort();
- const chips=datas.slice(0,14).map(d=>`<button type="button" class="row-action" data-conc-date="${esc(d)}"${d===CONC.date?' style="border-color:#f97316;color:#c2570c"':''}>${esc(dayText(d))}</button>`).join(' ');
- const lista=CONC.date?recs.filter(p=>p.date===CONC.date).sort((a,b)=>String(a.saleDay).localeCompare(String(b.saleDay))||a.i-b.i):[];
+ const de=CONC.de,ate=CONC.ate,invalido=!!(de&&ate&&de>ate);   // datas ISO (AAAA-MM-DD) comparam como texto; as duas pontas entram no intervalo
+ const lista=(!invalido&&(de||ate))?recs.filter(p=>(!de||p.date>=de)&&(!ate||p.date<=ate)).sort((a,b)=>String(a.date).localeCompare(String(b.date))||concNome(a).localeCompare(concNome(b),'pt-BR')||String(a.saleKey).localeCompare(String(b.saleKey))||a.i-b.i):[];
+ const foraN=Object.keys(sel).filter(k=>!lista.some(p=>p.pkey===k)&&recs.some(p=>p.pkey===k)).length;   // selecionados que não aparecem neste intervalo (continuam na seleção)
+ const faixa=de&&ate?'de '+dayText(de)+' até '+dayText(ate):de?'a partir de '+dayText(de):ate?'até '+dayText(ate):'';
  const rows=lista.map(p=>{
   const on=Object.prototype.hasOwnProperty.call(sel,p.pkey);
   return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:9px 11px;${box};margin-bottom:6px">
@@ -599,10 +601,11 @@ function drawConc(){
  }).join('');
  body.innerHTML=`<h3 style="margin:0 0 8px;font-size:14px">1. Pagamento a conciliar</h3><div style="display:grid;gap:6px">${pays}</div>
   <h3 style="${h3}">2. Vencimento dos recebíveis</h3>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><label style="display:grid;gap:3px;font-size:12px;color:#6b7587">Data de vencimento<input type="date" id="cxConcDate" value="${esc(CONC.date)}" style="${inp}"></label>${CONC.date?'<button type="button" class="row-action" data-conc-limpa>Limpar data</button>':''}</div>
-  ${chips?`<p style="margin:10px 0 4px;font-size:12px;color:#6b7587">Vencimentos com recebíveis na Agenda BLU${datas.length>14?' (14 primeiros)':''}:</p><div style="display:flex;gap:6px;flex-wrap:wrap">${chips}</div>`:'<p style="font-size:13px;color:#6b7587">Não há recebíveis a receber na Agenda BLU.</p>'}
-  <h3 style="${h3}">3. Recebíveis ${CONC.date?'com vencimento em '+esc(dayText(CONC.date)):''}</h3>
-  ${CONC.date?(rows||'<p style="font-size:13px;color:#6b7587">Nenhum recebível da Agenda BLU vence nesta data.</p>'):'<p style="font-size:13px;color:#6b7587">Escolha uma data para listar os recebíveis. Você pode trocar de data e continuar selecionando: a seleção de todas as datas é somada abaixo.</p>'}
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><label style="display:grid;gap:3px;font-size:12px;color:#6b7587">Vencimento de<input type="date" id="cxConcDe" value="${esc(de)}" style="${inp}"></label><label style="display:grid;gap:3px;font-size:12px;color:#6b7587">Vencimento até<input type="date" id="cxConcAte" value="${esc(ate)}" style="${inp}"></label>${de||ate?'<button type="button" class="row-action" data-conc-limpa>Limpar filtro</button>':''}</div>
+  ${invalido?'<p role="alert" style="margin:10px 0 0;font-size:13px;color:#d74b55">A data inicial é posterior à data final. Corrija o intervalo para pesquisar.</p>':datas.length?`<p style="margin:10px 0 0;font-size:12px;color:#6b7587">Há recebíveis a receber na Agenda BLU com vencimento de ${esc(dayText(datas[0]))} até ${esc(dayText(datas[datas.length-1]))}.</p>`:'<p style="margin:10px 0 0;font-size:13px;color:#6b7587">Não há recebíveis a receber na Agenda BLU.</p>'}
+  <h3 style="${h3}">3. Recebíveis ${esc(faixa)}</h3>
+  ${invalido?'':(de||ate)?(rows||'<p style="font-size:13px;color:#6b7587">Nenhum recebível da Agenda BLU vence neste intervalo.</p>'):'<p style="font-size:13px;color:#6b7587">Informe a data inicial e/ou a final para listar os recebíveis. Você pode mudar o intervalo e continuar selecionando: tudo o que foi selecionado, de qualquer data, é somado abaixo.</p>'}
+  ${foraN&&!invalido?`<p style="margin:6px 0 0;font-size:12px;color:#6b7587">${foraN} recebível(is) selecionado(s) fora deste intervalo continua(m) na seleção (veja o resumo abaixo).</p>`:''}
   <h3 style="${h3}">Resumo da seleção</h3><div id="cxConcResumo"></div>`;
  body.querySelectorAll('[data-conc-val]').forEach(i=>{
   bindMoneyMask(i);
