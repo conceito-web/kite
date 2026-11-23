@@ -35,6 +35,19 @@ const monthStart=()=>{const n=new Date();return localDateKey(new Date(n.getFullY
 const fmtIn=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const KIND={transf:'Transferência',entrada:'Entrada',saida:'Saída',ajuste:'Ajuste de saldo'};
 let shown=[];
+// CONSUMO DOS RECEBÍVEIS (conciliação da Agenda BLU): fonte única = pagamentos à fábrica com agendaConciliacao:'conciliado' e a lista agendaRecebiveis [{pkey,amount,...}].
+// Nada é gravado nas vendas: a parcela original (data e valor) continua igual; o consumo é subtraído em tempo de cálculo, em centavos.
+// Reabrir/excluir o pagamento remove o vínculo e o consumo some sozinho. CONS é recalculado a cada autoEntries().
+let CONS={};
+function consumoMap(){
+ const m={};
+ (data.factoryOrders||[]).forEach(o=>(o.installments||[]).forEach(p=>{
+  const pg=p&&p.paid&&p.payment;
+  if(!pg||pg.credit||pg.account!=='caixa:agenda'||pg.agendaConciliacao!=='conciliado'||!Array.isArray(pg.agendaRecebiveis))return;
+  pg.agendaRecebiveis.forEach(x=>{if(x&&x.pkey)m[x.pkey]=(m[x.pkey]||0)+Math.round(Number(x.amount||0)*100);});
+ }));
+ return m;
+}
 
 function denied(){if(hasFullAccess())return false;toast('Seu perfil não tem permissão para alterar o caixa.',true);return true;}
 // Data de corte: vendas anteriores a ela não entram no Caixa BLU (evita puxar todo o histórico antigo).
@@ -67,7 +80,8 @@ function entryFor(k,day,ts,client,payments,opt){
    const pkey=k+':'+pi+':'+i,o=ov[pkey]||null,defDate=maxD(addDays(day,deb?dias(true):dias(false)*i),eff),defAmt=r2((i<n?q:cents-q*(n-1))/100);
    const date=(o&&o.date)||defDate,amount=(o&&o.amount!=null)?r2(o.amount):defAmt;
    if(!(amount>0))continue;
-   parcs.push({pkey,saleKey:k,client,saleDay:day,method:p.method,i,n,date,amount,defDate,defAmt,edited:!!o,locked:!!opt.locked});
+   const gc=Math.round(amount*100),uc=Math.min(gc,CONS[pkey]||0);   // amount = valor original da parcela (gross); consumo da conciliação sai só do que ainda seria recebido
+   parcs.push({pkey,saleKey:k,client,saleDay:day,method:p.method,i,n,date,amount:r2((gc-uc)/100),gross:amount,used:r2(uc/100),defDate,defAmt,edited:!!o,locked:!!opt.locked});
   }
  });
  fab=r2(fab);cash=r2(cash);pix=r2(pix);fcr=r2(fcr);
@@ -75,6 +89,7 @@ function entryFor(k,day,ts,client,payments,opt){
  return {key:k,date:day,dFab,dNon,ts,client,fab,cash,pix,fcr,blu:fab,parcs,locked:!!opt.locked};
 }
 function autoEntries(){
+ CONS=consumoMap();
  const start=conf().start||'',first=new Map(),out=[];
  data.movements.forEach(m=>{
   if(m.type!=='venda'||m.canceled)return;
@@ -132,7 +147,8 @@ function expenseEntries(){
   const acc=pg.account.slice(6);if(!ACCS.some(a=>a.k===acc))return;
   const day=pg.date||'',amt=r2(p.amount);
   if(!day||(start&&day<start)||!(amt>0))return;
-  out.push({key:'ped:'+o.id+':'+p.n,date:day,ts:String(pg.at||''),acc,amount:-amt,fab:true,agPend:acc==='agenda'&&pg.agendaConciliacao==='pendente',desc:'Pedido à fábrica nº '+(o.num||'')+' · parcela '+p.n+'/'+p.of,sub:pg.method||''});
+  const agConc=acc==='agenda'&&pg.agendaConciliacao==='conciliado'&&Array.isArray(pg.agendaRecebiveis)&&pg.agendaRecebiveis.length>0;   // conciliado: o consumo já está nos recebíveis, então esta linha não desconta de novo (amount 0)
+  out.push({key:'ped:'+o.id+':'+p.n,date:day,ts:String(pg.at||''),acc,amount:agConc?0:-amt,agConc,agVal:amt,pedId:o.id,fab:true,agPend:acc==='agenda'&&pg.agendaConciliacao==='pendente',pedNum:o.num||'',pedN:p.n,pedOf:p.of,desc:'Pedido à fábrica nº '+(o.num||'')+' · parcela '+p.n+'/'+p.of,sub:pg.method||''});
  }));
  return out;
 }
@@ -204,7 +220,7 @@ function renderCard(S){
   if(a.k==='agenda'){sub+=` · a receber ${money(S.lojaPend)}`;if(S.agComp>0.004){sub+=` · bruto ${signed(S.agBruto)} · comprometido (aguardando conciliação) ${money(S.agComp)}`;if(!(S.lock.agenda>0.004))sub+=` · disponível ${signed(S.agDisp)}`;}}
   if(a.k===S.pa)sub+=` · Pix ${money(S.pix)}`;
   const lk=S.lock[a.k]||0;
-  const wp=(a.k==='agenda'&&S.agQtd>0)?`<p class="fin-meta-text" style="margin:8px 0 0">⚠ <b>${S.agQtd} pagamento(s) à fábrica aguardando conciliação · ${money(S.agComp)}.</b> Os recebíveis consumidos ainda não foram identificados: a distribuição dos recebimentos futuros (Agenda BLU × Caixa BLU) pode estar incorreta e estes saldos não são definitivos.</p>`:'';
+  const wp=(a.k==='agenda'&&S.agQtd>0)?`<p class="fin-meta-text" style="margin:8px 0 0">⚠ <b>${S.agQtd} pagamento(s) à fábrica aguardando conciliação · ${money(S.agComp)}.</b> Os recebíveis consumidos ainda não foram identificados: a distribuição dos recebimentos futuros (Agenda BLU × Caixa BLU) pode estar incorreta e estes saldos não são definitivos. <button type=\"button\" class=\"row-action\" data-cx=\"conciliar\" data-acc=\"agenda\">Conciliar</button></p>`:'';
   if(lk>0.004)sub+=` · bloqueado (encomenda) ${money(lk)} · disponível ${signed(r2(S.b[a.k]-lk))}`;
   return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button><button type="button" class="row-action" data-cx="extrato" data-acc="${a.k}">Extrato</button>${lk>0.004?`<button type="button" class="row-action" data-cx="lock" data-acc="${a.k}">⚠ ${money(lk)} de encomenda · saiba mais</button>`:''}</div>${wp}</div>`;
  }).join('')+(()=>{const fs=fabSaldo();return `<div class="cx-acc"><div class="cx-acc-top"><div><b>Crédito com a fábrica</b><small>Saldo disponível · não entra no saldo total</small></div><strong class="${fs<0?'cx-neg':''}">${signed(fs)}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="extratofab">Extrato</button>${S.lockFab>0.004?`<button type="button" class="row-action" data-cx="lockfab">⚠ ${money(S.lockFab)} de encomenda · saiba mais</button>`:''}</div></div>`;})();
@@ -219,10 +235,10 @@ function rowsAll(S){
   if(a.fab>0)rows.push({acc:'blu',date:a.dFab,ts:a.ts,amount:a.fab,auto:true,flow:'auto',src,cat:'Cartão fábrica (entra na hora)',desc,sub:`cartão fábrica ${money(a.fab)}${lk}`});
   if(a.cash>0)rows.push({acc:'dinheiro',date:a.dNon,ts:a.ts,amount:a.cash,auto:true,flow:'auto',src,cat:'Vendas em dinheiro',desc,sub:'pago em dinheiro'+lk});
   if(a.pix>0)rows.push({acc:S.pa,date:a.dNon,ts:a.ts,amount:a.pix,auto:true,flow:'auto',src,cat:'Vendas em Pix',desc,sub:'pago em Pix'+lk});
-  a.parcs.forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,flow:'auto',src,cat:'Parcelas do cartão loja (já sem taxa)',desc,
-   sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${lk}`}));
+  a.parcs.filter(p=>!(p.used>0&&p.amount<0.005)).forEach(p=>rows.push({acc:p.due?'blu':'agenda',date:p.date,ts:a.ts,amount:p.amount,auto:true,flow:'auto',src,cat:'Parcelas do cartão loja (já sem taxa)',desc,
+   sub:`parcela ${p.i}/${p.n} · ${p.method} (líquido)${p.due?'':' · a receber'}${p.used>0?' · '+money(p.used)+' consumidos na conciliação da Agenda BLU (restante '+money(p.amount)+')':''}${lk}`}));
  });
- S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,flow:'desp',src:x.fab?null:{t:'desp',id:String(x.key).split(':')[0]},cat:x.fab?'Pagamentos à fábrica':'Despesas pagas',desc:x.desc,sub:x.agPend?(x.sub?x.sub+' · ':'')+'aguardando conciliação da Agenda BLU':x.sub,pendConc:!!x.agPend}));
+ S.exp.forEach(x=>rows.push({acc:x.acc,date:x.date,ts:x.ts,amount:x.amount,auto:true,flow:'desp',src:x.fab?null:{t:'desp',id:String(x.key).split(':')[0]},cat:x.fab?'Pagamentos à fábrica':'Despesas pagas',desc:x.desc,sub:x.agPend?(x.sub?x.sub+' · ':'')+'aguardando conciliação da Agenda BLU':x.agConc?(x.sub?x.sub+' · ':'')+'conciliado com a Agenda BLU: '+money(x.agVal)+' já descontados dos recebíveis (sem novo desconto)':x.sub,pendConc:!!x.agPend}));
  ledger().forEach(e=>{
   let desc=KIND[e.kind]||'Lançamento',sub=e.note||'';
   if(e.kind==='transf'){
@@ -273,8 +289,8 @@ function renderAgenda(S){
   <td><input type="date" value="${esc(p.date)}" data-pdate="${esc(p.pkey)}" ${INP}></td>
   <td><span class="product-name">${p.label?esc(p.label):'Venda #'+esc(String(p.saleKey).split('@')[0].slice(-6))}${p.client?' · '+esc(p.client):''}</span><small class="fin-sub">${p.label?'paga':'vendida'} em ${dayText(p.saleDay)} · ${esc(p.method)}${p.locked?' · bloqueado até a entrega':''}</small></td>
   <td>${p.i}/${p.n}</td>
-  <td><input type="text" inputmode="decimal" value="${fmtIn(p.amount)}" data-pamt="${esc(p.pkey)}" style="width:110px;padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px"></td>
-  <td>${p.due?'<span class="pill" style="background:#e8f7f0;color:#1b9869">Entrou no Caixa BLU</span>':'<span class="pill cxauto">A receber</span>'}${p.edited?'<small class="fin-sub">editada por você</small>':''}</td>
+  <td><input type="text" inputmode="decimal" value="${fmtIn(p.gross)}" data-pamt="${esc(p.pkey)}" style="width:110px;padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px"></td>
+  <td>${p.used>0&&p.amount<0.005?'<span class="pill cxauto">Consumida na conciliação</span>':p.due?'<span class="pill" style="background:#e8f7f0;color:#1b9869">Entrou no Caixa BLU</span>':'<span class="pill cxauto">A receber</span>'}${p.used>0?`<small class="fin-sub">${p.amount<0.005?'100% consumida':'consumido '+money(p.used)+' · restante '+money(p.amount)}</small>`:''}${p.edited?'<small class="fin-sub">editada por você</small>':''}</td>
   <td class="fin-actions">${p.edited?`<button type="button" class="row-action" data-prest="${esc(p.pkey)}">Restaurar padrão</button>`:''}</td></tr>`).join('');
  $('cxAgVazio').style.display=list.length?'none':'block';
 }
@@ -301,6 +317,7 @@ function onAgendaChange(ev){
  }else{
   const v=r2(parseMoneyInput(el.value));
   if(!(v>0)){toast('Informe um valor maior que zero.',true);render();return;}
+  if(v<p.used-0.005){toast(`Esta parcela já teve ${money(p.used)} consumidos em conciliação da Agenda BLU. O valor não pode ficar abaixo disso (reabra o pagamento da fábrica para liberar).`,true);render();return;}
   if(Math.abs(v-p.defAmt)<0.005)delete o.amount;else o.amount=v;
  }
  setOv(key,o);
@@ -518,9 +535,133 @@ function showExtratoFab(){
  extModal({title:'Extrato · Crédito com a fábrica',rows,saldo,mostraDif:false,rotuloSaldo:'= Saldo disponível',
   sub:`Saldo disponível: <b class="${cls(saldo)}">${signed(saldo)}</b>${S.lockFab>0.004?` · ${money(S.lockFab)} de encomendas ainda não entregues (não incluído)`:''}`});
 }
+// ---------- Conciliação da Agenda BLU: seleção dos recebíveis e confirmação ----------
+// Lê os pagamentos à fábrica com agendaConciliacao:'pendente' (S.exp com agPend) e as parcelas da Agenda BLU (S.parcs, as mesmas da tabela "Agenda BLU · parcelas do cartão loja").
+// A seleção fica na memória da janela; só confirmConc() grava, e apenas no pagamento (agendaConciliacao + agendaRecebiveis).
+const CONC={pay:'',date:'',sel:{}};   // sel[chaveDoPagamento][pkey] = texto do valor a utilizar
+function concEsc(ev){if(ev.key==='Escape')closeConc();}
+function closeConc(){const m=$('cxConcModal');if(m)m.remove();document.removeEventListener('keydown',concEsc);}
+const concPend=S=>S.exp.filter(x=>x.agPend);
+const concRecs=S=>S.parcs.filter(p=>!p.due&&!p.locked);   // a receber na Agenda BLU; as de encomenda não entregue estão bloqueadas e não entram
+const concNome=p=>(p.label?p.label:'Venda #'+String(p.saleKey).split('@')[0].slice(-6))+(p.client?' · '+p.client:'');
+function openConc(){
+ closeConc();
+ const pend=concPend(balances());
+ if(!pend.length){toast('Nenhum pagamento aguardando conciliação.');return;}
+ CONC.pay=pend[0].key;CONC.date='';CONC.sel={};
+ const m=document.createElement('div');m.id='cxConcModal';
+ m.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px';
+ m.innerHTML=`<div role="dialog" aria-modal="true" style="background:#fff;color:#1c2433;border-radius:14px;width:100%;max-width:780px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid #e6eaf1">
+   <div><h2 style="margin:0;font-size:18px">Conciliar Agenda BLU</h2><p style="margin:4px 0 0;color:#6b7587;font-size:13px">Escolha o pagamento e selecione os recebíveis que a BLU consumiu. Ao confirmar, os recebíveis são baixados e o pagamento fica conciliado. Os saldos não mudam: o valor já estava descontado da Agenda BLU.</p></div>
+   <button type="button" class="button button-light button-small" data-conc-close>Fechar</button></div>
+  <div id="cxConcBody" style="overflow:auto;padding:14px 18px"></div></div>`;
+ m.addEventListener('click',ev=>{
+  if(ev.target===m||ev.target.closest('[data-conc-close]')){closeConc();return;}
+  if(ev.target.closest('[data-conc-ok]')){confirmConc();return;}
+  const ch=ev.target.closest('[data-conc-date]');if(ch){CONC.date=ch.dataset.concDate;drawConc();return;}
+  if(ev.target.closest('[data-conc-limpa]')){CONC.date='';drawConc();return;}
+  const rm=ev.target.closest('[data-conc-rm]');if(rm){delete (CONC.sel[CONC.pay]||{})[rm.dataset.concRm];drawConc();}
+ });
+ m.addEventListener('change',ev=>{
+  const el=ev.target;
+  if(el.name==='cxConcPay'){CONC.pay=el.value;drawConc();return;}
+  if(el.id==='cxConcDate'){CONC.date=el.value;drawConc();return;}
+  if(el.dataset.concChk){
+   const sel=CONC.sel[CONC.pay]||(CONC.sel[CONC.pay]={}),p=concRecs(balances()).find(x=>x.pkey===el.dataset.concChk);
+   if(el.checked&&p)sel[p.pkey]=fmtIn(p.amount);else delete sel[el.dataset.concChk];
+   drawConc();
+  }
+ });
+ document.addEventListener('keydown',concEsc);
+ document.body.appendChild(m);drawConc();
+}
+function drawConc(){
+ const body=$('cxConcBody');if(!body)return;
+ const S=balances(),pend=concPend(S),recs=concRecs(S);
+ if(!pend.length){closeConc();toast('Nenhum pagamento aguardando conciliação.');return;}
+ if(!pend.some(x=>x.key===CONC.pay))CONC.pay=pend[0].key;
+ const pg=pend.find(x=>x.key===CONC.pay),total=r2(-pg.amount),sel=CONC.sel[CONC.pay]||(CONC.sel[CONC.pay]={});
+ const box='border:1px solid #d9dfe9;border-radius:10px',h3='margin:18px 0 8px;font-size:14px';
+ const inp='padding:7px 9px;border:1px solid #d9dfe9;border-radius:8px;font:inherit;font-size:13px';
+ const pays=pend.map(x=>{const on=x.key===CONC.pay;return `<label style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;${box};${on?'border-color:#f97316;background:#fff7f0;':''}cursor:pointer"><input type="radio" name="cxConcPay" value="${esc(x.key)}"${on?' checked':''} style="margin-top:3px"><span style="font-size:13px"><b>Pedido nº ${esc(x.pedNum)}</b> · parcela do boleto ${esc(x.pedN)}/${esc(x.pedOf)}<br><small style="color:#6b7587">Pago em ${esc(dayText(x.date))} · valor utilizado da Agenda BLU <b>${money(-x.amount)}</b></small></span></label>`;}).join('');
+ const datas=[...new Set(recs.map(p=>p.date))].sort();
+ const chips=datas.slice(0,14).map(d=>`<button type="button" class="row-action" data-conc-date="${esc(d)}"${d===CONC.date?' style="border-color:#f97316;color:#c2570c"':''}>${esc(dayText(d))}</button>`).join(' ');
+ const lista=CONC.date?recs.filter(p=>p.date===CONC.date).sort((a,b)=>String(a.saleDay).localeCompare(String(b.saleDay))||a.i-b.i):[];
+ const rows=lista.map(p=>{
+  const on=Object.prototype.hasOwnProperty.call(sel,p.pkey);
+  return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:9px 11px;${box};margin-bottom:6px">
+   <input type="checkbox" data-conc-chk="${esc(p.pkey)}"${on?' checked':''} aria-label="Selecionar recebível" style="width:18px;height:18px">
+   <div style="flex:1;min-width:190px;font-size:13px"><b>${esc(concNome(p))}</b><br><small style="color:#6b7587">vendida em ${esc(dayText(p.saleDay))} · parcela ${p.i}/${p.n} · vence em ${esc(dayText(p.date))}${p.used>0?' · já consumido '+money(p.used)+' em outra conciliação':''}</small></div>
+   <div style="font-size:12px;color:#6b7587;text-align:right">disponível<br><b style="font-size:13px;color:#1c2433">${money(p.amount)}</b></div>
+   <label style="display:grid;gap:2px;font-size:11px;color:#6b7587">UTILIZAR (R$)<input type="text" inputmode="numeric" data-conc-val="${esc(p.pkey)}" value="${on?esc(sel[p.pkey]):''}"${on?'':' disabled'} placeholder="0,00" style="width:110px;${inp}"></label>
+   <small data-conc-err="${esc(p.pkey)}" style="flex-basis:100%;color:#d74b55"></small></div>`;
+ }).join('');
+ body.innerHTML=`<h3 style="margin:0 0 8px;font-size:14px">1. Pagamento a conciliar</h3><div style="display:grid;gap:6px">${pays}</div>
+  <h3 style="${h3}">2. Vencimento dos recebíveis</h3>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><label style="display:grid;gap:3px;font-size:12px;color:#6b7587">Data de vencimento<input type="date" id="cxConcDate" value="${esc(CONC.date)}" style="${inp}"></label>${CONC.date?'<button type="button" class="row-action" data-conc-limpa>Limpar data</button>':''}</div>
+  ${chips?`<p style="margin:10px 0 4px;font-size:12px;color:#6b7587">Vencimentos com recebíveis na Agenda BLU${datas.length>14?' (14 primeiros)':''}:</p><div style="display:flex;gap:6px;flex-wrap:wrap">${chips}</div>`:'<p style="font-size:13px;color:#6b7587">Não há recebíveis a receber na Agenda BLU.</p>'}
+  <h3 style="${h3}">3. Recebíveis ${CONC.date?'com vencimento em '+esc(dayText(CONC.date)):''}</h3>
+  ${CONC.date?(rows||'<p style="font-size:13px;color:#6b7587">Nenhum recebível da Agenda BLU vence nesta data.</p>'):'<p style="font-size:13px;color:#6b7587">Escolha uma data para listar os recebíveis. Você pode trocar de data e continuar selecionando: a seleção de todas as datas é somada abaixo.</p>'}
+  <h3 style="${h3}">Resumo da seleção</h3><div id="cxConcResumo"></div>`;
+ body.querySelectorAll('[data-conc-val]').forEach(i=>{
+  bindMoneyMask(i);
+  i.addEventListener('money-mask-updated',()=>{(CONC.sel[CONC.pay]||{})[i.dataset.concVal]=i.value;concResumo();});
+ });
+ concResumo();
+}
+function confirmConc(){
+ if(denied())return;
+ const S=balances(),pg=concPend(S).find(x=>x.key===CONC.pay);   // tudo é relido agora: saldo disponível de cada recebível e situação do pagamento
+ if(!pg){toast('Este pagamento não está mais aguardando conciliação.',true);drawConc();return;}
+ const recs=concRecs(S),sel=CONC.sel[CONC.pay]||{},links=[];let totC=0;
+ for(const k of Object.keys(sel)){
+  const p=recs.find(x=>x.pkey===k);   // vínculo pela chave única da parcela (pkey), nunca pela posição na lista
+  if(!p){toast('Um recebível selecionado não está mais disponível. Revise a seleção.',true);drawConc();return;}
+  const vC=Math.round(parseMoneyInput(sel[k])*100);
+  if(!(vC>0)||vC>Math.round(p.amount*100)){toast(`O recebível ${concNome(p)} (parcela ${p.i}/${p.n}) não tem valor suficiente: disponível ${money(p.amount)}.`,true);drawConc();return;}
+  totC+=vC;
+  links.push({pkey:k,amount:vC/100,date:p.date,saleKey:p.saleKey,label:concNome(p),parcela:p.i,de:p.n,saleDay:p.saleDay,method:p.method,original:p.gross});
+ }
+ const payC=Math.round(-pg.amount*100);
+ if(!links.length||totC!==payC){toast(`O total selecionado (${money(totC/100)}) precisa ser exatamente ${money(payC/100)}.`,true);return;}
+ const o=(data.factoryOrders||[]).find(x=>x.id===pg.pedId),inst=o&&(o.installments||[]).find(x=>x.n===pg.pedN),pay=inst&&inst.payment;
+ if(!pay||pay.agendaConciliacao!=='pendente'){toast('Este pagamento não está mais aguardando conciliação.',true);drawConc();return;}
+ if(!confirm(`Conciliar o pedido nº ${pg.pedNum} (parcela ${pg.pedN}/${pg.pedOf}) de ${money(payC/100)}?\n\nRecebíveis que serão baixados:\n`+links.map(l=>`• ${l.label} · ${l.parcela}/${l.de} · vence ${dayText(l.date)}: ${money(l.amount)}`).join('\n')+`\n\nOs saldos não mudam. Para desfazer, reabra o pagamento em Pedidos à fábrica.`))return;
+ pay.agendaConciliacao='conciliado';pay.agendaRecebiveis=links;pay.agendaConciliadoEm=new Date().toISOString();pay.agendaConciliadoPor=typeof currentUserName==='function'?currentUserName():'';
+ if(!saveData()){pay.agendaConciliacao='pendente';delete pay.agendaRecebiveis;delete pay.agendaConciliadoEm;delete pay.agendaConciliadoPor;return;}
+ closeConc();
+ toast(`Conciliação registrada: ${money(payC/100)} baixados de ${links.length} recebível(is). Os saldos não mudaram.`);
+}
+function concResumo(){
+ const box=$('cxConcResumo');if(!box)return;
+ const S=balances(),recs=concRecs(S),pg=concPend(S).find(x=>x.key===CONC.pay);if(!pg)return;
+ const total=r2(-pg.amount),sel=CONC.sel[CONC.pay]||{};
+ let usado=0,usadoC=0,invalidos=0;const itens=[];
+ Object.keys(sel).forEach(k=>{
+  const p=recs.find(x=>x.pkey===k);if(!p)return;
+  const v=r2(parseMoneyInput(sel[k])),ok=v>0&&v<=p.amount+0.004;
+  if(ok){usadoC+=Math.round(v*100);usado=r2(usadoC/100);}else invalidos++;
+  const er=document.querySelector(`[data-conc-err="${k}"]`);
+  if(er)er.textContent=!(v>0)?'Informe quanto será utilizado deste recebível.':v>p.amount+0.004?`O valor passa do disponível (${money(p.amount)}).`:'';
+  itens.push({p,v,ok});
+ });
+ itens.sort((a,b)=>String(a.p.date).localeCompare(String(b.p.date))||a.p.i-b.p.i);
+ const totalC=Math.round(total*100),pode=itens.length>0&&!invalidos&&usadoC===totalC,falta=r2((totalC-usadoC)/100),cor=Math.abs(falta)<0.005?'#1b9869':falta<0?'#d74b55':'#c2570c';
+ const msg=Math.abs(falta)<0.005?'Valor completo.':falta>0?`Falta ${money(falta)} para completar o pagamento.`:`Excedente de ${money(-falta)} sobre o valor do pagamento.`;
+ const linhas=itens.map(({p,v,ok})=>`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid #eef0f4;font-size:13px"><span>${esc(dayText(p.date))} · <b>${esc(concNome(p))}</b> · parcela ${p.i}/${p.n}<br><small style="color:#6b7587">${ok?'usa '+money(v)+' de '+money(p.amount)+' disponível':'valor inválido'}</small></span><button type="button" class="row-action" data-conc-rm="${esc(p.pkey)}">Remover</button></div>`).join('');
+ box.innerHTML=`${linhas||'<p style="font-size:13px;color:#6b7587;margin:0 0 8px">Nenhum recebível selecionado.</p>'}
+  <div style="margin-top:10px;padding:12px;${'border:1px solid #d9dfe9;border-radius:10px'};font-size:14px;display:grid;gap:4px">
+   <div style="display:flex;justify-content:space-between"><span>Valor do pagamento</span><b>${money(total)}</b></div>
+   <div style="display:flex;justify-content:space-between"><span>Total selecionado (${itens.length-invalidos} recebível(is))</span><b>${money(usado)}</b></div>
+   <div style="display:flex;justify-content:space-between;color:${cor}"><span>${falta<-0.004?'Excedente':'Falta selecionar'}</span><b>${money(Math.abs(falta))}</b></div>
+   <small style="color:${cor}">${msg}${invalidos?` ${invalidos} item(ns) com valor inválido não entram na soma.`:''}</small></div>
+  <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="button button-primary" data-conc-ok${pode?'':' disabled'}>Confirmar conciliação</button><small style="color:#6b7587">${pode?'Total igual ao pagamento. Pronto para confirmar.':'Só confirma quando o total selecionado for exatamente igual ao valor do pagamento.'}</small></div>`;
+}
 function onCardClick(ev){
  const b=ev.target.closest('[data-cx]');if(!b)return;
  const k=b.dataset.acc;
+ if(b.dataset.cx==='conciliar'){openConc();return;}
  if(b.dataset.cx==='lockfab'){showLockFab();return;}
  if(b.dataset.cx==='extratofab'){showExtratoFab();return;}
  if(b.dataset.cx==='extrato'){showExtrato(k);return;}
