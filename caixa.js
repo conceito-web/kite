@@ -67,11 +67,17 @@ function entryFor(k,day,ts,client,payments,opt){
   if(!p)return;
   if((opt.locked||opt.enc)&&p.fee==null&&typeof enrichPayment==='function')p=enrichPayment(p);
   const amt=Number(p.amount||0),card=isCard(p.method),eff=card?dFab:dNon;
-  if(eff>hoje)return;   // ainda não chegou o 1º dia útil: não entra no sistema
+  // A venda no cartão loja gera recebíveis na Agenda imediatamente;
+  // a liquidação continua acontecendo apenas no vencimento de cada parcela.
+  // Pagamentos pela fábrica seguem aguardando o primeiro dia útil.
   if(p.method===CASH){cash+=amt;return;}
   if(p.method===PIX){pix+=amt;return;}
   if(!card)return;
-  if((p.method===PM.CREDIT||p.method===PM.BLU||p.method===PM.DEBIT)&&p.responsible==='fabrica'){fab+=amt-Number(p.factoryCredit||0);fcr+=Number(p.factoryCredit||0);return;}
+  if((p.method===PM.CREDIT||p.method===PM.BLU||p.method===PM.DEBIT)&&p.responsible==='fabrica'){
+   if(eff>hoje)return;   // mantém a regra vigente do cartão fábrica
+   fab+=amt-Number(p.factoryCredit||0);fcr+=Number(p.factoryCredit||0);return;
+  }
+  if(day>hoje)return;   // não antecipa recebíveis de vendas registradas para data futura
   // cartão loja / débito: valor líquido (sem taxa) dividido em parcelas, cada uma com sua data de entrada
   const deb=p.method===PM.DEBIT,n=deb?1:Math.max(1,Math.min(60,Math.floor(Number(p.installments)||1))),net=r2(amt-Number(p.fee||0));
   if(!(net>0))return;
