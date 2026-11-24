@@ -202,7 +202,7 @@ function calc(s,e){
 function abertas(s,e){
  const today=todayISO();let pend=0,venc=0,avencer=0,sem=0,nPend=0,nVenc=0;
  list().forEach(x=>{
-  if(x.status==='pago')return;
+  if(x.status==='pago'||x.forecast===true)return;
   // Quando há período, considerar somente vencimentos dentro dele.
   // Sem data de vencimento, a obrigação só entra na visão geral sem filtro.
   if((s||e)&&!inR(x.dueDate,s,e))return;
@@ -335,7 +335,7 @@ function renderList(){
  const rows=filtered(),today=todayISO(),total=r2(rows.reduce((n,x)=>n+Number(x.amount||0),0));
  $('finLista').innerHTML=rows.map(x=>{
   const sit=statusOf(x,today),pill=sit==='pago'?`<span class="pill pago">Pago${x.paidDate?' em '+dayText(x.paidDate):''}</span>`:sit==='vencida'?'<span class="pill vencida">Vencida</span>':'<span class="pill pendente">Pendente</span>';
-  return `<tr><td>${dayText(x.date)}</td><td><span class="fin-dot" style="background:${colorOf(x.category)}"></span>${esc(x.category||'Outras')}</td><td><span class="product-name">${esc(x.description)}</span>${x.recurring?' <small class="fin-muted">↻ recorrente</small>':''}${x.note?`<small class="fin-sub">${esc(x.note)}</small>`:''}</td><td>${payCell(x)}</td><td>${dayText(x.dueDate)}</td><td>${pill}</td><td><b>${money(x.amount)}</b></td><td class="fin-actions">${x.status==='pago'?'':`<button type="button" class="row-action" data-fin="pay" data-id="${esc(x.id)}">Pagar</button>`}<button type="button" class="row-action" data-fin="edit" data-id="${esc(x.id)}">Editar</button><button type="button" class="row-action" data-fin="repeat" data-id="${esc(x.id)}" title="Lançar de novo no mês seguinte">Repetir</button><button type="button" class="row-action delete" data-fin="del" data-id="${esc(x.id)}">Excluir</button></td></tr>`;
+  return `<tr><td>${dayText(x.date)}</td><td><span class="fin-dot" style="background:${colorOf(x.category)}"></span>${esc(x.category||'Outras')}</td><td><span class="product-name">${esc(x.description)}</span>${x.recurring?' <small class="fin-muted">↻ recorrente</small>':''}${x.forecast?' <small class="fin-muted">(PREVISÃO, não é dívida)</small>':''}${x.note?`<small class="fin-sub">${esc(x.note)}</small>`:''}</td><td>${payCell(x)}</td><td>${dayText(x.dueDate)}</td><td>${pill}</td><td><b>${money(x.amount)}</b></td><td class="fin-actions">${x.status==='pago'?'':`<button type="button" class="row-action" data-fin="pay" data-id="${esc(x.id)}">Pagar</button>`}<button type="button" class="row-action" data-fin="edit" data-id="${esc(x.id)}">Editar</button><button type="button" class="row-action" data-fin="repeat" data-id="${esc(x.id)}" title="Lançar de novo no mês seguinte">Repetir</button><button type="button" class="row-action delete" data-fin="del" data-id="${esc(x.id)}">Excluir</button></td></tr>`;
  }).join('');
  $('finVazio').style.display=rows.length?'none':'block';
  $('finListaTotal').textContent=`${rows.length} lançamento(s) · total ${money(total)} · `+($('finFiltroStatus').value==='vencida'?'vencidas em aberto de qualquer mês (sem filtro de período)':'período pela data do lançamento');
@@ -436,7 +436,7 @@ function save(ev){
   const soma=r2(pays.reduce((n,p)=>n+p.amount,0));
   if(Math.abs(soma-amount)>0.004){toast(`A soma dos valores por conta (${money(soma)}) precisa ser igual ao valor da despesa (${money(amount)}).`,true);return;}
  }
- const rec={date,category:$('finCat').value||'Outras',description:desc,itemId:it?it.id:'',compMonth,amount,payments:pays,method:[...new Set(pays.map(p=>p.method))].join(' + '),account:pays.length===1?pays[0].account:'',status,
+ const rec={forecast:false,date,category:$('finCat').value||'Outras',description:desc,itemId:it?it.id:'',compMonth,amount,payments:pays,method:[...new Set(pays.map(p=>p.method))].join(' + '),account:pays.length===1?pays[0].account:'',status,
   dueDate:$('finVenc').value||'',paidDate:status==='pago'?($('finPago').value||date):'',recurring:$('finTipo').value==='rec',note:$('finObs').value.trim()};
  const now=new Date().toISOString();let msg='Despesa salva.';
  if(editId){
@@ -445,7 +445,7 @@ function save(ev){
  }else{
   const group=rec.recurring?id():'';
   list().push({id:id(),...rec,group,createdAt:now});
-  const n=rec.recurring?Math.max(0,Math.min(24,parseInt($('finRepete').value,10)||0)):0;
+  const n=0; // recorrência vira modelo mensal: não criar 12/24 dívidas futuras
   for(let i=1;i<=n;i++)list().push({id:id(),...rec,date:addMonths(date,i),dueDate:rec.dueDate?addMonths(rec.dueDate,i):'',status:'pendente',paidDate:'',compMonth:rec.compMonth?addMonths(rec.compMonth+'-01',i).slice(0,7):'',group,createdAt:now});
   if(n)msg=`Despesa salva e repetida por mais ${n} mês(es) como pendente.`;
  }
@@ -468,7 +468,10 @@ function onListClick(ev){
   return;
  }
  if(act==='repeat'){
-  const c={...x,id:id(),date:addMonths(x.date,1),dueDate:x.dueDate?addMonths(x.dueDate,1):'',status:'pendente',paidDate:'',compMonth:x.compMonth?addMonths(x.compMonth+'-01',1).slice(0,7):'',recurring:true,createdAt:new Date().toISOString()};
+  const next=addMonths(x.date,1),nextDue=x.dueDate?addMonths(x.dueDate,1):next;
+  if(list().some(y=>y.id!==x.id&&String(y.description||'').trim().toLowerCase()===String(x.description||'').trim().toLowerCase()&&(y.dueDate||y.date||'').slice(0,7)===next.slice(0,7))){toast('Já existe uma despesa equivalente nesse mês. Não foi gerada duplicidade.',true);return;}
+  if(!confirm('Criar somente uma despesa do mês seguinte? As demais serão sugeridas no planejamento mensal.'))return;
+  const c={...x,id:id(),date:next,dueDate:nextDue,status:'pendente',paidDate:'',compMonth:x.compMonth?addMonths(x.compMonth+'-01',1).slice(0,7):'',recurring:true,createdAt:new Date().toISOString()};
   x.recurring=true;list().push(c);if(saveData())toast(`Lançada de novo em ${dayText(c.date)} (pendente).`);return;
  }
  if(act==='del'){
