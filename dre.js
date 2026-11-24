@@ -1,336 +1,979 @@
-'use strict';
-// Conceito: DRE — Demonstração do Resultado do Exercício, por período (De / Para).
-// Competência: despesas pagas no mês seguinte entram no mês anterior (ver DEFER).
-// Fontes: vendas (movimentos 'venda' ativos), serviços e despesas (painel Despesas).
-// CMV = sempre o custo real gravado na venda (o crédito retido com a fábrica é ativo: aparece só como linha informativa).
-// Simples Nacional = DAS efetivamente PAGO (despesas do item Simples Nacional), por mês de competência; a estimativa pelas notas (painel Impostos) só aparece como aviso.
-// Cada despesa pode ter um item do catálogo (x.itemId): o item define a linha da DRE e a competência padrão. As palavras-chave ficam só como reserva.
-// Usa as funções e dados do app.js (data, money, saveData, localDateKey, todayISO, esc, fold, toast, PM, ...).
-(function(){
-const $=x=>document.getElementById(x), r2=n=>Math.round(Number(n||0)*100)/100;
-const exps=()=>data.expenses||(data.expenses=[]);
-const inR=(k,s,e)=>!!k&&(!s||k>=s)&&(!e||k<=e);
-const signed=v=>(v<0?'−':'')+money(Math.abs(v));
-const pct=(v,d=1)=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
-const numN=v=>(v===undefined||v===null||v==='')?NaN:Number(v);
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101a2c">
+  <title>Conceito • Gestão de Estoque</title>
+  <link rel="stylesheet" href="style.css?v=38">
+</head>
+<body>
+  <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
+    <div class="auth-card">
+      <div class="auth-brand"><div class="auth-brand-mark">C</div><div><strong>Conceito<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div></div>
+      <p class="auth-eyebrow">ACESSO AO SISTEMA</p>
+      <h1 id="authTitle">Entrar no Conceito</h1>
+      <p id="authDescription" class="auth-description">Informe seu usuário e senha para continuar.</p>
+      <form id="ckrLoginForm" autocomplete="on">
+        <label for="ckrLoginUser">Usuário</label>
+        <input id="ckrLoginUser" name="username" autocomplete="username" required maxlength="60" placeholder="Digite seu usuário">
+        <label for="ckrLoginPassword">Senha</label>
+        <input id="ckrLoginPassword" name="password" type="password" autocomplete="current-password" required maxlength="120" placeholder="Digite sua senha">
+        <div id="ckrCaptchaBox" class="captcha-box" hidden>
+          <label for="ckrCaptchaInput">Verificação de segurança</label>
+          <div class="captcha-row"><canvas id="ckrCaptchaCanvas" width="190" height="56" role="img" aria-label="Código de verificação"></canvas><button type="button" id="ckrCaptchaRefresh" class="captcha-refresh" aria-label="Gerar novo código" title="Gerar novo código">&#8635;</button></div>
+          <input id="ckrCaptchaInput" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="8" placeholder="Digite o código da imagem">
+          <small class="captcha-hint">Não diferencia maiúsculas de minúsculas.</small>
+        </div>
+        <p id="ckrAuthError" class="auth-error" role="alert"></p>
+        <button id="ckrLoginSubmit" class="button button-primary auth-submit" type="submit">Entrar</button>
+      </form>
+      <button type="button" id="ckrShowSetup" class="auth-create-link">Primeiro acesso? Criar usuário e senha ADMIN</button>
+      <form id="ckrSetupForm" autocomplete="off" hidden>
+        <label for="ckrSetupUser">Crie o usuário ADMIN</label>
+        <input id="ckrSetupUser" name="username" autocomplete="username" required minlength="3" maxlength="60" placeholder="Ex.: admin">
+        <label for="ckrSetupPassword">Crie uma senha (mínimo 6 caracteres)</label>
+        <input id="ckrSetupPassword" name="new-password" type="password" autocomplete="new-password" required minlength="6" maxlength="120" placeholder="Crie uma senha">
+        <label for="ckrSetupConfirm">Confirme a senha</label>
+        <input id="ckrSetupConfirm" name="confirm-password" type="password" autocomplete="new-password" required minlength="6" maxlength="120" placeholder="Digite a senha novamente">
+        <p id="ckrSetupError" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Criar ADMIN e continuar</button>
+      </form>
+      <p class="auth-local-note">Acesso local deste navegador. Os dados do Conceito continuam salvos neste dispositivo.</p>
+    </div>
+  </section>
 
-// ---------- linhas da DRE que recebem despesas lançadas ----------
-// [chave, rótulo, grupo]. O grupo define em qual bloco da DRE a linha aparece.
-const LINES=[
- ['devolucoes','Devoluções','ded'],
- ['simples','Simples Nacional (DAS pago)','ded'],
- ['comissao','Comissão','vend'],['salariosOp','Salários (OP)','vend'],['frete','Frete','vend'],['fgtsOp','FGTS (OP)','vend'],
- ['agua','Água e Esgoto','fixa'],['aluguel','Aluguel','fixa'],['contabeis','Serviços Contábeis','fixa'],['fgtsF','FGTS (F)','fixa'],
- ['energia','Energia','fixa'],['telefone','Telefone e Internet','fixa'],['propaganda','Propaganda e Publicidade','fixa'],['gps','GPS','fixa'],
- ['nfce','Solução NF-CE','fixa'],['iptu','IPTU/TMRSD','fixa'],['material','Material de consumo','fixa'],['salariosF','Salários (F)','fixa'],
- ['servprof','Serviços Profissionais Contra.','fixa'],['outras','Outras despesas operacionais','fixa'],
- ['rendimentos','Rendimentos de Aplicação Fin.','div'],['jurosAtivos','Juros Ativos','div'],['despBancarias','Despesas Bancárias','div'],
- ['jurosPassivos','Juros Passivos','div'],['descontosConc','Descontos Concedidos','div'],
- ['ignorar','Não entra na DRE (já contado em outra linha)','x']
-];
-const LBL=Object.fromEntries(LINES.map(l=>[l[0],l[1]]));
-const GROUPS=[['ded','Deduções'],['vend','Despesas de vendas'],['fixa','Despesas operacionais (fixas)'],['div','Receitas/Despesas diversas'],['x','Outros']];
-window.ckrDreLines=LINES;window.ckrDreGroups=GROUPS;   // usados pelo catálogo de itens (despesas.js)
-// Classificação automática pela categoria + descrição (a ordem importa: o primeiro que casar vale).
-const RULES=[
- ['ignorar',/parcelamento.*(imposto|tribut|simples|refis)|\brefis\b/],
- ['devolucoes',/devolu/],
- ['descontosConc',/desconto.*conced|conced.*desconto/],
- ['rendimentos',/rendimento|aplicacao|\bcdb\b|renda fixa/],
- ['jurosAtivos',/juros (ativo|recebido)|juros a receber/],
- ['jurosPassivos',/juros|multa|\bmora\b|emprestimo|financiamento/],
- ['simples',/simples nacional/],
- ['despBancarias',/tarifa|bancari|\bted\b|\bdoc\b|anuidade|manutencao de conta/],
- ['comissao',/comiss/],
- ['fgtsOp',/fgts.*(\(op\)|\bop\b|vend)/],
- ['fgtsF',/fgts/],
- ['salariosOp',/(salar|folha|ordenado).*(\(op\)|\bop\b)|vendedor/],
- ['salariosF',/salar|folha|pro.?labore|\b13o\b|ferias|decimo/],
- ['frete',/frete|entrega|motoboy|transportad/],
- ['agua',/agua|esgoto|cagece|saneamento/],
- ['aluguel',/alugue|locacao/],
- ['contabeis',/contab|contador/],
- ['energia',/energia|\bluz\b|\benel\b|coelce/],
- ['telefone',/telefon|internet|celular|\bvivo\b|\bclaro\b|\btim\b|\boi\b|wi.?fi/],
- ['propaganda',/propaganda|publicidade|anuncio|marketing|instagram|facebook|google ads|divulg/],
- ['gps',/\bgps\b|\binss\b|previdenc/],
- ['nfce',/nf.?c.?e|\bnfe\b|nota fiscal|emissor|solucao nf/],
- ['iptu',/iptu|tmrsd|taxa de lixo|alvara/],
- ['servprof',/servico.*(profission|contrat|terceir)|profission|contratad|terceiriz|consultoria|assessoria|freela/],
- ['material',/material|limpeza|escritorio|papelaria|consumo/]
-];
-function autoLine(x){
- const t=fold([x.category,x.description].join(' '));
- for(const [k,re] of RULES)if(re.test(t))return k;
- return 'outras';
-}
-// Catálogo de itens de despesa (criado em despesas.js): cada item define a linha da DRE e a competência padrão.
-const cat=()=>Array.isArray(data.expenseCatalog)?data.expenseCatalog:[];
-const itemOf=x=>(x&&x.itemId)?(cat().find(i=>i.id===x.itemId)||null):null;
-// Linha automática: a do item do catálogo; sem item, as palavras-chave (reserva para despesas antigas).
-const autoLineOf=x=>{const it=itemOf(x);return(it&&LBL[it.line])?it.line:autoLine(x);};
-// Prioridade: 1) escolha manual na DRE, 2) item do catálogo, 3) palavras-chave.
-const lineOf=x=>(x.dre&&LBL[x.dre])?x.dre:autoLineOf(x);
+  <div id="impostoModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="impTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">IMPOSTOS</p><h2 id="impTitulo">Informações de imposto</h2><p>Informe os dados da nota fiscal desta venda.</p></div><button type="button" id="impFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="impostoForm" autocomplete="off">
+        <label for="impData">DATA</label><input id="impData" type="date" required>
+        <label for="impValor">VALOR DA NOTA</label><input id="impValor" inputmode="numeric" required placeholder="0,00">
+        <label for="impNumero">N° DA NOTA</label><input id="impNumero" maxlength="30" required placeholder="Ex.: 000123">
+        <p id="impErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Salvar</button>
+      </form>
+    </div>
+  </div>
 
-// ---------- competência ----------
-// Despesas lançadas pela data do PAGAMENTO, mas que se referem ao mês anterior (conta de luz, contador, internet...),
-// entram na DRE do mês anterior. Para mudar quais linhas fazem isso, edite a lista abaixo.
-// Em cada despesa dá para escolher manualmente: "Mês do pagamento" ou "Mês anterior".
-const DEFER=['contabeis','telefone','energia','agua','gps','fgtsF','fgtsOp','simples'];   // só vale para despesas SEM item do catálogo (o item traz a sua competência padrão)
-function prevMonthDate(iso){
- const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso||''));if(!m)return iso;
- let y=+m[1],mo=+m[2]-1;const dia=+m[3];
- if(mo<1){mo=12;y--;}
- const ult=new Date(y,mo,0).getDate();
- return `${y}-${String(mo).padStart(2,'0')}-${String(Math.min(dia,ult)).padStart(2,'0')}`;
-}
-// Data-base da competência: data do pagamento (quando a despesa já está paga) ou data da despesa.
-const baseDate=x=>(x.status==='pago'&&x.paidDate)?x.paidDate:x.date;
-const compAuto=x=>{const it=itemOf(x);if(it&&(it.comp==='ant'||it.comp==='pag'))return it.comp;return DEFER.includes(lineOf(x))?'ant':'pag';};
-const compMode=x=>(x.dreComp==='ant'||x.dreComp==='pag')?x.dreComp:compAuto(x);
-// 1º: o mês de competência gravado na despesa (campo editável); 2º: escolha antiga "mês do pagamento / mês anterior"; 3º: padrão do item.
-function compDate(x){
- const base=baseDate(x);
- if(/^\d{4}-\d{2}$/.test(x.compMonth||'')){
-  const y=+x.compMonth.slice(0,4),m=+x.compMonth.slice(5,7),d=+String(base||'').slice(8,10)||1,last=new Date(y,m,0).getDate();
-  return `${x.compMonth}-${String(Math.min(d,last)).padStart(2,'0')}`;
- }
- return compMode(x)==='ant'?prevMonthDate(base):base;
-}
-const COMP_LBL={pag:'Mês do pagamento',ant:'Mês anterior'};
+  <div id="vincNotaModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="vincTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">IMPOSTOS</p><h2 id="vincTitulo">Vincular nota à venda</h2><p id="vincVenda"></p></div><button type="button" id="vincFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="vincForm" autocomplete="off">
+        <label for="vincSelect">NOTA JÁ REGISTRADA</label><select id="vincSelect"></select>
+        <p id="vincErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Vincular nota</button>
+        <button class="button button-light vinc-btn" type="button" id="vincNova">Registrar nova nota para esta venda</button>
+        <button class="button button-danger-light vinc-btn" type="button" id="vincRemover" hidden>Remover vínculo</button>
+      </form>
+    </div>
+  </div>
 
-// ---------- cálculo ----------
-// O DAS de um mês só entra se o período escolhido cobrir o mês inteiro.
-function mesInteiro(mes,s,e){
- const y=+mes.slice(0,4),m=+mes.slice(5,7),ini=`${mes}-01`,fim=localDateKey(new Date(y,m,0));
- return (!s||s<=ini)&&(!e||e>=fim);
-}
-function compute(s,e){
- const C={gross:0,desc:0,cmv:0,credFab:0,fee:0,sem:0,vendasQtd:0};
- const vendas=new Set();
- data.movements.forEach(m=>{
-  if(m.type!=='venda'||m.canceled||!inR(localDateKey(m.date),s,e))return;
-  const k=m.saleId||m.id,t=Number(m.total||0),qty=Number(m.quantity||0),unit=numN(m.unitPrice);
-  let gross=Number.isFinite(unit)?r2(unit*qty):t;if(gross<t)gross=t;
-  C.gross+=gross;C.desc+=gross-t;vendas.add(k);
-  C.fee+=Number(m.fee||0);
-  C.credFab+=Number(m.factoryCredit||0);   // só informativo (ativo): não entra no CMV nem no resultado
-  const c=numN(m.costTotal);
-  if(Number.isFinite(c))C.cmv+=c;else C.sem++;   // CMV = custo real do produto (PEPS) gravado na venda
- });
- C.vendasQtd=vendas.size;
- // receitas de serviços (janela "Serviço"): entram como receita; a taxa do cartão vai para a despesa com taxa de cartão
- C.servico=0;
- (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{if(!inR(localDateKey(sv.date),s,e))return;C.servico+=Number(sv.amount||0);C.fee+=Number((sv.payment||{}).fee||0);C.credFab+=Number((sv.payment||{}).factoryCredit||0);});   // serviço não tem CMV; o crédito da fábrica do serviço também é só informativo
- // despesas lançadas (pela data de competência)
- const L={};LINES.forEach(l=>L[l[0]]=0);const itens=[],dasPend=[],dasParc={},dasPago={};
- exps().forEach(x=>{
-  if(x.forecast===true)return; // previsão gerencial não é obrigação nem despesa incorrida
-  const cd=compDate(x);
-  if(!inR(cd,s,e))return;
-  const k=lineOf(x),v=Number(x.amount||0);
-  if(k==='simples'){   // Simples Nacional = só o DAS efetivamente PAGO, por competência
-   const mes=cd.slice(0,7);
-   if(x.status!=='pago'){dasPend.push(v);itens.push({x,k,v,cd,fora:'pendente: só entra depois de paga'});return;}
-   if(!mesInteiro(mes,s,e)){dasParc[mes]=r2((dasParc[mes]||0)+v);itens.push({x,k,v,cd,fora:'o período não cobre o mês inteiro'});return;}
-   dasPago[mes]=r2((dasPago[mes]||0)+v);
-  }
-  L[k]+=v;itens.push({x,k,v,cd});
- });
- // Estimativa do Simples pelas notas (painel Impostos): NÃO entra no resultado, só alimenta os avisos
- const sn=typeof window.ckrSimplesPeriodo==='function'?window.ckrSimplesPeriodo(s,e):{total:0,meses:[]};
- const R={};
- R.gross=r2(C.gross);R.servico=r2(C.servico);R.rec=r2(R.gross+R.servico);
- R.dev=r2(L.devolucoes);R.simples=r2(L.simples);R.desc=r2(C.desc);R.ded=r2(R.dev+R.simples+R.desc);
- R.liq=r2(R.rec-R.ded);
- R.cmv=r2(C.cmv);R.credFab=r2(C.credFab);
- R.bruto=r2(R.liq-R.cmv);
- R.taxa=r2(C.fee);
- R.vend=r2(L.comissao+L.salariosOp+L.frete+L.fgtsOp+R.taxa);
- const fixas=LINES.filter(l=>l[2]==='fixa').map(l=>l[0]);
- R.fixas=r2(fixas.reduce((n,k)=>n+L[k],0));
- R.oper=r2(R.bruto-R.vend-R.fixas);
- R.divers=r2(L.rendimentos+L.jurosAtivos-L.despBancarias-L.jurosPassivos-L.descontosConc);
- R.res=r2(R.oper+R.divers);
- R.L=L;R.itens=itens;R.sem=C.sem;R.vendasQtd=C.vendasQtd;R.meses=sn.meses;R.ignorado=r2(L.ignorar);
- R.dasPago=dasPago;R.dasParc=dasParc;R.dasPend=dasPend;
- return R;
-}
+  <div id="recModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="recTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">PROMISSÓRIAS</p><h2 id="recTitulo">Receber pagamento</h2><p id="recCliente"></p></div><button type="button" id="recFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="recForm" autocomplete="off">
+        <label for="recValor">VALOR RECEBIDO</label><input id="recValor" inputmode="numeric" required placeholder="0,00">
+        <label for="recDestino">PARA ONDE VAI O PAGAMENTO</label><select id="recDestino" required><option value="">Selecione...</option><option value="blu">Caixa BLU</option><option value="nubank">Caixa NUBANK</option><option value="dinheiro">Dinheiro</option><option value="particular">Particular (não vai para nenhum caixa)</option></select>
+        <p id="recResumo" class="pay-hint"></p>
+        <p id="recErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Confirmar recebimento</button>
+      </form>
+    </div>
+  </div>
 
-// Consulta de leitura para a Visão Geral: a mesma DRE usada na tela financeira.
-window.ckrDreResumoPeriodo=function(inicio,fim){
- const R=compute(inicio,fim);
- return {receitaBruta:R.rec,descontos:R.desc,devolucoes:R.dev,receitaLiquida:R.liq,
-   faturamento:r2(R.rec-R.desc-R.dev),lucro:R.res,
-   margem:R.rec>0?r2(100*R.res/R.rec):null,vendas:R.vendasQtd,semCusto:R.sem};
-};
+  <div id="encModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="encModalTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">ENCOMENDAS</p><h2 id="encModalTitulo">Receber pagamento</h2><p id="encModalInfo"></p></div><button type="button" id="encModalFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="encModalForm" autocomplete="off">
+        <label for="encModalValor">VALOR RECEBIDO</label><input id="encModalValor" inputmode="numeric" required placeholder="0,00">
+        <label for="encModalForma">FORMA DE PAGAMENTO</label><select id="encModalForma" required></select>
+        <div id="encModalExtra" class="payment-card-options" hidden></div>
+        <label for="encModalData">DATA DO PAGAMENTO</label><input id="encModalData" type="date">
+        <p id="encModalErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Confirmar recebimento</button>
+      </form>
+    </div>
+  </div>
 
-// ---------- montagem da tabela ----------
-function rows(R){
- const L=R.L,out=[];
- const head=(label,val)=>out.push({t:'head',label,val});
- const sub=(label,val,key)=>out.push({t:'sub',label,val,key});
- const tot=(label,val)=>out.push({t:'total',label,val});
- head('(+) Receita de vendas',R.rec);
- sub('Receita com vendas',R.gross);sub('Venda de serviço',R.servico);
- head('(−) Deduções',R.ded);
- sub('Devoluções',R.dev);sub('Simples Nacional',R.simples);sub('Descontos e Abatimentos',R.desc);
- tot('(=) Receita Líquida',R.liq);
- head('(−) CMV',R.cmv);
- tot('(=) Lucro Bruto',R.bruto);
- head('(−) Despesa de Vendas',R.vend);
- ['comissao','salariosOp','frete','fgtsOp'].forEach(k=>sub(LBL[k],L[k]));
- sub('Despesa com taxa de cartão',R.taxa);
- head('(−) Despesas Operacionais (fixas)',R.fixas);
- LINES.filter(l=>l[2]==='fixa').forEach(l=>sub(l[1],L[l[0]]));
- tot('(=) Lucro Operacional',R.oper);
- head('(+/−) Receitas/Despesas Diversas',R.divers);
- sub('(+) '+LBL.rendimentos,L.rendimentos);sub('(+) '+LBL.jurosAtivos,L.jurosAtivos);
- sub('(−) '+LBL.despBancarias,L.despBancarias);sub('(−) '+LBL.jurosPassivos,L.jurosPassivos);sub('(−) '+LBL.descontosConc,L.descontosConc);
- tot('(=) Lucro/Prejuízo',R.res);
- out.push({t:'info',label:'Informativo: crédito retido com a fábrica no período (ativo, fora do resultado)',val:R.credFab});
- return out;
-}
+  <div id="novoProdModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="novoProdTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">PRODUTO</p><h2 id="novoProdTitulo">Cadastrar novo produto</h2><p>Ao salvar, o produto já fica selecionado na venda.</p></div><button type="button" id="novoProdFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="novoProdForm" autocomplete="off">
+        <label for="novoProdNome">NOME DO PRODUTO</label><input id="novoProdNome" required maxlength="120" placeholder="Ex.: Colchão Queen Premium">
+        <label for="novoProdCodigo">CÓDIGO / REFERÊNCIA</label><input id="novoProdCodigo" maxlength="60" placeholder="Automático (ou digite)">
+        <label for="novoProdCusto">PREÇO DE CUSTO (R$)</label><input id="novoProdCusto" inputmode="numeric" value="0,00" placeholder="0,00">
+        <label for="novoProdPreco">PREÇO DE VENDA (R$)</label><input id="novoProdPreco" inputmode="numeric" value="0,00" placeholder="0,00">
+        <label for="novoProdEstoque">ESTOQUE INICIAL</label><input id="novoProdEstoque" type="number" min="0" step="1" value="0">
+        <p class="pay-hint">Para encomenda (produto que ainda não chegou), deixe o estoque em 0.</p>
+        <p id="novoProdErro" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Cadastrar e selecionar</button>
+      </form>
+    </div>
+  </div>
 
-// ---------- tela ----------
-function monthRange(off){
- const n=new Date(),a=new Date(n.getFullYear(),n.getMonth()+off,1),b=new Date(a.getFullYear(),a.getMonth()+1,0);
- return [localDateKey(a),localDateKey(b)];
-}
-function setPreset(p){
- const n=new Date();let s='',e='';
- if(p==='mes'){[s,e]=monthRange(0);}
- else if(p==='anterior'){[s,e]=monthRange(-1);}
- else if(p==='3m'){s=monthRange(-2)[0];e=monthRange(0)[1];}
- else if(p==='ano'){s=`${n.getFullYear()}-01-01`;e=`${n.getFullYear()}-12-31`;}
- else if(p==='tudo'){s='';e='';}
- else return;
- $('dreDe').value=s;$('dreAte').value=e;
-}
-const period=()=>({s:$('dreDe').value,e:$('dreAte').value});
-function tone(el,v){el.classList.remove('fin-pos','fin-neg');if(v>0)el.classList.add('fin-pos');else if(v<0)el.classList.add('fin-neg');}
+  <div id="encEntradaModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="encEntradaTitulo">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">ENCOMENDAS</p><h2 id="encEntradaTitulo">Produto ainda não está no estoque</h2><p id="encEntradaInfo"></p></div><button type="button" id="encEntradaFechar" class="users-close" aria-label="Fechar">×</button></div>
+      <p class="pay-hint">Dê entrada do produto e depois entregue a encomenda. Como o produto chegou?</p>
+      <button type="button" class="button button-primary full-button" id="encEntradaXml">⇩ Importar XML da nota</button>
+      <button type="button" class="button button-light full-button" id="encEntradaManual" style="margin-top:10px">↙ Entrada manual de estoque</button>
+      <button type="button" class="button button-light full-button" id="encEntradaForcar" style="margin-top:10px">Entregar mesmo assim</button>
+    </div>
+  </div>
 
-function renderTable(R){
- const base=R.rec;
- $('dreCorpo').innerHTML=rows(R).map(r=>{
-  if(r.t==='info')return `<tr class="dre-sub dre-info" style="font-style:italic"><td>${esc(r.label)}</td><td class="dre-num">${signed(r.val)}</td><td class="dre-pct">—</td></tr>`;
-  const cls=r.t==='head'?'dre-head':r.t==='total'?'dre-total':'dre-sub'+(Math.abs(r.val)<0.005?' dre-zero':'');
-  const p=base>0?pct(r.val/base*100):'—';
-  const neg=r.t==='total'&&r.val<0?' fin-neg':(r.t==='total'&&r.val>0?' fin-pos':'');
-  return `<tr class="${cls}"><td>${esc(r.label)}</td><td class="dre-num${neg}">${signed(r.val)}</td><td class="dre-pct">${p}</td></tr>`;
- }).join('');
-}
-function renderCards(R){
- $('dreRec').textContent=money(R.rec);
- $('dreRecNota').textContent=`${R.vendasQtd} venda(s) no período`;
- $('dreBruto').textContent=signed(R.bruto);tone($('dreBruto'),R.bruto);
- $('dreBrutoNota').textContent=R.rec>0?`Margem bruta: ${pct(R.bruto/R.rec*100)}`:'Sem vendas no período';
- $('dreOper').textContent=signed(R.oper);tone($('dreOper'),R.oper);
- $('dreOperNota').textContent=R.rec>0?`Margem operacional: ${pct(R.oper/R.rec*100)}`:'';
- $('dreRes').textContent=signed(R.res);tone($('dreRes'),R.res);
- $('dreResNota').textContent=R.rec>0?`Margem líquida: ${pct(R.res/R.rec*100)}`:'';
-}
-function renderAvisos(R,s,e){
- const av=[];
- if(R.sem)av.push(`${R.sem} lançamento(s) de venda antigos não têm custo registrado: o CMV deles não foi considerado.`);
- if(R.credFab>0.004)av.push(`Crédito retido com a fábrica no período: ${money(R.credFab)}. É um ativo (valor a usar em compras na fábrica), não custo: o CMV usa sempre o custo real do produto. A divisão dinheiro/crédito aparece no Caixa (DFC), não na DRE.`);
- {
-  const mm=k=>k.slice(5)+'/'+k.slice(0,4),estM={};R.meses.forEach(m=>{estM[m.mes]=m;});
-  [...new Set([...Object.keys(R.dasPago),...R.meses.map(m=>m.mes)])].sort().forEach(k=>{
-   const est=estM[k],pago=R.dasPago[k]||0;
-   if(est&&est.parcial){av.push(`Simples ${mm(k)}: o período não cobre o mês inteiro, então o DAS desse mês não foi considerado.`);return;}
-   if(pago>0.004){
-    if(!est)av.push(`Simples ${mm(k)}: DAS pago de ${money(pago)}, mas não há notas registradas em Impostos para conferir o valor.`);
-    else if(Math.abs(pago-est.valor)>0.01)av.push(`Simples ${mm(k)}: o DAS pago (${money(pago)}) difere do calculado pelas notas (${money(est.valor)}${est.ajustado?', já com seu ajuste':''}). Diferença de ${money(Math.abs(pago-est.valor))}.`);
-   }else if(est&&est.valor>0.004)av.push(`Simples ${mm(k)}: ainda não há DAS pago. Estimativa pelas notas: ${money(est.valor)} (não somada no resultado). Lance a despesa no item Simples Nacional quando pagar.`);
-  });
-  Object.keys(R.dasParc).sort().forEach(k=>{if(estM[k]&&estM[k].parcial)return;av.push(`Simples ${mm(k)}: DAS pago de ${money(R.dasParc[k])} não entrou, pois o período não cobre o mês inteiro.`);});
-  if(R.dasPend.length)av.push(`${R.dasPend.length} despesa(s) do item Simples Nacional ainda pendente(s), somando ${money(r2(R.dasPend.reduce((n,v)=>n+v,0)))}: só entram na DRE depois de pagas.`);
- }
- {const sem=R.itens.filter(o=>!itemOf(o.x)).length;if(sem)av.push(`${sem} despesa(s) do período ainda sem item do catálogo (classificadas pelas palavras-chave). Veja a lista “Despesas sem item do catálogo” abaixo para reclassificar.`);}
- if(R.ignorado>0)av.push(`${money(R.ignorado)} em despesas marcadas como “Não entra na DRE” (ex.: parcelamento de impostos, que não é despesa do período).`);
- av.push('Contas pagas no mês seguinte (contador, internet, luz, água, GPS, FGTS, Simples) entram no mês anterior; o mês de competência de cada despesa pode ser ajustado ao lançá-la em Fluxo de Caixa. Por isso o mês atual pode mostrar essas contas zeradas até o pagamento ser lançado.');
- av.push('Devoluções, comissões, frete, salários, FGTS e as demais linhas vêm das despesas lançadas. Confira na lista abaixo em qual linha cada despesa caiu.');
- $('dreAvisos').innerHTML=av.map(t=>`<p>${esc(t)}</p>`).join('');
- $('drePeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · vendas e Simples pelo mês da venda/nota (competência); despesas pelo mês a que se referem.`;
-}
-function groupedOptions(){
- return GROUPS.map(([g,n])=>`<optgroup label="${esc(n)}">${LINES.filter(l=>l[2]===g).map(l=>`<option value="${l[0]}">${esc(l[1])}</option>`).join('')}</optgroup>`).join('');
-}
-function renderClassif(R){
- const opts=groupedOptions();
- const itens=R.itens.slice().sort((a,b)=>String(b.cd).localeCompare(String(a.cd)));
- $('dreDespLista').innerHTML=itens.map(({x,k,v,cd,fora})=>{
-  const manual=!!(x.dre&&LBL[x.dre]);
-  const comp=`${cd.slice(5,7)}/${cd.slice(0,4)}`;
-  return `<tr><td>${dayText(x.date)}<small class="fin-sub">Competência ${comp}${fora?' · fora do resultado ('+esc(fora)+')':''}</small></td><td>${esc(x.description||'')}<small class="fin-sub">${esc(x.category||'Outras')}</small></td><td><b>${money(v)}</b></td><td><select class="dre-sel" data-dre-id="${esc(x.id)}"><option value="">Automático: ${esc(LBL[autoLineOf(x)])}</option>${opts}</select><select class="dre-sel dre-comp" data-dre-id="${esc(x.id)}" title="Em qual mês a despesa entra na DRE"><option value="">Competência automática: ${COMP_LBL[compAuto(x)]}</option><option value="pag">${COMP_LBL.pag}</option><option value="ant">${COMP_LBL.ant}</option></select></td></tr>`;
- }).join('')||'<tr><td colspan="4" class="cart-empty">Nenhuma despesa lançada neste período.</td></tr>';
- $('dreDespLista').querySelectorAll('select.dre-sel').forEach(sel=>{
-  const x=exps().find(i=>i.id===sel.dataset.dreId);
-  if(sel.classList.contains('dre-comp'))sel.value=x&&(x.dreComp==='ant'||x.dreComp==='pag')?x.dreComp:'';
-  else sel.value=x&&x.dre&&LBL[x.dre]?x.dre:'';
- });
- $('dreDespResumo').textContent=`${itens.length} despesa(s) no período · total ${money(itens.reduce((n,i)=>n+i.v,0))}`;
-}
-function itemOptions(){
- const items=cat().filter(i=>i.active!==false),cs=[...new Set(items.map(i=>i.category))];
- return '<option value="">— escolher item —</option>'+cs.map(c=>`<optgroup label="${esc(c)}">${items.filter(i=>i.category===c).map(i=>`<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('')}</optgroup>`).join('');
-}
-// Despesas antigas (texto livre) sem item do catálogo: o usuário escolhe o item e a DRE passa a seguir a linha e a competência dele.
-function renderSemItem(R){
- const el=$('dreSemItemLista');if(!el)return;
- const list=R.itens.filter(o=>!itemOf(o.x)).sort((a,b)=>String(b.cd).localeCompare(String(a.cd))),opts=itemOptions();
- el.innerHTML=list.map(({x,v})=>`<tr><td>${dayText(x.date)}</td><td>${esc(x.description||'')}<small class="fin-sub">${esc(x.category||'Outras')} · hoje cai em: ${esc(LBL[lineOf(x)])}</small></td><td><b>${money(v)}</b></td><td><select class="dre-sel dre-item" data-dre-id="${esc(x.id)}">${opts}</select></td></tr>`).join('')||'<tr><td colspan="4" class="cart-empty">Todas as despesas do período já têm item do catálogo.</td></tr>';
- $('dreSemItemResumo').textContent=`${list.length} despesa(s) do período sem item · total ${money(r2(list.reduce((n,o)=>n+o.v,0)))}`;
-}
-function render(){
- const panel=$('panel-dre');if(!panel||!panel.classList.contains('active'))return;
- if(!hasFullAccess())return;
- const {s,e}=period(),R=compute(s,e);
- renderCards(R);renderTable(R);renderAvisos(R,s,e);
- // não redesenha a lista enquanto o usuário escolhe uma linha (evita perder o foco)
- if(!(document.activeElement&&document.activeElement.classList&&document.activeElement.classList.contains('dre-sel'))){renderClassif(R);renderSemItem(R);}
-}
+  <div id="ckrUsersModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="ckrUsersTitle">
+    <div class="users-card">
+      <div class="users-heading"><div><p class="auth-eyebrow">ADMINISTRAÇÃO</p><h2 id="ckrUsersTitle">Gerenciar usuários</h2><p>Somente o ADMIN pode criar, editar e remover usuários.</p></div><button type="button" id="ckrCloseUsers" class="users-close" aria-label="Fechar">×</button></div>
+      <form id="ckrCreateUserForm" autocomplete="off">
+        <label for="ckrNewUsername">Nome de usuário</label><input id="ckrNewUsername" required minlength="3" maxlength="60" placeholder="Ex.: vendedor01">
+        <label for="ckrNewPassword">Senha (mínimo 6 caracteres)</label><input id="ckrNewPassword" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Crie uma senha">
+        <label for="ckrNewPasswordConfirm">Confirmar senha</label><input id="ckrNewPasswordConfirm" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Repita a senha">
+        <label for="ckrNewRole">Perfil de acesso</label>
+        <select id="ckrNewRole"><option value="usuario" selected>Usuário — Clientes e Registrar venda</option><option value="master">Master — todas as funções, exceto Gerenciar usuários</option></select>
+        <label for="ckrNewValidity">Tempo de uso do usuário</label>
+        <select id="ckrNewValidity"><option value="7">7 dias</option><option value="15">15 dias</option><option value="30">30 dias</option><option value="60">60 dias</option><option value="90">90 dias</option><option value="182.5" selected>6 meses (182,5 dias)</option><option value="365">1 ano</option></select>
+        <div class="users-expiry-note">O ADMIN tem acesso permanente e ilimitado. Os perfis Master e Usuário perdem o acesso quando o prazo termina e o ADMIN pode renovar em "Editar".</div>
+        <p id="ckrUsersError" class="auth-error" role="alert"></p><button class="button button-primary auth-submit" type="submit">Criar usuário</button>
+      </form>
+      <form id="ckrEditUserForm" autocomplete="off" hidden style="display:none">
+        <h3>Editar usuário</h3>
+        <p>Usuário selecionado: <strong id="ckrEditTarget"></strong></p>
+        <label for="ckrEditUsername">Nome de usuário</label>
+        <input id="ckrEditUsername" required minlength="3" maxlength="60">
+        <label for="ckrEditRole">Perfil de acesso</label>
+        <select id="ckrEditRole"><option value="usuario">Usuário — Clientes e Registrar venda</option><option value="master">Master — todas as funções, exceto Gerenciar usuários</option></select>
+        <label for="ckrEditExpiry">Acesso válido até</label>
+        <input id="ckrEditExpiry" type="datetime-local" required>
+        <div class="users-renew"><span>Renovar a partir de hoje:</span><button type="button" class="button" data-renew-days="30">+30 dias</button><button type="button" class="button" data-renew-days="90">+90 dias</button><button type="button" class="button" data-renew-days="365">+1 ano</button></div>
+        <p id="ckrEditError" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Salvar alterações</button>
+        <button type="button" id="ckrCancelEditUser" class="button">Cancelar</button>
+      </form>
+      <form id="ckrChangePasswordForm" autocomplete="off" hidden style="display:none">
+        <h3>Alterar senha</h3>
+        <p>Usuário selecionado: <strong id="ckrPasswordTarget"></strong></p>
+        <label for="ckrAdminNewPassword">Nova senha (mínimo 6 caracteres)</label>
+        <input id="ckrAdminNewPassword" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Digite a nova senha">
+        <label for="ckrAdminConfirmPassword">Confirmar nova senha</label>
+        <input id="ckrAdminConfirmPassword" type="password" required minlength="6" maxlength="120" autocomplete="new-password" placeholder="Digite a senha novamente">
+        <p id="ckrPasswordError" class="auth-error" role="alert"></p>
+        <button class="button button-primary auth-submit" type="submit">Salvar nova senha</button>
+        <button type="button" id="ckrCancelPasswordChange" class="button">Cancelar</button>
+      </form>
+      <div class="users-list-title">Usuários cadastrados</div><div id="ckrUsersList" class="users-list"></div>
+      <p class="users-security-note">Aviso: este login é local e serve para organizar o acesso neste navegador. Não é proteção segura contra alguém que tenha acesso técnico ao computador.</p>
+    </div>
+  </div>
+  <div class="app-shell" id="ckrAppShell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">C</div>
+        <div><strong>Conceito<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div>
+      </div>
+      <div class="side-caption">MENU PRINCIPAL</div>
+      <nav class="navigation">
+        <button class="nav-link active" data-panel="dashboard"><span class="nav-icon">▦</span> Visão geral</button>
+        <button class="nav-link" data-panel="produtos"><span class="nav-icon">▤</span> Produtos <span class="nav-count" id="menuProdutos">0</span></button>
+        <button class="nav-link" data-panel="clientes"><span class="nav-icon">♙</span> Clientes <span class="nav-count" id="menuClientes">0</span></button>
+        <button class="nav-link" data-panel="entrada"><span class="nav-icon">↙</span> Entrada de estoque</button>
+        <button class="nav-link" data-panel="lote"><span class="nav-icon">☰</span> Cadastro em lote</button>
+        <button class="nav-link" data-panel="xml"><span class="nav-icon">⇩</span> Importar XML</button>
+        <button class="nav-link" data-panel="venda"><span class="nav-icon">↗</span> Registrar venda</button>
+        <button class="nav-link" data-panel="pdv"><span class="nav-icon">▣</span> PDV (Caixa)</button>
+        <button class="nav-link" data-panel="orcamentos"><span class="nav-icon">✎</span> Orçamentos <span class="nav-count" id="menuOrcamentos">0</span></button>
+        <button class="nav-link" data-panel="encomendas"><span class="nav-icon">⧖</span> Encomendas <span class="nav-count" id="menuEncomendas">0</span></button>
+        <button class="nav-link" data-panel="promissorias"><span class="nav-icon">◔</span> Promissórias <span class="nav-count" id="menuPromissorias">0</span></button>
+        <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
+        <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
+        <button class="nav-link" data-panel="financeiro"><span class="nav-icon">$</span> Gestão de Despesas <span class="nav-count" id="menuDespesasPend">0</span></button>
+        <button class="nav-link" data-panel="dre"><span class="nav-icon">≡</span> DRE</button>
+        <button class="nav-link" data-panel="fluxo"><span class="nav-icon">⇅</span> Fluxo de Caixa</button>
+        <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
+        <button class="nav-link" data-panel="impostos"><span class="nav-icon">§</span> Impostos <span class="nav-count" id="menuImpostos">0</span></button>
+        <button class="nav-link" data-panel="pedidos"><span class="nav-icon">⊕</span> Pedidos à fábrica <span class="nav-count" id="menuPedidos">0</span></button>
+        <button class="nav-link" data-panel="contador"><span class="nav-icon">✉</span> Exportar p/ contador</button>
+        <div id="ckrExpiryStatus" class="expiry-status" hidden aria-live="polite"></div>
+        <button class="nav-link" data-panel="backup"><span class="nav-icon">⇄</span> Backup e transferência</button>
+        <button type="button" id="ckrManageUsersSidebar" class="nav-link admin-users-link" hidden><span class="nav-icon">♙</span> Gerenciar usuários</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="local-status"><span class="status-dot"></span><div><b>Modo local</b><small>Dados deste dispositivo</small></div></div>
+        <div class="sidebar-version">VERSÃO 7 · ACESSO POR PERFIL</div>
+      </div>
+    </aside>
 
-function exportCsv(){
- const {s,e}=period(),R=compute(s,e),cell=v=>{const t=String(v??'');return /[";\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;};
- const lines=[['DRE',`${s?dayText(s):'Início'} a ${e?dayText(e):'hoje'}`].join(';'),['Descrição','Valor (R$)','% da receita'].join(';')];
- rows(R).forEach(r=>lines.push([r.label,r.val.toFixed(2).replace('.',','),(R.rec>0&&r.t!=='info')?(r.val/R.rec*100).toFixed(1).replace('.',','):''].map(cell).join(';')));
- const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
- a.href=URL.createObjectURL(blob);a.download=`dre-${s||'inicio'}_a_${e||todayISO()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
- toast('DRE exportada.');
-}
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Abrir menu">☰</button>
+        <div class="breadcrumb"><span>Conceito</span><i>/</i><b id="pageBreadcrumb">Visão geral</b></div>
+        <div class="topbar-right"><span class="today" id="todayLabel"></span><button type="button" id="ckrManageUsers" class="button button-light button-small" hidden>Gerenciar usuários</button><div class="avatar" id="ckrUserAvatar">AD</div><button type="button" id="ckrLogout" class="button button-secondary auth-logout">Sair</button></div>
+      </header>
 
-function init(){
- if(!$('panel-dre'))return;
- setPreset('mes');
- $('drePreset').addEventListener('change',()=>{setPreset($('drePreset').value);render();});
- ['dreDe','dreAte'].forEach(k=>$(k).addEventListener('change',()=>{$('drePreset').value='custom';render();}));
- $('dreCsv').addEventListener('click',exportCsv);
- $('dreDespLista').addEventListener('change',ev=>{
-  const sel=ev.target.closest('select.dre-sel');if(!sel||!hasFullAccess())return;
-  const x=exps().find(i=>i.id===sel.dataset.dreId);if(!x)return;
-  const comp=sel.classList.contains('dre-comp');
-  if(comp){if(sel.value)x.dreComp=sel.value;else delete x.dreComp;}
-  else{if(sel.value)x.dre=sel.value;else delete x.dre;}
-  sel.blur();
-  if(saveData())toast(comp?'Competência da despesa atualizada.':'Linha da DRE atualizada.');
- });
- // vincular despesa antiga (texto livre) a um item do catálogo
- if($('dreSemItemLista'))$('dreSemItemLista').addEventListener('change',ev=>{
-  const sel=ev.target.closest('select.dre-item');if(!sel||!hasFullAccess()||!sel.value)return;
-  const x=exps().find(i=>i.id===sel.dataset.dreId);if(!x)return;
-  x.itemId=sel.value;sel.blur();
-  if(saveData())toast('Item do catálogo vinculado à despesa.');
- });
-}
-init();
+      <div class="content">
+        <section class="panel active" id="panel-dashboard">
+          <div class="welcome-row">
+            <div><p class="eyebrow">PAINEL DE CONTROLE</p><h1>Visão geral <span class="wave">✦</span></h1><p class="subtitle">Indicadores financeiros, desempenho comercial e operações em um só lugar.</p></div>
+            <button class="button button-primary" data-go="venda"><span>＋</span> Nova venda</button>
+          </div>
+          <div class="notice"><span class="notice-icon">i</span><p><b>Seus dados ficam neste dispositivo.</b> Para transferir dados entre computador e celular, use <button class="text-button" data-go="backup">Backup e transferência</button>.</p><button class="notice-close" id="closeNotice" aria-label="Fechar aviso">×</button></div>
 
-// Atualiza junto com o resto do sistema e ao abrir o painel.
-const baseRender=window.renderAll;
-window.renderAll=function(){baseRender();render();};
-const baseGoTo=window.goTo;
-window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='dre')render();};
-})();
-// Carrega o módulo de receitas de serviços (servicos.js) sem precisar mexer no index.html.
-(function(){const s=document.createElement('script');s.src='servicos.js?v=4';document.body.appendChild(s);})();
+          <div id="executiveDashboard" class="exec-dashboard" aria-label="Painel executivo">
+            <div class="exec-toolbar surface">
+              <div class="exec-toolbar-title"><span class="exec-kicker">GESTÃO FINANCEIRA</span><h2>Resumo executivo</h2><p>Desempenho por competência e caixa realizado. Saldos e pendências sempre na posição de hoje.</p></div>
+              <div class="exec-period-control"><label for="execMes">Mês de referência</label><div class="exec-period-row"><button id="execPrev" type="button" aria-label="Mês anterior" title="Mês anterior">‹</button><input id="execMes" type="month" aria-label="Mês de referência"><button id="execNext" type="button" aria-label="Próximo mês" title="Próximo mês">›</button></div><button id="execRefresh" type="button" class="exec-refresh" title="Recalcular indicadores sem modificar lançamentos">Atualizar indicadores</button></div>
+            </div>
+            <p class="exec-period-caption" id="execPositionDate">Posição financeira de hoje · Resultado do mês selecionado</p>
+            <div class="exec-kpi-grid">
+              <article class="exec-kpi exec-kpi-primary"><span>Disponível agora</span><strong id="execDisponivel">—</strong><small>Caixa BLU + NUBANK + dinheiro, descontados valores bloqueados</small><button type="button" class="exec-inline-link" data-go="financeiro">Ver Conceito Caixa →</button></article>
+              <article class="exec-kpi"><span>A receber</span><strong id="execReceber">—</strong><small id="execReceberNota">Agenda BLU + promissórias em aberto · posição atual</small></article>
+              <article class="exec-kpi"><span>A pagar</span><strong id="execPagar">—</strong><small id="execPagarNota">Despesas + parcelas da fábrica em aberto · posição atual</small></article>
+              <article class="exec-kpi"><span>Faturamento do mês</span><strong id="execFaturamento">—</strong><small>Vendas e serviços, após descontos e devoluções</small><button type="button" class="exec-inline-link" data-go="dre">Conferir DRE →</button></article>
+            </div>
+            <div class="exec-mini-grid">
+              <article class="exec-mini"><span>Lucro líquido · DRE</span><strong id="execLucro">—</strong><small>Competência do mês selecionado</small></article>
+              <article class="exec-mini"><span>Margem líquida · DRE</span><strong id="execMargem">—</strong><small>Lucro ÷ receita bruta da DRE</small></article>
+              <article class="exec-mini"><span>Geração líquida de caixa</span><strong id="execCaixaLiquido">—</strong><small>Recebimentos menos pagamentos no período</small></article>
+            </div>
+            <p id="execConferencia" class="exec-conference" role="status">Carregando indicadores financeiros…</p>
+            <div class="exec-chart-grid">
+              <section class="surface exec-chart-card"><div class="exec-heading"><div><h2>Faturamento e margem líquida</h2><p>6 meses · vendas/serviços e rentabilidade segundo a DRE</p></div></div><div id="execRevenueChart" class="exec-chart" role="img" aria-label="Gráfico de faturamento e margem líquida dos seis últimos meses"></div><div class="exec-legend"><span><i class="exec-legend-dot exec-dot-blue"></i> Faturamento</span><span><i class="exec-legend-line"></i> Margem líquida</span></div></section>
+              <section class="surface exec-chart-card"><div class="exec-heading"><div><h2>Entradas e saídas de caixa</h2><p>6 meses · movimentação monetária pelo DFC</p></div></div><div id="execCashChart" class="exec-chart" role="img" aria-label="Gráfico de recebimentos e pagamentos dos seis últimos meses"></div><div class="exec-legend"><span><i class="exec-legend-dot exec-dot-blue"></i> Entradas</span><span><i class="exec-legend-dot exec-dot-sand"></i> Saídas</span></div></section>
+            </div>
+            <section class="surface exec-alert-card"><div class="exec-heading"><div><h2>Pendências e alertas</h2><p>Contas vencidas, conciliações pendentes e compromissos próximos</p></div><span id="execAlertBadge" class="exec-alert-badge">—</span></div><div id="execAlertRows" class="exec-alert-rows" aria-live="polite"><p>Carregando pendências...</p></div></section>
+            <p class="exec-technical-note">Os saldos não incluem o crédito comercial com a Ortobom. A receber inclui o saldo líquido apresentado na Agenda BLU, que pode conter ajuste inicial. Contas a pagar podem conter duplicidades se o mesmo compromisso estiver cadastrado em Despesas e Pedidos à fábrica. A DRE segue o critério de competência existente; o caixa não inclui ajustes de saldo na geração líquida.</p>
+          </div>
+
+          <div class="exec-legacy-heading"><div><span class="exec-kicker">OPERAÇÃO DA LOJA</span><h2>Estoque e movimentações</h2><p>Indicadores operacionais já disponíveis no Conceito.</p></div></div>
+          <div id="promAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="promAlertaTexto"></p><button class="text-button" data-go="promissorias">Ver promissórias</button></div>
+          <div id="pedAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="pedAlertaTexto"></p><button class="text-button" data-go="pedidos">Ver pedidos à fábrica</button></div>
+          <div id="despAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="despAlertaTexto"></p><button class="text-button" data-go="financeiro">Ver despesas</button></div>
+
+
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">▤</span><span class="stat-label">Produtos cadastrados</span></div><strong id="totalProdutos">0</strong><div class="stat-foot"><span class="tiny-dot blue"></span> Itens diferentes no catálogo</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">▥</span><span class="stat-label">Unidades em estoque</span></div><strong id="totalUnidades">0</strong><div class="stat-foot"><span class="tiny-dot violet"></span> Quantidade disponível</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Vendas registradas</span></div><strong id="totalVendas">0</strong><div class="stat-foot"><span class="tiny-dot green"></span> Vendas neste dispositivo</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">R$</span><span class="stat-label">Valor em estoque</span></div><strong id="valorEstoque">R$ 0,00</strong><div class="stat-foot"><span class="tiny-dot orange"></span> Calculado pelos lotes (PEPS)</div></article>
+            <article class="stat-card profit-stat"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Lucro das vendas</span></div><strong id="lucroTotal">R$ 0,00</strong><div class="profit-bottom"><span class="profit-margin">Margem: <b id="margemLucro">0,0%</b></span><span id="lucroHistoricoNota" class="profit-note">Calculado pelo custo registrado em cada venda</span></div></article>
+          </div>
+
+          <div class="dashboard-insights">
+            <section class="surface insight-card">
+              <div class="surface-heading"><div><h2>Vendas dos últimos 7 dias</h2><p>Valores registrados por dia</p></div><span id="dashboardVendasTotal" class="report-total">R$ 0,00</span></div>
+              <div id="dashboardSalesChart" class="sales-chart" role="img" aria-label="Gráfico de linhas das vendas dos últimos sete dias"></div>
+            </section>
+            <section class="surface insight-card stock-insight">
+              <div class="surface-heading"><div><h2>Status do estoque</h2><p>Produtos por disponibilidade</p></div></div>
+              <div class="stock-chart-layout"><div id="stockDonut" class="stock-donut" role="img" aria-label="Gráfico de rosca do status do estoque"><div class="stock-donut-center"><strong id="stockDonutTotal">0</strong><span>produtos</span></div></div><div class="stock-legend"><div><i class="legend-dot dot-ok"></i><span>Em dia</span><b id="estoqueEmDia">0</b></div><div><i class="legend-dot dot-low"></i><span>Estoque baixo</span><b id="estoqueBaixo">0</b></div><div><i class="legend-dot dot-zero"></i><span>Sem estoque</span><b id="estoqueZerado">0</b></div></div></div>
+            </section>
+          </div>
+
+          <div class="dashboard-grid">
+            <section class="surface recent-surface">
+              <div class="surface-heading"><div><h2>Movimentações recentes</h2><p>Últimas entradas e vendas registradas</p></div><button class="button button-light button-small" data-go="historico">Ver histórico <span>→</span></button></div>
+              <div class="table-wrap"><table><thead><tr><th>TIPO</th><th>PRODUTO</th><th>QUANTIDADE</th><th>VALOR</th><th>DATA</th></tr></thead><tbody id="recentRows"></tbody></table></div>
+              <div id="recentEmpty" class="empty-state"><div class="empty-symbol">◷</div><b>Nenhuma movimentação ainda</b><p>As entradas e vendas aparecerão aqui.</p></div>
+            </section>
+            <section class="surface quick-surface">
+              <div class="surface-heading"><div><h2>Acesso rápido</h2><p>O que deseja fazer agora?</p></div></div>
+              <button class="quick-action" data-go="lote"><span class="quick-icon blue-bg">＋</span><span><b>Cadastrar produtos</b><small>Adicione um item ao catálogo</small></span><i>→</i></button>
+              <button class="quick-action" data-go="entrada"><span class="quick-icon green-bg">↓</span><span><b>Registrar entrada</b><small>Atualize a quantidade em estoque</small></span><i>→</i></button>
+              <button class="quick-action" data-go="venda"><span class="quick-icon orange-bg">↗</span><span><b>Registrar venda</b><small>Dê baixa automática no estoque</small></span><i>→</i></button>
+              <button class="quick-action" data-go="backup"><span class="quick-icon violet-bg">⇄</span><span><b>Transferir dados</b><small>Exportar ou importar um backup</small></span><i>→</i></button>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-produtos">
+          <div class="page-heading"><div><p class="eyebrow">CATÁLOGO</p><h1>Produtos</h1><p class="subtitle">Cadastre e gerencie os produtos da sua loja.</p></div><button class="button button-primary" data-go="lote" type="button"><span>＋</span> Cadastrar produtos (lote)</button></div>
+          <section class="surface form-surface" id="produtoFormCard" style="display:none">
+            <div class="surface-heading"><div><h2 id="formProdutoTitulo">Editar produto</h2><p>Altere as informações abaixo.</p></div><span class="form-badge">EDIÇÃO</span></div>
+            <form id="formProduto" class="form-grid">
+              <label class="field field-wide">Nome do produto<input id="produtoNome" required maxlength="120" placeholder="Ex.: Colchão Queen Premium"></label>
+              <label class="field">Código / referência<div class="cep-row"><input id="produtoCodigo" maxlength="60" placeholder="Automático (ou digite)"><button class="button button-light" id="gerarCodigo" type="button" title="Gerar o próximo código automático">Gerar</button></div></label>
+              <label class="field">Data de cadastro<input id="produtoData" type="date" required></label>
+              <label class="field">Preço de custo (R$)<input id="produtoCusto" type="text" inputmode="numeric" autocomplete="off" value="0,00" placeholder="0,00" required></label>
+              <label class="field">Preço de venda (R$)<input id="produtoPreco" type="text" inputmode="numeric" autocomplete="off" value="0,00" placeholder="0,00" required></label>
+              <label class="field">Estoque inicial<input id="produtoEstoque" type="number" min="0" step="1" value="0" required></label>
+              <label class="field">Nº da nota (opcional)<input id="produtoNota" maxlength="40" autocomplete="off" placeholder="Ex.: 12345"></label>
+              <div class="field field-wide qphoto" id="produtoFotoBox"><span>Foto do produto (aparece sozinha no PDV, nas vendas e nos orçamentos)</span><div class="qphoto-row"><label class="qphoto-drop" for="produtoFotoInput" id="produtoFotoDrop"><b>📷</b><span class="qphoto-txt"> Adicionar foto</span><input type="file" accept="image/*" id="produtoFotoInput" hidden></label><img id="produtoFotoPrev" class="qphoto-prev" alt="Foto do produto" hidden><button type="button" class="button button-light button-small" id="produtoFotoRemover" hidden>Remover foto</button></div></div>
+              <div class="form-actions field-wide"><button class="button button-primary" id="salvarProdutoBtn" type="submit">Salvar produto</button><button class="button button-light" id="cancelarEdicao" type="button" hidden>Cancelar edição</button></div>
+            </form>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Lista de produtos</h2><p id="produtoSubtitulo">Todos os itens cadastrados</p></div><div class="search-tools"><label class="check-filter"><input type="checkbox" id="filtroEstoquePositivo"><span>Só com estoque</span></label><button type="button" class="button button-light" id="prodPdfBtn" hidden>Imprimir PDF</button><div class="search-box"><span>⌕</span><input id="buscaProduto" type="search" placeholder="Buscar produto..."></div></div></div>
+            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>CADASTRO</th><th>ESTOQUE</th><th>CUSTO</th><th>PREÇO DE VENDA</th><th>AÇÕES</th></tr></thead><tbody id="listaProdutos"></tbody><tfoot><tr class="total-row"><td colspan="3"><b>TOTAL</b></td><td><b id="totalQtdProdutos">0</b></td><td><b id="totalCustoProdutos">R$ 0,00</b></td><td><b id="totalVendaProdutos">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
+            <div id="semProdutos" class="empty-state"><div class="empty-symbol">▤</div><b>Nenhum produto cadastrado</b><p>Use o botão “Cadastrar produtos (lote)” para adicionar seus itens.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-lote">
+          <style>
+            #loteLinhas input{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line,#e3e8f0);border-radius:10px;font:inherit;background:#fff}
+            #loteLinhas td{padding:6px 6px;vertical-align:middle}
+            #loteLinhas input.erro{border-color:#e5484d;background:#fff5f5}
+            .lote-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}
+            .lote-total{margin-left:auto;font-weight:700}
+          </style>
+          <div class="page-heading"><div><p class="eyebrow">CATÁLOGO</p><h1>Cadastro em lote</h1><p class="subtitle">Cadastre vários produtos de uma vez, aproveitando o mesmo número de nota.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Dados da nota</h2><p>Valem para todos os produtos do lote. O preço de venda é calculado pelo custo + margem e pode ser ajustado em cada linha.</p></div><span class="form-badge">ENTRADA</span></div>
+            <div class="form-grid">
+              <label class="field">Nº da nota<input id="loteNota" maxlength="40" autocomplete="off" placeholder="Ex.: 12345"></label>
+              <label class="field">Fornecedor (opcional)<input id="loteFornecedor" maxlength="120" autocomplete="off" placeholder="Ex.: Fábrica XYZ"></label>
+              <label class="field">Data<input id="loteData" type="date"></label>
+              <label class="field">Margem sobre o custo (%)<input id="loteMargem" type="text" inputmode="decimal" autocomplete="off" value="135,20" placeholder="135,20"></label>
+            </div>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading"><div><h2>Produtos da nota</h2><p>Deixe o código em branco para gerar automático.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>PRODUTO</th><th style="width:140px">CÓDIGO</th><th style="width:90px">QTD.</th><th style="width:130px">CUSTO (R$)</th><th style="width:130px">VENDA (R$)</th><th style="width:60px"></th></tr></thead><tbody id="loteLinhas"></tbody></table></div>
+            <div class="lote-tools">
+              <button class="button button-light" id="loteAddLinha" type="button">＋ Adicionar linha</button>
+              <button class="button button-light" id="loteRecalc" type="button" title="Aplica a margem a todas as linhas, inclusive as que você ajustou">↻ Recalcular todos os preços</button>
+              <button class="button button-primary" id="loteSalvar" type="button">Salvar lote</button>
+              <span class="lote-total" id="loteResumo"></span>
+            </div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-clientes">
+          <div class="page-heading"><div><p class="eyebrow">RELACIONAMENTO</p><h1>Clientes</h1><p class="subtitle">Cadastre, consulte e mantenha os dados dos seus clientes.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2 id="formClienteTitulo">Cadastrar cliente</h2><p>Informe os dados e use a busca por CEP para preencher o endereço.</p></div><button type="button" class="form-badge form-badge-btn" id="limparClienteBtn" title="Limpar os campos e a busca">CLIENTE · LIMPAR</button></div>
+            <form id="formCliente" class="form-grid">
+              <label class="field field-wide">Nome completo<input id="clienteNome" required maxlength="150" autocomplete="name" placeholder="Nome completo do cliente"></label>
+              <label class="field">CEP<div class="cep-row"><input id="clienteCep" inputmode="numeric" maxlength="9" autocomplete="postal-code" placeholder="00000-000"><button class="button button-light" id="buscarCep" type="button">Buscar CEP</button></div></label>
+              <label class="field field-wide">Logradouro<input id="clienteLogradouro" maxlength="180" autocomplete="street-address" placeholder="Rua, avenida..."></label>
+              <label class="field">Número<input id="clienteNumero" maxlength="20" placeholder="Número"></label>
+              <label class="field">Complemento<input id="clienteComplemento" maxlength="100" placeholder="Apartamento, bloco..."></label>
+              <label class="field">Bairro<input id="clienteBairro" maxlength="100" autocomplete="address-level3" placeholder="Bairro"></label>
+              <label class="field">Cidade<input id="clienteCidade" maxlength="100" autocomplete="address-level2" placeholder="Cidade"></label>
+              <label class="field">Estado (UF)<input id="clienteEstado" maxlength="2" autocomplete="address-level1" placeholder="CE"></label>
+              <label class="field">CPF<input id="clienteCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></label>
+              <label class="field">Telefone<input id="clienteTelefone" inputmode="tel" maxlength="15" autocomplete="tel" placeholder="(00) 00000-0000"></label>
+              <div class="form-actions field-wide"><button class="button button-primary" id="salvarClienteBtn" type="submit">Salvar cliente</button><button class="button button-light" id="cancelarClienteEdicao" type="button" hidden>Cancelar edição</button></div>
+            </form>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Clientes cadastrados</h2><p id="clienteSubtitulo">Todos os clientes</p></div><div class="search-box"><span>⌕</span><input id="buscaCliente" type="search" placeholder="Buscar nome, CPF ou telefone..."></div></div>
+            <div class="table-wrap"><table><thead><tr><th>NOME</th><th>CPF</th><th>TELEFONE</th><th>CIDADE / UF</th><th>AÇÕES</th></tr></thead><tbody id="listaClientes"></tbody></table></div>
+            <div id="semClientes" class="empty-state"><div class="empty-symbol">♙</div><b>Nenhum cliente cadastrado</b><p>Use o formulário acima para cadastrar seu primeiro cliente.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-entrada">
+          <div class="page-heading"><div><p class="eyebrow">ESTOQUE</p><h1>Entrada de estoque</h1><p class="subtitle">Registre mercadorias recebidas ou reposições.</p></div></div>
+          <section class="surface operation-card"><div class="operation-art green-art">↓</div><h2>Registrar nova entrada</h2><p class="operation-intro">A quantidade entra como um novo lote com o custo informado. As vendas saem primeiro do lote mais antigo (PEPS).</p>
+            <form id="formEntrada" class="form-stack">
+              <label class="field">Produto<select id="entradaProduto" required></select></label>
+              <label class="field">Quantidade recebida<input id="entradaQuantidade" type="number" min="1" step="1" required placeholder="Ex.: 10"></label>
+              <label class="field">Custo unitário desta compra (opcional)<input id="entradaCusto" type="text" inputmode="numeric" autocomplete="off" placeholder="Em branco = último custo do produto"></label>
+              <label class="field">Observação (opcional)<input id="entradaObs" maxlength="180" placeholder="Ex.: compra do fornecedor"></label>
+              <button class="button button-success full-button" type="submit">Confirmar entrada <span>→</span></button>
+            </form>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-venda">
+          <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Registrar venda</h1><p class="subtitle">Registre uma venda e atualize o estoque automaticamente.</p></div></div>
+          <section class="surface operation-card"><div class="operation-art orange-art">↗</div><h2>Nova venda</h2><p class="operation-intro">Confira o produto, a quantidade e o valor antes de confirmar.</p>
+            <form id="formVenda" class="form-stack">
+              <label class="check-filter enc-toggle"><input type="checkbox" id="vendaEncomenda"><span><b>Encomenda — O PRODUTO AINDA NÃO CHEGOU.</b><small class="enc-sub">Não baixa estoque, mas o que o cliente pagou já entra no Caixa (cartão no 1º dia útil) e pode ser usado. Informe abaixo o que o cliente já pagou (sinal ou valor).</small></span></label>
+              <div id="vendaEncExtra" class="form-two" hidden><label class="field">Previsão de chegada (opcional)<input id="vendaEncPrevisao" type="date"></label></div>
+              <div id="vendaEncAviso" class="sale-edit-banner" hidden><div><b id="vendaEncTitulo"></b><p id="vendaEncTexto"></p></div><button type="button" class="button button-light button-small" id="cancelarEncVenda">Desvincular</button></div>
+              <div id="vendaOrcAviso" class="sale-edit-banner" hidden><div><b id="vendaOrcTitulo"></b><p>Altere o que quiser. Ao confirmar a venda, o orçamento passa para “Vendido”.</p></div><button type="button" class="button button-light button-small" id="cancelarOrcVenda">Desvincular</button></div>
+              <div id="vendaEdicaoAviso" class="sale-edit-banner" hidden><div><b id="vendaEdicaoTitulo">Editando venda</b><p>Ajuste itens, valores ou pagamentos. Ao salvar, o estoque, o total vendido e o lucro são recalculados.</p></div><button type="button" class="button button-light button-small" id="cancelarEdicaoVenda">Cancelar edição</button></div>
+              <div class="field product-search"><span>Buscar produto</span><div class="product-search-box"><input id="vendaBuscaProduto" type="search" autocomplete="off" placeholder="Digite o nome ou parte dele (ou o código)"><div id="vendaSugestoes" class="product-suggest" hidden></div></div></div>
+              <label class="check-filter"><input type="checkbox" id="filtroVendaEstoque"><span>Mostrar só produtos com estoque</span></label>
+              <label class="field">Produto<select id="vendaProduto" required></select></label>
+              <div class="form-two"><label class="field">Quantidade vendida<input id="vendaQuantidade" type="number" min="1" step="1" required placeholder="Ex.: 1"></label><label class="field">Valor unitário (R$)<input id="vendaPreco" type="text" inputmode="numeric" autocomplete="off" required placeholder="0,00"></label></div>
+              <button class="button button-light full-button" id="adicionarAoCarrinho" type="button">＋ Adicionar produto ao carrinho</button>
+              <section class="cart-box" aria-labelledby="carrinhoTitulo">
+                <div class="payment-heading"><div><h3 id="carrinhoTitulo">Carrinho da venda</h3><p>Adicione vários produtos antes de confirmar.</p></div><span id="carrinhoQuantidade" class="cart-count">0 itens</span></div>
+                <div class="table-wrap"><table class="cart-table"><thead><tr><th>PRODUTO</th><th>QTD.</th><th>UNITÁRIO</th><th>TOTAL</th><th></th></tr></thead><tbody id="carrinhoLinhas"><tr><td colspan="5" class="cart-empty">O carrinho está vazio.</td></tr></tbody></table></div>
+              </section>
+              <label class="field">Data da venda<input id="vendaData" type="date"></label>
+              <label class="field">Cliente (obrigatório)<input id="vendaCliente" required maxlength="150" list="clientesSugestoes" placeholder="Digite as primeiras letras e selecione"><datalist id="clientesSugestoes"></datalist></label>
+              <div class="sale-discounts" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+                <label class="field">Desconto em reais (R$)<input id="vendaDescontoReais" type="text" inputmode="numeric" autocomplete="off" value="" placeholder="0,00"></label>
+                <label class="field">Desconto (%)<input id="vendaDescontoPercentual" type="text" inputmode="decimal" autocomplete="off" value="" placeholder="0,00"></label>
+                <div class="field"><span>Lucro (%)</span><strong id="vendaLucroPct" style="min-height:44px;display:flex;align-items:center;font-size:15px;color:#1f2a44">—</strong></div>
+              </div>
+              <div class="sale-total"><span>Subtotal</span><strong id="subtotalVendaPreview">R$ 0,00</strong></div>
+              <div class="sale-total sale-total-discount"><span>Total com desconto</span><strong id="totalVendaPreview">R$ 0,00</strong></div>
+              <section class="payment-box">
+                <div class="payment-heading"><div><h3>Formas de pagamento</h3><p>Adicione uma linha para cada pagamento.</p></div><button class="button button-light button-small" id="adicionarPagamento" type="button">＋ Adicionar</button></div>
+                <div id="linhasPagamento" class="payment-lines"></div>
+                <div class="payment-summary"><div><span>Total recebido</span><strong id="totalRecebido">R$ 0,00</strong></div><div><span>Saldo restante</span><strong id="saldoRestante">R$ 0,00</strong></div></div>
+                <p id="avisoPagamento" class="payment-notice">Informe as formas de pagamento até completar o total da venda.</p>
+                <p id="resumoFinanceiro" class="pay-hint" hidden></p>
+              </section>
+              <label class="field">Observação (opcional)<input id="vendaObs" maxlength="180" placeholder="Observação da venda"></label>
+              <button class="button button-primary full-button" type="submit"><b id="confirmarVendaTexto" style="font:inherit">Confirmar venda e baixar estoque</b> <span>→</span></button>
+              <div class="field qphoto" id="vendaFotoBox"><span>Foto extra do orçamento (opcional)</span><div class="qphoto-row"><label class="qphoto-drop" for="vendaFotoInput" id="vendaFotoDrop"><b>📷</b><span class="qphoto-txt"> Adicionar foto</span><input type="file" accept="image/*" id="vendaFotoInput" hidden></label><img id="vendaFotoPrev" class="qphoto-prev" alt="Foto do produto" hidden><button type="button" class="button button-light button-small" id="vendaFotoRemover" hidden>Remover foto</button></div></div>
+                <div class="qphoto-auto" id="vendaFotosProd" hidden><small>Fotos dos produtos do carrinho (vão junto no orçamento):</small><div class="qphoto-strip"></div></div>
+                <label class="field">Parcelar no orçamento (aparece no cupom)<select id="vendaOrcParcelas"><option value="1">À vista (sem parcelas)</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></label>
+                <button class="button button-light full-button" id="salvarOrcamentoVenda" type="button">✎ Salvar como orçamento</button>
+              <button class="button button-light full-button" id="vendaImposto" type="button">🧾 Informações de imposto</button>
+              <div id="reciboAcoes" class="receipt-actions" hidden>
+                <p id="reciboStatus">Venda registrada. Gere o recibo em PDF e envie ao cliente.</p>
+                <button class="button button-light full-button" id="baixarReciboPdf" type="button">⬇ Baixar recibo em PDF</button>
+                <button class="button button-success full-button" id="enviarReciboWhatsapp" type="button">Enviar mensagem pelo WhatsApp</button>
+                <small>O PDF é baixado no aparelho. Para enviá-lo no WhatsApp, anexe o arquivo baixado na conversa com o cliente.</small>
+              </div>
+            </form>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-historico">
+          <div class="page-heading"><div><p class="eyebrow">AUDITORIA</p><h1>Movimentações</h1><p class="subtitle">Busque vendas, edite ou cancele, e consulte o histórico de entradas e vendas deste dispositivo.</p></div></div>
+          <section class="surface list-surface sales-search-surface">
+            <div class="surface-heading"><div><h2>Buscar vendas</h2><p>Pesquise por cliente, CPF, produto, data ou número da nota fiscal. Ao buscar um cliente, aparecem todas as vendas dele.</p></div></div>
+            <div class="sales-search-filters">
+              <label class="field">Cliente, CPF, produto ou data<input id="buscaVenda" type="search" autocomplete="off" placeholder="Ex.: Maria, 123.456.789-00, colchão, 15/10/2026, nota 1234"></label>
+              <label class="field">Data inicial<input type="date" id="buscaVendaInicio"></label>
+              <label class="field">Data final<input type="date" id="buscaVendaFim"></label>
+              <label class="field">Situação<select id="buscaVendaStatus"><option value="todas">Todas</option><option value="ativas">Ativas</option><option value="canceladas">Canceladas</option></select></label>
+              <label class="field">Nota fiscal<select id="buscaVendaNota"><option value="todas">Todas</option><option value="com">Com nota</option><option value="sem">Sem nota</option></select></label>
+              <button class="button button-light" id="limparBuscaVenda" type="button">Limpar</button>
+            </div>
+            <div id="vendasResumo" class="sales-search-summary"></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA / VENDA</th><th>CLIENTE</th><th>PRODUTOS</th><th>TOTAL</th><th>LUCRO</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="listaVendasBusca"></tbody></table></div>
+            <div id="semVendasBusca" class="empty-state"><div class="empty-symbol">⌕</div><b>Nenhuma venda encontrada</b><p>Altere a busca, o período ou a situação.</p></div>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Histórico completo</h2><p>Registros organizados do mais recente para o mais antigo.</p></div><div class="history-controls"><select id="filtroTipo" aria-label="Filtrar por tipo"><option value="todos">Todos os tipos</option><option value="entrada">Entradas</option><option value="venda">Vendas</option></select><button id="limparHistorico" class="button button-danger-light button-small" type="button">Limpar histórico</button></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA E HORA</th><th>TIPO</th><th>PRODUTO</th><th>QTD.</th><th>VALOR TOTAL</th><th>DETALHES</th></tr></thead><tbody id="listaHistorico"></tbody></table></div>
+            <div id="semHistorico" class="empty-state"><div class="empty-symbol">◷</div><b>Sem movimentações</b><p>Quando você registrar entradas ou vendas, elas aparecerão aqui.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-relatorios">
+          <div class="page-heading"><div><p class="eyebrow">CONSULTAS E RESULTADOS</p><h1>Relatórios</h1><p class="subtitle">Consulte entradas e vendas dentro de um período e exporte os resultados.</p></div></div>
+          <section class="surface report-filter-surface">
+            <div class="surface-heading"><div><h2>Relatório por período</h2><p>Escolha o período e, se quiser, filtre por produto, cliente ou forma de pagamento.</p></div></div>
+            <div class="report-filters rel-filters">
+              <label class="field">Data inicial<input type="date" id="relatorioDataInicio"></label>
+              <label class="field">Data final<input type="date" id="relatorioDataFim"></label>
+              <label class="field">Tipo<select id="relatorioTipo"><option value="todos">Entradas e vendas</option><option value="venda">Somente vendas</option><option value="entrada">Somente entradas</option></select></label>
+              <label class="field">Produto<input type="search" id="relatorioProduto" placeholder="Nome do produto" autocomplete="off"></label>
+              <label class="field">Cliente<input type="search" id="relatorioCliente" placeholder="Nome do cliente" autocomplete="off"></label>
+              <label class="field">Forma de pagamento<select id="relatorioPagamento">
+                <option value="">Todas as formas</option>
+                <option value="pix">Pix</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="debito">Cartão de débito (loja)</option>
+                <option value="debito-fabrica">Cartão de débito (fábrica)</option>
+                <option value="credito-loja">Cartão de crédito (loja)</option>
+                <option value="credito-fabrica">Cartão de crédito (fábrica)</option>
+                <option value="cartao">Qualquer cartão (débito, crédito e Blu)</option>
+                <option value="blu-loja">Link Blu (loja)</option>
+                <option value="blu-fabrica">Link Blu (fábrica)</option>
+                <option value="promissoria">Promissória</option>
+                <option value="outras">Transferência / Boleto / Outro</option>
+                <option value="multi">Mais de uma forma de pagamento</option>
+              </select></label>
+              <button id="gerarRelatorio" class="button button-primary" type="button">Gerar relatório</button>
+            </div>
+          </section>
+          <div class="report-summary-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Total de vendas no período</span></div><strong id="relatorioTotalVendas">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">↓</span><span class="stat-label">Total de entradas no período</span></div><strong id="relatorioTotalEntradas">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">▤</span><span class="stat-label">Movimentações encontradas</span></div><strong id="relatorioQtd">0</strong></article>
+            <article class="stat-card" id="relatorioCardLucro" hidden><div class="stat-top"><span class="stat-icon icon-orange">$</span><span class="stat-label">Lucro das vendas no período</span></div><strong id="relatorioLucro">R$ 0,00</strong><div class="stat-foot" id="relatorioLucroNota"></div></article>
+          </div>
+          <section class="surface list-surface report-results">
+            <div class="surface-heading responsive-heading"><div><h2>Resultado do período</h2><p id="relatorioDescricao">Selecione as datas e gere o relatório.</p></div><div class="report-actions"><button id="exportarRelatorioCsv" class="button button-light button-small" type="button">Exportar CSV</button><button id="imprimirRelatorio" class="button button-light button-small" type="button">Imprimir / PDF</button></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA E HORA</th><th>TIPO</th><th>PRODUTO</th><th>QTD.</th><th>VALOR</th><th>PAGAMENTO</th><th>CLIENTE / DETALHES</th></tr></thead><tbody id="relatorioRows"></tbody></table></div>
+            <div id="relatorioVazio" class="empty-state"><div class="empty-symbol">▥</div><b>Nenhuma movimentação encontrada</b><p>Altere o período ou o tipo de movimentação.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-financeiro">
+          <div class="page-heading fin-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Gestão de Despesas</h1><p class="subtitle">Lance os gastos da loja e acompanhe o que foi pago, o que está pendente e o que já venceu.</p></div><button class="button button-primary" id="finNovo" type="button"><span>＋</span> Nova despesa</button></div>
+
+          <section class="surface form-surface" id="planejSec" style="margin-bottom:14px">
+            <div class="surface-heading"><div><h2>Planejamento mensal de despesas</h2><p>Previsões não são dívidas; confirme apenas os gastos que serão lançados neste mês.</p></div></div>
+            <div style="padding:14px 18px">
+              <p id="planejResumo" class="fin-meta-text">Verificando despesas antigas…</p>
+              <div class="form-actions" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="button button-light" type="button" id="planejRevisao">Revisar recorrências futuras</button><label class="field">Mês das sugestões <input type="month" id="planejMes"></label><button class="button button-light" type="button" id="planejAbrir">Ver sugestões do mês</button></div>
+              <div id="planejLista" hidden></div>
+            </div>
+          </section>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Período da análise</h2><p id="finPeriodoDesc"></p></div></div>
+            <div class="report-filters fin-filters">
+              <label class="field">Período<select id="finPreset"><option value="mes" selected>Este mês</option><option value="anterior">Mês anterior</option><option value="3m">Últimos 3 meses</option><option value="ano">Este ano</option><option value="tudo">Tudo</option><option value="custom">Personalizado</option></select></label>
+              <label class="field">Data inicial<input type="date" id="finDe"></label>
+              <label class="field">Data final<input type="date" id="finAte"></label>
+            </div>
+          </section>
+
+          <div class="stats-grid fin-stats">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">↘</span><span class="stat-label">Total de pagamentos</span></div><strong id="finDesp">R$ 0,00</strong><div class="stat-foot" id="finDespNota"></div></article>
+          </div>
+          <div class="stats-grid fin-stats">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">✓</span><span class="stat-label">Despesas pagas</span></div><strong id="finPagas">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">◔</span><span class="stat-label">Contas pendentes efetivas (vencidas + a vencer)</span></div><strong id="finPend">R$ 0,00</strong><div class="stat-foot" id="finPendNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="stat-label">Vencidas</span></div><strong id="finVenc2">R$ 0,00</strong><div class="stat-foot" id="finVencNota"></div></article>
+          </div>
+
+          <div class="notice"><span class="notice-icon">i</span><p><b>Como as despesas são contadas:</b> despesas pagas entram na data do pagamento (inclui parcelas pagas à fábrica com dinheiro). Pendentes e vencidas ficam à parte até serem pagas.</p></div>
+
+          <div class="fin-grid-2">
+            <section class="surface fin-card">
+              <div class="surface-heading"><div><h2>Evolução mensal das despesas pagas</h2><p>Últimos 12 meses</p></div><span class="report-total" id="finAnoTotal"></span></div>
+              <div id="finChartAno"></div>
+            </section>
+            <section class="surface fin-card">
+              <div class="surface-heading"><div><h2>Composição das despesas</h2><p>Para onde o dinheiro está indo</p></div></div>
+              <div class="fin-donut-wrap"><div class="fin-donut" id="finDonut" role="img" aria-label="Gráfico de rosca das despesas por categoria"><div class="fin-donut-center"><strong id="finDonutTotal">R$ 0,00</strong><span>em despesas</span></div></div><ul class="fin-legend" id="finLegenda"></ul></div>
+            </section>
+          </div>
+
+          <div class="fin-grid-2 fin-grid-even">
+            <section class="surface fin-card" id="cxCard">
+              <div class="surface-heading"><div><h2>Conceito caixa</h2><p>Para onde foi o dinheiro das vendas</p></div><button class="button button-light button-small" id="cxNovo" type="button">⇄ Movimentar</button></div>
+              <div class="cx-total"><span>Saldo total</span><strong id="cxTotal">R$ 0,00</strong></div>
+              <div class="cx-list" id="cxContas"></div>
+              <p class="fin-meta-text" id="cxNota"></p>
+            </section>
+            <section class="surface fin-card">
+              <div class="surface-heading"><div><h2>Este mês × mês anterior</h2><p>Comparativo e previsão de gastos</p></div></div>
+              <div class="table-wrap"><table class="fin-cmp"><thead><tr><th></th><th>ESTE MÊS</th><th>MÊS ANTERIOR</th><th>VARIAÇÃO</th></tr></thead><tbody id="finComparativo"></tbody></table></div>
+              <div class="fin-forecast" id="finPrevisao"></div>
+            </section>
+          </div>
+
+          <section class="surface form-surface fin-form" id="cxFormCard" style="display:none">
+            <div class="surface-heading"><div><h2 id="cxFormTitulo">Movimentar caixa</h2><p>Transfira entre as contas, lance entradas e saídas ou corrija o saldo de uma conta.</p></div><span class="form-badge">CAIXA</span></div>
+            <form id="cxForm" autocomplete="off">
+              <div class="form-grid">
+                <label class="field">Operação<select id="cxOp"><option value="transf">Transferir entre contas</option><option value="entrada">Entrada manual</option><option value="saida">Saída manual</option><option value="ajuste">Editar saldo da conta</option></select></label>
+                <label class="field" id="cxDeBox"><span id="cxDeLbl">De</span><select id="cxDe"></select></label>
+                <label class="field" id="cxParaBox"><span id="cxParaLbl">Para</span><select id="cxPara"></select></label>
+                <label class="field"><span id="cxValorLbl">Valor (R$)</span><input id="cxValor" type="text" inputmode="numeric" placeholder="0,00"></label>
+                <label class="field">Data<input id="cxData" type="date"></label>
+                <label class="field field-wide">Descrição (opcional)<input id="cxDesc" maxlength="120" placeholder="Ex.: transferência semanal, saldo inicial..."></label>
+                <p class="fin-hint field-wide" id="cxHint"></p>
+                <div class="form-actions field-wide"><button class="button button-primary" type="submit">Salvar</button><button class="button button-light" id="cxCancelar" type="button">Fechar</button></div>
+              </div>
+            </form>
+          </section>
+
+          <section class="surface list-surface" id="cxExtrato" style="margin-bottom:17px">
+            <div class="surface-heading responsive-heading"><div><h2>Extrato do caixa</h2><p id="cxExtratoResumo"></p></div><div class="search-tools"><select id="cxFiltro" aria-label="Filtrar por conta"></select></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>CONTA</th><th>DESCRIÇÃO</th><th>ORIGEM</th><th>VALOR</th><th>AÇÕES</th></tr></thead><tbody id="cxLinhas"></tbody></table></div>
+            <div id="cxVazio" class="empty-state"><div class="empty-symbol">$</div><b>Nada no extrato ainda</b><p>As vendas no cartão entram sozinhas no Caixa BLU. Use “Movimentar” para o resto.</p></div>
+          </section>
+
+          <section class="surface form-surface fin-form" id="finFormCard" style="display:none">
+            <div class="surface-heading"><div><h2 id="finFormTitulo">Nova despesa</h2><p>Registre qualquer gasto da loja. Despesas recorrentes serão sugeridas mensalmente, mediante sua confirmação.</p></div><span class="form-badge" id="finFormBadge">LANÇAMENTO</span></div>
+            <form id="finForm" autocomplete="off">
+              <div class="form-grid">
+                <label class="field">Data da despesa<input id="finData" type="date" required></label>
+                <label class="field">Categoria<div class="cep-row"><select id="finCat"></select><button class="button button-light" id="finNovaCat" type="button" title="Criar nova categoria">＋ Nova</button></div></label>
+                <label class="field field-wide">Descrição (item do catálogo)<div class="cep-row"><select id="finItem"></select><button class="button button-light" id="finNovoItem" type="button" title="Criar um item novo no catálogo">＋ Novo item</button><button class="button button-light" id="finGerItens" type="button" title="Renomear, trocar a linha da DRE ou desativar itens">Itens</button></div><input id="finDesc" type="hidden"></label>
+                <p class="fin-hint field-wide" id="finCatHint"></p>
+                <label class="field">Valor (R$)<input id="finValor" type="text" inputmode="numeric" placeholder="0,00"></label>
+                <div class="field field-wide fin-pag" id="finPagBox">
+                  <span>Conta de origem</span>
+                  <div id="finPagtos"></div>
+                  <div class="fin-pag-foot">
+                    <button class="button button-light button-small" id="finAddPag" type="button">＋ Dividir em outra conta</button>
+                    <button class="button button-light button-small" id="finNovaConta" type="button" title="Cadastrar nova conta">＋ Nova conta</button>
+                    <small class="fin-pag-soma" id="finPagSoma"></small>
+                  </div>
+                </div>
+                <label class="field">Situação<select id="finStatus"><option value="pago">Pago</option><option value="pendente">Pendente</option></select></label>
+                <label class="field">Vencimento (opcional)<input id="finVenc" type="date"></label>
+                <label class="field" id="finPagoBox">Data do pagamento<input id="finPago" type="date"></label>
+                <label class="field">Tipo<select id="finTipo"><option value="avulsa">Avulsa</option><option value="rec">Recorrente (todo mês)</option></select></label>
+                <label class="field" id="finRepeteBox" hidden>Repetir por mais (meses)<input id="finRepete" type="number" min="0" max="0" step="1" value="0"></label>
+                <label class="field">Mês de competência na DRE<input id="finComp" type="month"><small class="imp-hint" id="finCompHint"></small></label>
+                <label class="field field-wide">Observação (opcional)<input id="finObs" maxlength="180" placeholder="Ex.: contrato até dez/2026"></label>
+                <div class="form-actions field-wide"><button class="button button-primary" id="finSalvar" type="submit">Salvar despesa</button><button class="button button-light" id="finCancelar" type="button">Fechar</button></div>
+              </div>
+            </form>
+          </section>
+
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Despesas lançadas</h2><p id="finListaTotal">Período pela data do lançamento</p></div><div class="search-tools"><button class="button button-light button-small" id="finCsv" type="button">⬇ Exportar CSV</button></div></div>
+            <div class="fin-list-filters">
+              <label class="field">Buscar<input id="finBusca" type="search" placeholder="Descrição, categoria..."></label>
+              <label class="field">Categoria<select id="finFiltroCat"></select></label>
+              <label class="field">Pagamento<select id="finFiltroForma"></select></label>
+              <label class="field">Situação<select id="finFiltroStatus"><option value="">Todas</option><option value="pago">Pagas</option><option value="pendente">Pendentes</option><option value="vencida">Vencidas</option></select></label>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>LANÇAMENTO</th><th>CATEGORIA</th><th>DESCRIÇÃO</th><th>PAGAMENTO</th><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>AÇÕES</th></tr></thead><tbody id="finLista"></tbody></table></div>
+            <div id="finVazio" class="empty-state"><div class="empty-symbol">$</div><b>Nenhuma despesa encontrada</b><p>Use “Nova despesa” para lançar o primeiro gasto ou altere os filtros.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-dre">
+          <div class="page-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>DRE</h1><p class="subtitle">Demonstração do Resultado do Exercício: receita, deduções, CMV, despesas e resultado do período, com base nas vendas, nos serviços, no Simples Nacional e nas despesas lançadas.</p></div><button class="button button-light" id="dreCsv" type="button">⬇ Exportar CSV</button></div>
+
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Período da análise</h2><p id="drePeriodoDesc"></p></div></div>
+            <div class="report-filters fin-filters">
+              <label class="field">Período<select id="drePreset"><option value="mes" selected>Este mês</option><option value="anterior">Mês anterior</option><option value="3m">Últimos 3 meses</option><option value="ano">Este ano</option><option value="tudo">Tudo</option><option value="custom">Personalizado</option></select></label>
+              <label class="field">De<input type="date" id="dreDe"></label>
+              <label class="field">Para<input type="date" id="dreAte"></label>
+            </div>
+          </section>
+
+          <div class="stats-grid fin-stats">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">R$</span><span class="stat-label">Receita de vendas</span></div><strong id="dreRec">R$ 0,00</strong><div class="stat-foot" id="dreRecNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↗</span><span class="stat-label">Lucro bruto</span></div><strong id="dreBruto">R$ 0,00</strong><div class="stat-foot" id="dreBrutoNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">⚙</span><span class="stat-label">Lucro operacional</span></div><strong id="dreOper">R$ 0,00</strong><div class="stat-foot" id="dreOperNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">=</span><span class="stat-label">Lucro / prejuízo</span></div><strong id="dreRes">R$ 0,00</strong><div class="stat-foot" id="dreResNota"></div></article>
+          </div>
+
+          <section class="surface list-surface" style="margin-bottom:17px">
+            <div class="surface-heading"><div><h2>Demonstração do resultado</h2><p>Valores e percentual sobre a receita de vendas</p></div></div>
+            <div class="table-wrap"><table class="dre-table"><thead><tr><th>DESCRIÇÃO</th><th>VALOR</th><th>% DA RECEITA</th></tr></thead><tbody id="dreCorpo"></tbody></table></div>
+          </section>
+
+          <div class="notice"><span class="notice-icon">i</span><div id="dreAvisos" class="dre-avisos"></div></div>
+
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Despesas do período e linha da DRE</h2><p id="dreDespResumo"></p></div></div>
+            <p class="fin-meta-text" style="padding:0 16px 10px">Cada despesa cai automaticamente numa linha da DRE. Se estiver na linha errada, escolha a correta ao lado; também dá para mudar o mês de competência.</p>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>DESCRIÇÃO</th><th>VALOR</th><th>LINHA DA DRE / COMPETÊNCIA</th></tr></thead><tbody id="dreDespLista"></tbody></table></div>
+          </section>
+
+          <section class="surface list-surface" id="dreSemItemCard" style="margin-top:17px">
+            <div class="surface-heading responsive-heading"><div><h2>Despesas sem item do catálogo</h2><p id="dreSemItemResumo"></p></div></div>
+            <p class="fin-meta-text" style="padding:0 16px 10px">Lançamentos antigos (texto livre). Escolha o item do catálogo de cada um: a linha da DRE e a competência passam a seguir o item. A descrição e o valor não mudam, e a escolha manual de linha feita acima continua valendo.</p>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>DESCRIÇÃO</th><th>VALOR</th><th>ITEM DO CATÁLOGO</th></tr></thead><tbody id="dreSemItemLista"></tbody></table></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-fluxo">
+          <div class="page-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Fluxo de Caixa</h1><p class="subtitle">Saldo inicial, recebimentos, pagamentos, ajustes e saldo final das contas disponíveis (Caixa BLU, Caixa NUBANK e Dinheiro CAIXA), com base nos lançamentos do Conceito Caixa.</p></div><button class="button button-light" id="fcCsv" type="button">⬇ Exportar CSV</button></div>
+
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Período da análise</h2><p id="fcPeriodoDesc"></p></div></div>
+            <div class="report-filters fin-filters">
+              <label class="field">Período<select id="fcPreset"><option value="mes" selected>Este mês</option><option value="anterior">Mês anterior</option><option value="3m">Últimos 3 meses</option><option value="ano">Este ano</option><option value="tudo">Tudo</option><option value="custom">Personalizado</option></select></label>
+              <label class="field">De<input type="date" id="fcDe"></label>
+              <label class="field">Até<input type="date" id="fcAte"></label>
+            </div>
+          </section>
+
+          <div class="stats-grid fin-stats">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">⇤</span><span class="stat-label">Saldo inicial</span></div><strong id="fcIni">R$ 0,00</strong><div class="stat-foot" id="fcIniNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">↙</span><span class="stat-label">Recebimentos</span></div><strong id="fcRec">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">↗</span><span class="stat-label">Pagamentos</span></div><strong id="fcPag">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">±</span><span class="stat-label">Ajustes de saldo</span></div><strong id="fcAj">R$ 0,00</strong><div class="stat-foot">Separados das movimentações</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">=</span><span class="stat-label">Saldo final</span></div><strong id="fcFin">R$ 0,00</strong><div class="stat-foot" id="fcFinNota"></div></article>
+          </div>
+
+          <section class="surface list-surface" style="margin-bottom:17px">
+            <div class="surface-heading"><div><h2>Fluxo do período por conta</h2><p>Saldo inicial + recebimentos − pagamentos + ajustes = saldo final</p></div></div>
+            <div class="table-wrap"><table class="dre-table"><thead><tr><th>DESCRIÇÃO</th><th>CAIXA BLU</th><th>CAIXA NUBANK</th><th>DINHEIRO CAIXA</th><th>TOTAL</th></tr></thead><tbody id="fcCorpo"></tbody></table></div>
+          </section>
+
+          <div class="notice"><span class="notice-icon">i</span><div id="fcAvisos" class="dre-avisos"></div></div>
+
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Lançamentos do período</h2><p id="fcResumoLista"></p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>CONTA</th><th>DESCRIÇÃO</th><th>TIPO</th><th>VALOR</th></tr></thead><tbody id="fcLinhas"></tbody></table></div>
+            <div id="fcVazio" class="empty-state" style="display:none"><div class="empty-symbol">$</div><b>Nenhum lançamento no período</b><p>Altere o período acima para ver as movimentações das três contas.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-backup">
+          <div class="page-heading"><div><p class="eyebrow">SEGURANÇA DOS DADOS</p><h1>Backup e transferência</h1><p class="subtitle">Faça uma cópia e transfira seus dados manualmente entre dispositivos.</p></div></div>
+          <div class="backup-grid">
+            <section class="surface backup-card"><div class="backup-icon blue-bg">↓</div><p class="eyebrow">ETAPA 01</p><h2>Exportar backup</h2><p>ZIP completo: registros financeiros, fotos dos produtos e XML originais das compras. O programa verifica o conteúdo antes de disponibilizar o arquivo.</p><button id="fazerBackup" class="button button-primary full-button" type="button">Baixar backup completo (.zip)</button><button id="backupJsonLegado" class="button button-light full-button" type="button" style="margin-top:8px">Backup só dos dados (.json, sem XML)</button><button id="copiarBackupTexto" class="button button-light full-button" type="button" style="margin-top:8px">Copiar dados como texto (sem XML)</button><p id="backupStatus" class="payment-notice" role="status" aria-live="polite"></p></section>
+            <section class="surface backup-card" id="cardRestaurar"><div class="backup-icon violet-bg">↑</div><p class="eyebrow">ETAPA 02</p><h2>Restaurar backup</h2><p>O arquivo é validado primeiro e uma cópia preventiva será exigida. <b>Os dados atuais deste navegador serão substituídos somente após sua confirmação.</b></p><label class="field file-field">Escolher arquivo de backup (.zip, .json ou .txt)<input id="arquivoBackup" type="file" accept=".zip,.json,.txt,application/zip,application/json,text/plain"></label><label class="field file-field">Ou cole o texto do backup<textarea id="textoBackup" rows="2" placeholder="CKR1:..." style="width:100%;box-sizing:border-box;border:1px solid #e0e6ef;border-radius:8px;padding:8px;font:500 11px 'DM Sans'"></textarea></label><button id="verificarBackup" class="button button-light full-button" type="button" style="margin-bottom:8px">Verificar arquivo (sem restaurar)</button><button id="restaurarBackup" class="button button-light full-button" type="button">Restaurar dados</button><p id="restoreStatus" class="payment-notice" role="status" aria-live="polite"></p></section>
+          </div>
+          <section class="surface" id="recuperarXml" style="margin-top:16px;padding:24px"><h2>Recuperar XML de uma nota já importada</h2><p>Use somente quando o backup informar que o documento original de uma nota existente está ausente. Este recurso <b>não importa produtos, não altera o estoque e não cria compras ou pagamentos.</b></p><label class="field file-field">Selecionar XML original (.xml)<input id="reporArquivoXML" type="file" accept=".xml,text/xml,application/xml"></label><button id="reporBotaoXML" type="button" class="button button-light">Repor XML original</button><p class="payment-notice">O Conceito confere chave, número, série, valor e autorização antes de vincular o arquivo à importação existente.</p></section>
+          <section class="surface danger-zone" id="zonaApagar"><div><h2>Apagar dados locais</h2><p>Remove todos os produtos, entradas e vendas deste navegador. Esta ação não pode ser desfeita sem backup.</p></div><button id="apagarTudo" class="button button-danger-light" type="button">Apagar todos os dados</button></section>
+          <div class="notice warning-notice" id="avisoRestaurar"><span class="notice-icon">!</span><p><b>Importante:</b> o computador e o celular têm dados separados. Restaurar um backup substitui os dados do destino; não combina automaticamente duas bases. Faça backup antes de importar.</p></div>
+        </section>
+        <section class="panel" id="panel-pdv">
+          <div class="page-heading"><div><p class="eyebrow">FRENTE DE CAIXA</p><h1>PDV</h1><p class="subtitle">Venda rápida com leitor de código de barras, troco e cupom não fiscal. <b>(Encomendas só em Registrar venda.)</b></p></div></div>
+          <section class="surface form-surface" id="pdvFechado">
+            <div class="surface-heading"><div><h2>Caixa fechado</h2><p>Informe o troco inicial para começar a vender.</p></div></div>
+            <div class="form-grid"><label class="field">Troco inicial (R$)<input id="pdvAbertura" type="text" inputmode="numeric" autocomplete="off" value="0,00"></label><div class="form-actions"><button class="button button-primary" id="pdvAbrir" type="button">Abrir caixa</button></div></div>
+            <div class="surface-heading" style="margin-top:20px"><div><h2>Últimos fechamentos</h2></div></div>
+            <div class="table-wrap"><table><thead><tr><th>ABERTURA</th><th>OPERADOR</th><th>VENDAS</th><th>ESPERADO</th><th>CONTADO</th><th>DIFERENÇA</th></tr></thead><tbody id="pdvHistCaixa"></tbody></table></div>
+          </section>
+          <div id="pdvAberto" hidden>
+            <div class="surface pdv-bar"><span id="pdvCaixaInfo"></span><div class="pdv-bar-actions"><button class="button button-light button-small" id="pdvSuprimento" type="button">Suprimento</button><button class="button button-light button-small" id="pdvSangria" type="button">Sangria</button><button class="button button-light button-small" id="pdvFechar" type="button">Fechar caixa</button></div></div>
+            <div class="pdv-grid">
+              <section class="surface form-surface">
+                <div class="pdv-search"><input id="pdvBusca" type="search" autocomplete="off" placeholder="Bipe o código ou digite o nome (3*código = 3 unidades)"><div id="pdvSug" class="pdv-sug" hidden></div></div>
+                <label class="check-filter"><input type="checkbox" id="pdvSoEstoque"><span>Mostrar só produtos com estoque</span></label>
+                <div class="table-wrap"><table class="cart-table"><thead><tr><th>PRODUTO</th><th>QTD.</th><th>UNIT.</th><th>TOTAL</th><th></th></tr></thead><tbody id="pdvLinhas"></tbody></table></div>
+              </section>
+              <section class="surface form-surface">
+                <label class="field">Data da venda<input id="pdvData" type="date"></label>
+                <label class="field">Cliente (obrigatório)<input id="pdvCliente" maxlength="150" list="clientesSugestoes" placeholder="Digite as primeiras letras"></label>
+                <div class="sale-discounts" style="grid-template-columns:repeat(3,minmax(0,1fr))"><label class="field">Desconto (R$)<input id="pdvDescReais" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><label class="field">Desconto (%)<input id="pdvDescPct" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"></label><div class="field"><span>Lucro (%)</span><strong id="pdvLucroPct" style="min-height:44px;display:flex;align-items:center;font-size:15px;color:#1f2a44">—</strong></div></div>
+                <div class="pdv-total"><span>Subtotal</span><strong id="pdvSub">R$ 0,00</strong></div>
+                <div class="pdv-total big"><span>Total</span><strong id="pdvTotal">R$ 0,00</strong></div>
+                <div class="pdv-pay"><label class="field">Pagamento<select id="pdvPagMetodo"><option value="">Selecione...</option><option>Dinheiro</option><option>Pix</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Link de pagamento (Blu)</option><option>Promissória</option></select></label><label class="field">Valor (R$)<input id="pdvPagValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><button class="button button-light" id="pdvPagAdd" type="button">Adicionar</button></div>
+                <div id="pdvPagExtra" class="payment-card-options pdv-pag-extra" hidden></div>
+                <div id="pdvChips" class="pdv-chips"></div>
+                <div class="pdv-total"><span id="pdvRestoLabel">Falta receber</span><strong id="pdvResto">R$ 0,00</strong></div>
+                <p id="pdvOrcAviso" class="pay-hint" hidden></p>
+                <button class="button button-primary full-button" id="pdvFinalizar" type="button">Finalizar venda (F2)</button>
+                <div class="field qphoto" id="pdvFotoBox"><span>Foto extra do orçamento (opcional)</span><div class="qphoto-row"><label class="qphoto-drop" for="pdvFotoInput" id="pdvFotoDrop"><b>📷</b><span class="qphoto-txt"> Adicionar foto</span><input type="file" accept="image/*" id="pdvFotoInput" hidden></label><img id="pdvFotoPrev" class="qphoto-prev" alt="Foto do produto" hidden><button type="button" class="button button-light button-small" id="pdvFotoRemover" hidden>Remover foto</button></div></div>
+                <div class="qphoto-auto" id="pdvFotosProd" hidden><small>Fotos dos produtos do carrinho (vão junto no orçamento):</small><div class="qphoto-strip"></div></div>
+                <label class="field">Parcelar no orçamento (aparece no cupom)<select id="pdvOrcParcelas"><option value="1">À vista (sem parcelas)</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option></select></label>
+                <button class="button button-light full-button" id="pdvOrcamento" type="button">✎ Salvar como orçamento</button>
+                <button class="button button-light full-button" id="pdvImposto" type="button">🧾 Informações de imposto</button>
+                <div id="pdvPos" class="receipt-actions" hidden><p id="pdvPosTexto"></p><button class="button button-light full-button" id="pdvImprimir" type="button">Imprimir cupom (80 mm)</button><button class="button button-light full-button" id="pdvPdf" type="button">⬇ Baixar recibo em PDF</button><small>O cupom não tem valor fiscal. A NFC-e continua sendo emitida no seu outro sistema.</small></div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-orcamentos">
+          <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Orçamentos</h1><p class="subtitle">Orçamentos não baixam estoque nem entram no financeiro. Converta em venda quando o cliente fechar.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Relatório do mês</h2><p>Os números consideram os orçamentos criados no mês escolhido. Deixe vazio para ver todos.</p></div></div>
+            <div class="form-grid"><label class="field">Mês<input type="month" id="orcMes"></label><label class="field">Validade padrão (dias)<input type="number" id="orcValidade" min="1" max="365" step="1"></label></div>
+            <div id="orcResumo"></div>
+          </section>
+          <section class="surface">
+            <div class="surface-heading"><div><h2>Lista de orçamentos</h2></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Nº</th><th>DATA</th><th>CLIENTE</th><th>TOTAL</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="orcLista"></tbody></table></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-encomendas">
+          <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Encomendas</h1><p class="subtitle">Vendas de produtos que ainda não chegaram. O sinal (ou o pagamento total) já entra no Caixa (cartão no 1º dia útil) e pode ser usado; estoque e lucro só são lançados na entrega. Para criar, vá em Registrar venda e marque “Encomenda”.</p></div></div>
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">⧖</span><span class="stat-label">Aguardando</span></div><strong id="encStatAbertas">0</strong><div class="stat-foot" id="encStatAbertasNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">R$</span><span class="stat-label">Já recebido (sinais)</span></div><strong id="encStatRecebido">R$ 0,00</strong><div class="stat-foot">Ainda não entrou no caixa do sistema</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="stat-label">A receber na entrega</span></div><strong id="encStatReceber">R$ 0,00</strong><div class="stat-foot">Saldo das encomendas em aberto</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">✓</span><span class="stat-label">Prontas para entregar</span></div><strong id="encStatProntas">0</strong><div class="stat-foot" id="encStatProntasNota"></div></article>
+          </div>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Lista de encomendas</h2><p>“Produto já no estoque” aparece quando você dá entrada do produto que chegou.</p></div><div class="search-tools"><select id="encFiltro" aria-label="Filtrar situação"><option value="abertas">Aguardando</option><option value="entregues">Entregues</option><option value="canceladas">Canceladas</option><option value="todas">Todas</option></select><div class="search-box"><span>⌕</span><input id="encBusca" type="search" placeholder="Buscar cliente ou produto"></div></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Nº</th><th>DATA</th><th>CLIENTE</th><th>PRODUTOS</th><th>TOTAL</th><th>JÁ PAGO</th><th>FALTA</th><th>PREVISÃO</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="encLista"></tbody></table></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-promissorias">
+          <div class="page-heading"><div><p class="eyebrow">COMERCIAL</p><h1>Promissórias</h1><p class="subtitle">Parcelas a receber das vendas na promissória, com lembrete de vencimento.</p></div></div>
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">R$</span><span class="stat-label">Em aberto</span></div><strong id="promAberto">R$ 0,00</strong><div class="stat-foot" id="promAbertoNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="stat-label">Vencidas</span></div><strong id="promVencidas">R$ 0,00</strong><div class="stat-foot" id="promVencidasNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">◔</span><span class="stat-label">A vencer em breve</span></div><strong id="promAvencer">R$ 0,00</strong><div class="stat-foot" id="promAvencerNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">✓</span><span class="stat-label">Recebido no mês</span></div><strong id="promRecebido">R$ 0,00</strong><div class="stat-foot" id="promRecebidoNota"></div></article>
+          </div>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Parcelas</h2><p id="promSubtitulo">Todas as parcelas</p></div><div class="search-tools"><select id="promStatus" aria-label="Filtrar situação"><option value="abertas">Em aberto</option><option value="vencidas">Vencidas</option><option value="avencer">A vencer em breve</option><option value="recebidas">Recebidas</option><option value="todas">Todas</option></select><label class="date-range">Vencimento de <input id="promDe" type="date"></label><label class="date-range">até <input id="promAte" type="date"></label><button type="button" class="text-button" id="promLimparData">Limpar datas</button><div class="search-box"><span>⌕</span><input id="promBusca" type="search" placeholder="Buscar cliente ou venda..."></div></div></div>
+            <div class="table-wrap"><table><thead><tr><th>VENCIMENTO</th><th>CLIENTE</th><th>VENDA</th><th>PARCELA</th><th>VALOR</th><th>SITUAÇÃO</th><th>AÇÕES</th></tr></thead><tbody id="promRows"></tbody></table></div>
+            <div id="promVazio" class="empty-state"><div class="empty-symbol">◔</div><b>Nenhuma parcela encontrada</b><p>Vendas feitas na forma "Promissória" aparecem aqui com os vencimentos.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-impostos">
+          <div class="page-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Impostos</h1><p class="subtitle">Registro das notas informadas nas vendas (Registrar venda e PDV). Por enquanto são registros soltos: não alteram venda, estoque nem financeiro.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Período</h2><p>Escolha o mês. O sistema soma os 12 meses anteriores (RBT12) para achar a alíquota efetiva e aplica no faturamento do mês escolhido.</p></div><button class="button button-light button-small" id="impMesAtual" type="button">Mês atual</button></div>
+            <div class="form-grid">
+              <label class="field">Mês de apuração<input type="month" id="impMes"><small class="imp-hint" id="impMesInfo"></small></label>
+            </div>
+            <div class="stats-grid imp-stats">
+              <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">§</span><span class="stat-label">Notas no mês</span></div><strong id="impQtd">0</strong></article>
+              <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">R$</span><span class="stat-label">Faturamento do mês</span></div><strong id="impTotal">R$ 0,00</strong></article>
+              <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">%</span><span class="stat-label">Alíquota efetiva</span></div><strong id="impAE">0,00%</strong></article>
+              <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-violet">R$</span><span class="stat-label">Imposto a pagar</span></div><strong id="impPagarCard">R$ 0,00</strong></article>
+            </div>
+          </section>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Cálculo do imposto (Simples Nacional)</h2><p>AE = (RBT12 × alíquota − PD) ÷ RBT12 &nbsp;·&nbsp; imposto = faturamento do mês × AE</p></div><button class="button button-light button-small" id="impRecalc" type="button">Restaurar cálculo automático</button></div>
+            <div class="form-grid">
+              <label class="field">Anexo<select id="impAnexo"><option value="1">Anexo I — Comércio (tabela automática)</option><option value="m">Informar alíquota e PD manualmente</option></select></label>
+              <label class="field">RBT12 — 12 meses anteriores ao mês<input id="impRbt" placeholder="0,00"><small class="imp-hint" id="impRbtInfo"></small></label>
+              <label class="field">Alíquota nominal (%)<input id="impAliq" placeholder="0,00"></label>
+              <label class="field">PD — parcela a deduzir (R$)<input id="impPd" placeholder="0,00"></label>
+              <label class="field">Imposto a pagar (pode ajustar)<input id="impPagar" placeholder="0,00"><small class="imp-hint" id="impPagarInfo"></small></label>
+              <label class="field">Vencimento (dia 20)<input type="date" id="impVenc"><small class="imp-hint" id="impVencInfo"></small></label>
+            </div>
+            <div class="notice" style="margin-top:15px"><span class="notice-icon">i</span><p id="impInfo"></p></div>
+          </section>
+          <section class="surface">
+            <div class="surface-heading"><div><h2>Notas registradas</h2></div><div class="imp-head-actions"><input id="impBusca" type="search" autocomplete="off" placeholder="Buscar por data, nº ou valor da nota" aria-label="Buscar nota"><button class="button button-light button-small" id="impNova" type="button">＋ Nova nota</button></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>N° DA NOTA</th><th>VALOR DA NOTA</th><th>ORIGEM</th><th>AÇÕES</th></tr></thead><tbody id="impLista"></tbody><tfoot id="impListaTotal"></tfoot></table></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-taxas">
+          <div class="page-heading"><div><p class="eyebrow">CONFIGURAÇÕES</p><h1>Taxas e crédito</h1><p class="subtitle">Taxas descontadas do lucro e percentual do cartão da fábrica. Mudanças valem para as próximas vendas; as já feitas não mudam.</p></div></div>
+          <form id="taxasForm" autocomplete="off">
+            <section class="surface form-surface">
+              <div class="surface-heading"><div><h2>Maquininha (cartão da loja)</h2><p>Taxa em % descontada do lucro, por bandeira e número de parcelas.</p></div></div>
+              <div class="table-wrap"><table class="rate-table"><thead><tr><th>MODALIDADE</th><th>VISA E MASTER (%)</th><th>AMEX E ELO (%)</th></tr></thead><tbody id="taxasTabela"></tbody></table></div>
+            </section>
+            <section class="surface form-surface">
+              <div class="surface-heading"><div><h2>Link de pagamento (Blu)</h2><p>Taxa total = custo da venda online + taxa administrativa (a tabela acima, pela bandeira e parcelas) + prazo estendido. Recebimento em 30 dias por parcela.</p></div></div>
+              <div class="form-grid">
+                <label class="field">Custo da venda online (%)<input id="bluOnline" inputmode="decimal"></label>
+                <label class="field">Prazo estendido a partir de (parcelas)<input id="bluExtraDe" type="number" min="1" step="1"></label>
+                <label class="field">Prazo estendido: taxa por parcela (%)<input id="bluExtraParcela" inputmode="decimal"></label>
+              </div>
+            </section>
+            <section class="surface form-surface">
+              <div class="surface-heading"><div><h2>Cartão da fábrica e promissória</h2><p id="fabLucroInfo"></p></div></div>
+              <div class="form-grid">
+                <label class="field">Parte que vira crédito com a fábrica (%)<input id="fabCreditoPct" inputmode="decimal"></label>
+                <label class="field">Lembrar promissórias e boletos da fábrica com antecedência de (dias)<input id="promLembreteDias" type="number" min="0" step="1"></label>
+              </div>
+              <div class="form-actions" style="margin-top:16px"><button class="button button-primary" type="submit">Salvar configurações</button><button class="button button-light" id="taxasPadrao" type="button">Restaurar valores padrão</button></div>
+            </section>
+          </form>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Crédito com a fábrica</h2><p>Vendas no cartão da fábrica + créditos lançados manualmente, menos o que já foi usado (inclusive em pedidos).</p></div><button class="button button-light button-small" id="fabUsar" type="button">Registrar uso de crédito</button></div>
+            <div class="stats-grid"><article class="stat-card"><div class="stat-top"><span class="stat-label">Acumulado</span></div><strong id="fabAcumulado">R$ 0,00</strong></article><article class="stat-card"><div class="stat-top"><span class="stat-label">Já utilizado</span></div><strong id="fabUtilizado">R$ 0,00</strong></article><article class="stat-card"><div class="stat-top"><span class="stat-label">Saldo disponível</span></div><strong id="fabSaldo">R$ 0,00</strong></article></div>
+
+            <div class="surface-heading" style="margin-top:22px"><div><h2>Adicionar crédito</h2><p>Use para o saldo inicial que você já tem com a fábrica ou para qualquer ajuste.</p></div></div>
+            <div class="form-grid">
+              <label class="field">Data<input id="fabManData" type="date"></label>
+              <label class="field">Valor (R$)<input id="fabManValor" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label>
+              <label class="field">Descrição<input id="fabManDesc" type="text" autocomplete="off" placeholder="Ex.: saldo inicial"></label>
+            </div>
+            <div class="form-actions" style="margin:12px 0 4px"><button class="button button-primary button-small" id="fabManAdd" type="button">Adicionar crédito</button></div>
+
+            <div class="surface-heading" style="margin-top:22px"><div><h2>Todos os créditos</h2><p id="fabCredResumo">Sem filtro de data: aparecem todos os créditos, de qualquer dia.</p></div></div>
+            <div class="form-grid">
+              <label class="field">Origem<select id="fabFiltroOrigem"><option value="todos">Todos</option><option value="venda">Vendas no cartão da fábrica</option><option value="manual">Lançados manualmente</option></select></label>
+              <label class="field">De<input id="fabFiltroDe" type="date"></label>
+              <label class="field">Até<input id="fabFiltroAte" type="date"></label>
+              <label class="field field-wide">Buscar (cliente, venda, descrição)<input id="fabFiltroBusca" type="text" autocomplete="off" placeholder="Digite para filtrar"></label>
+              <label class="check-filter field-wide"><input type="checkbox" id="fabFiltroSem"><span>Mostrar também vendas no cartão que NÃO geraram crédito (parcelamento pela loja)</span></label>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>ORIGEM</th><th>DETALHES</th><th>CRÉDITO</th><th></th></tr></thead><tbody id="fabCredLinhas"></tbody></table></div>
+            <div id="fabCredVazio" class="empty-state"><div class="empty-symbol">%</div><b>Nenhum crédito encontrado</b><p>Ajuste os filtros ou adicione um crédito acima.</p></div>
+
+            <div class="surface-heading" style="margin-top:26px"><div><h2>Usos do crédito</h2><p>Registros manuais e abatimentos feitos em pedidos à fábrica.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>DESCRIÇÃO</th><th>VALOR USADO</th><th></th></tr></thead><tbody id="fabLinhas"></tbody></table></div>
+            <div id="fabVazio" class="empty-state"><div class="empty-symbol">%</div><b>Nenhum uso registrado</b><p>Quando usar o crédito em compras na fábrica, registre aqui ou faça um pedido na aba Pedidos à fábrica.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-pedidos">
+          <div class="page-heading"><div><p class="eyebrow">FÁBRICA</p><h1>Pedidos à fábrica</h1><p class="subtitle">Registre os pedidos, abata o crédito que você tem com a fábrica e acompanhe as parcelas.</p></div></div>
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Crédito disponível</span></div><strong id="pedStatSaldo">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Pedidos feitos</span></div><strong id="pedStatPedidos">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Parcelas a pagar</span></div><strong id="pedStatPendente">R$ 0,00</strong></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Aguardando entrega</span></div><strong id="pedStatEntrega">0</strong></article>
+          </div>
+
+          <div id="pedAlertaPainel" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="pedAlertaPainelTexto"></p></div>
+          <section class="surface list-surface" style="margin-bottom:17px">
+            <div class="surface-heading"><div><h2>Boletos e parcelas a pagar</h2><p>Só entram as parcelas em aberto (boleto e outras formas a prazo), em ordem de vencimento. Pix, dinheiro, transferência e débito já ficam como pagos.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>PARCELA · FORMA</th><th>PEDIDO</th><th></th></tr></thead><tbody id="pedAgenda"></tbody></table></div>
+            <div id="pedAgendaVazio" class="empty-state"><div class="empty-symbol">✓</div><b>Nenhuma parcela em aberto</b><p>Pedidos pagos a prazo (ex.: boleto 30/60/90) aparecem aqui com data e valor.</p></div>
+          </section>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Novo pedido</h2><p>Preencha os produtos, escolha como vai pagar e, se quiser, abata o crédito.</p></div></div>
+            <div class="form-grid">
+              <label class="field">Data do pedido<input id="pedData" type="date"></label>
+              <label class="field" style="grid-column:span 2">Observação (opcional)<input id="pedObs" type="text" autocomplete="off" placeholder="Ex.: pedido de colchões, NF 123"></label>
+            </div>
+            <label class="check-filter" style="margin-top:12px"><input type="checkbox" id="pedEntregue"><span>Pedido já foi entregue</span></label>
+            <div class="table-wrap" style="margin-top:14px"><table class="ped-table"><thead><tr><th>PRODUTO</th><th style="width:90px">QUANT.</th><th style="width:140px">VAL. UNIT. (R$)</th><th style="width:120px">VALOR TOTAL</th><th style="width:40px"></th></tr></thead><tbody id="pedItens"></tbody></table></div>
+            <datalist id="pedProdutos"></datalist>
+            <div class="form-actions" style="margin:10px 0 0;align-items:center;justify-content:space-between;flex-wrap:wrap"><button class="button button-light button-small" id="pedAddItem" type="button">+ Adicionar produto</button><div class="sale-total" style="flex:0 1 280px"><span>Total geral</span><strong id="pedTotal">R$ 0,00</strong></div></div>
+            <p id="pedItensVazio" class="payment-notice" style="margin-top:10px">Nenhum produto no pedido ainda. Clique em "+ Adicionar produto" para escolher da lista de estoque.</p>
+            <div id="pedPicker" class="ped-picker" hidden>
+              <div class="ped-pick-head"><label class="search-box"><span>⌕</span><input id="pedPickBusca" type="search" placeholder="Buscar produto ou código" autocomplete="off"></label><button class="button button-light button-small" id="pedAddLivre" type="button">+ Outro produto (digitar)</button><button class="button button-primary button-small" id="pedPickFechar" type="button">Concluir</button></div>
+              <p class="ped-pick-dica">Marque os produtos que precisa comprar mais (o estoque atual aparece ao lado). Desmarque para tirar do pedido. Para um produto que não está na lista, use "Outro produto".</p>
+              <div id="pedPickLista" class="ped-pick-lista"></div>
+            </div>
+
+            <div class="surface-heading" style="margin-top:24px"><div><h2>Pagamento</h2><p>Use o crédito da fábrica e pague o restante com outra forma, à vista ou a prazo.</p></div></div>
+            <label class="check-filter" style="margin-bottom:12px"><input type="checkbox" id="pedUsarCredito"><span>Abater crédito da fábrica neste pedido</span></label>
+            <div id="pedCreditoBox" hidden class="form-grid" style="margin-bottom:14px">
+              <label class="field">Crédito a usar (R$)<input id="pedCredito" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label>
+              <div class="field"><span>&nbsp;</span><button class="button button-light" id="pedUsarTodo" type="button">Usar o máximo possível</button></div>
+              <p class="payment-notice" id="pedSaldoInfo" style="align-self:end"></p>
+            </div>
+            <p class="payment-notice payment-ok" id="pedRestoInfo" style="margin-bottom:12px"></p>
+            <div id="pedRestoBox" hidden>
+              <div id="pedPagamentos"></div>
+              <div class="form-actions" style="margin:4px 0 0"><button class="button button-light button-small" id="pedAddPag" type="button">+ Adicionar outra forma de pagamento</button></div>
+            </div>
+            <p class="payment-notice" id="pedFalta" style="margin:10px 0 0;font-weight:600"></p>
+            <p class="pay-hint" id="pedPreview" style="margin:10px 0 0;font-size:12px;color:#637087;line-height:1.7"></p>
+            <div class="form-actions" style="margin-top:16px"><button class="button button-primary" id="pedSalvar" type="button">Salvar pedido</button><button class="button button-light" id="pedPdf" type="button">PDF para a fábrica</button><button class="button button-light" id="pedLimpar" type="button">Limpar</button></div>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading responsive-heading"><div><h2>Pedidos registrados</h2><p>Cada pedido mostra o crédito usado, a forma de pagamento do restante e as parcelas.</p></div><div class="search-tools"><select id="pedFiltroEntrega" aria-label="Filtrar entrega"><option value="todos">Todos os pedidos</option><option value="aguardando">Aguardando entrega</option><option value="entregues">Entregues</option></select><label class="search-box"><span>⌕</span><input id="pedBusca" type="search" placeholder="Buscar produto, data ou forma" autocomplete="off"></label></div></div>
+            <div class="table-wrap"><table><thead><tr><th>DATA</th><th>PRODUTOS</th><th>TOTAL</th><th>CRÉDITO USADO</th><th>RESTANTE · FORMA</th><th>PRAZO</th><th>ENTREGA</th><th></th></tr></thead><tbody id="pedLista"></tbody></table></div>
+            <div id="pedVazio" class="empty-state"><div class="empty-symbol">⊕</div><b>Nenhum pedido registrado</b><p>Faça o primeiro pedido no formulário acima.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-xml">
+          <div class="page-heading"><div><p class="eyebrow">ESTOQUE</p><h1>Importar XML</h1><p class="subtitle">Dê entrada no estoque a partir dos XML de NF-e recebidos dos fornecedores.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Selecionar notas</h2><p>Você confere cada item antes de confirmar. Notas já importadas são ignoradas.</p></div></div>
+            <div class="form-grid"><label class="field field-wide">Arquivos XML<input id="xmlArquivos" type="file" accept=".xml,text/xml,application/xml" multiple></label><label class="field">Margem para produtos novos (%)<input id="xmlMargem" type="text" inputmode="numeric" autocomplete="off" placeholder="0,00"></label><label class="check-filter"><input type="checkbox" id="xmlAtualizaCusto" checked disabled><span>Custo da nota entra como novo lote (PEPS)</span></label><label class="check-filter"><input type="checkbox" id="xmlRateio" checked><span>Ratear frete, seguro e outras despesas do total da nota entre os itens</span></label></div>
+          </section>
+          <div id="xmlEncAviso" class="sale-edit-banner" hidden><div><b id="xmlEncTitulo"></b><p id="xmlEncTexto"></p></div><button type="button" class="button button-light button-small" id="xmlEncCancelar">Desvincular</button></div>
+          <div id="xmlRevisao"></div>
+          <div id="xmlAcoes" class="form-actions" hidden style="margin-bottom:17px"><button class="button button-primary" id="xmlConfirmar" type="button">Confirmar entrada no estoque</button><button class="button button-light" id="xmlCancelar" type="button">Cancelar</button></div>
+          <section class="surface list-surface" style="margin-bottom:17px">
+            <div class="surface-heading"><div><h2>Vínculos salvos</h2><p>Itens de fornecedores que o sistema já reconhece e vincula sozinho nas próximas notas.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>FORNECEDOR</th><th>ITEM DA NOTA</th><th>PRODUTO NO CONCEITO</th><th></th></tr></thead><tbody id="xmlLinks"></tbody></table></div>
+            <div id="xmlLinksVazio" class="empty-state"><div class="empty-symbol">⇄</div><b>Nenhum vínculo salvo</b><p>Ao confirmar uma importação, a escolha de cada item fica guardada aqui.</p></div>
+          </section>
+          <section class="surface list-surface">
+            <div class="surface-heading"><div><h2>Notas importadas</h2><p>Os arquivos XML ficam guardados neste navegador para o pacote do contador.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>IMPORTADA EM</th><th>DATA DA NOTA</th><th>FORNECEDOR</th><th>NOTA</th><th>VALOR</th><th>ITENS</th></tr></thead><tbody id="xmlHist"></tbody></table></div>
+            <div id="xmlHistVazio" class="empty-state"><div class="empty-symbol">⇩</div><b>Nenhuma nota importada</b><p>Selecione os XML acima para começar.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-contador">
+          <div class="page-heading"><div><p class="eyebrow">CONTABILIDADE</p><h1>Exportar para o contador</h1><p class="subtitle">Pacote mensal em ZIP para enviar por e-mail.</p></div></div>
+          <section class="surface form-surface">
+            <div class="surface-heading"><div><h2>Pacote do mês</h2><p>Leva os XML das compras importadas, a planilha de vendas e a de compras (CSV).</p></div></div>
+            <div class="form-grid"><label class="field">Mês<input id="ctMes" type="month"></label><label class="field field-wide">E-mail do contador<input id="ctEmail" type="email" autocomplete="email" placeholder="contador@exemplo.com.br"></label></div>
+            <p id="ctPrev" class="payment-notice"></p>
+            <div class="form-actions"><button class="button button-primary" id="ctEnviar" type="button">Gerar ZIP e enviar por e-mail</button><button class="button button-light" id="ctBaixar" type="button">Só baixar o ZIP</button></div>
+            <p class="payment-notice">O navegador não anexa arquivos sozinho: no celular o ZIP vai direto para o app de e-mail; no computador ele é baixado e o e-mail abre pronto para você anexar.</p>
+          </section>
+        </section>
+
+        <footer class="footer"><span>© Conceito Gestão • V2.0</span><span><span class="status-dot"></span> Armazenamento local ativo</span></footer>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
+  <script src="app.js?v=39"></script>
+  <script src="modulos.js?v=37"></script>
+  <script src="encomendas.js?v=6"></script>
+  <script src="despesas.js?v=18"></script>
+  <script src="planejamento.js?v=1"></script>
+  <script src="caixa.js?v=24"></script>
+  <script src="impostos.js?v=13"></script>
+  <script src="dre.js?v=9"></script>
+  <script src="fluxo.js?v=2"></script>
+  <script src="dashboard.js?v=3"></script>
+  <script src="backup_seguro.js?v=2"></script>
+  <script>
+    // Diagnóstico visual quando o arquivo novo não existe na pasta do programa.
+    window.addEventListener('load',function(){
+      if(typeof window.ckrAtualizarDashboard!=='function'){
+        var e=document.getElementById('execConferencia');
+        if(e)e.textContent='O arquivo dashboard.js não foi carregado. Copie dashboard.js para a mesma pasta de app.js e atualize a página (Ctrl+F5).';
+      }
+    });
+  </script>
+</body>
+</html>
