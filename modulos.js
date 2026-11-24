@@ -238,6 +238,23 @@ window.ckrBackupLerXML=async()=>{
   t.onerror=()=>no(t.error||Error('Falha ao ler XML'));
  });
 };
+// Recuperação documental pontual: grava apenas o XML de uma nota já importada.
+// NÃO cria movimentações, não importa produtos e não altera o objeto financeiro `data`.
+window.ckrBackupReporXML=async (key,xml)=>{
+ if(!/^\d{44}$/.test(String(key))||typeof xml!=='string'||!xml.trim().startsWith('<'))throw Error('Chave ou XML inválido');
+ const db=await idb();
+ return new Promise((ok,no)=>{
+  const tx=db.transaction('xml','readwrite'),store=tx.objectStore('xml');
+  const get=store.get(key);
+  get.onsuccess=()=>{
+   if(typeof get.result==='string'&&get.result.trim())return; // não sobrescreve um original existente
+   store.put(xml,key);
+  };
+  get.onerror=()=>tx.abort();
+  tx.oncomplete=()=>ok();tx.onerror=()=>no(tx.error||Error('Não foi possível registrar o XML'));
+  tx.onabort=()=>no(tx.error||Error('A transação do XML foi cancelada'));
+ });
+};
 window.ckrBackupSubstituirXML=async entries=>{
  if(!Array.isArray(entries)||entries.some(x=>!x||typeof x.key!=='string'||!x.key||typeof x.text!=='string'||!x.text.trim().startsWith('<')))throw Error('Arquivo XML inválido');
  const d=await idb();return new Promise((ok,no)=>{
