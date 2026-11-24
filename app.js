@@ -822,8 +822,12 @@ function renderSaleSearch(){
   .filter(v=>{const day=localDateKey(v.date);if(start&&day<start)return false;if(end&&day>end)return false;
    return !tokens.length||tokens.every(t=>fold([v.client,v.description,'servico',new Date(v.date).toLocaleDateString('pt-BR'),day].join(' ')).includes(t));});
  const all=[...sales,...svc].sort((a,b)=>new Date(b.date)-new Date(a.date));
- // serviços já prestados a cada cliente (para o aviso dentro da linha da venda)
- const svcByClient={};(typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(v=>{const k=fold(v.client||'');if(!k)return;const o=svcByClient[k]||(svcByClient[k]={n:0,total:0});o.n++;o.total+=Number(v.amount||0);});
+ // Associação precisa: um serviço só é exibido em uma venda quando há saleId explícito.
+ // Serviços históricos sem saleId continuam como registros independentes, sem associação por nome.
+ const svcBySale={};(typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(v=>{
+  const k=String(v.saleId||'').trim();if(!k)return;
+  const o=svcBySale[k]||(svcBySale[k]={n:0,total:0});o.n++;o.total+=Number(v.amount||0);
+ });
  const active=all.filter(s=>!s.canceled),LIMIT=100;
  const totalAtivas=active.reduce((n,s)=>n+s.total,0),lucroAtivas=active.filter(s=>s.profitKnown).reduce((n,s)=>n+s.profit,0);
  const comNota=active.filter(s=>s.taxNote),totalNotas=comNota.reduce((n,s)=>n+Number(s.taxNote.value||0),0);
@@ -836,7 +840,7 @@ function renderSaleSearch(){
   +`<td class="sale-status"><span class="pill ativa">Ativa</span><br><small>Receita de serviço${s.edited?' · editada':''}</small></td>`
   +`<td><button type="button" class="row-action" data-svc-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-svc-delete="${esc(s.id)}">Excluir serviço</button></td></tr>`):(`<tr class="${s.canceled?'row-canceled':''}">`
   +`<td>${esc(dateText(s.date))}<br><small>Venda ${esc(s.id)}</small></td>`
-  +`<td><span class="product-name">${esc(s.client||'Sem cliente')}</span>${s.cpf?`<br><small>CPF ${esc(s.cpf)}</small>`:''}${(()=>{const o=svcByClient[fold(s.client||'')];return o?`<br><button type="button" class="nota-badge com" data-svc-cliente="${esc(s.client)}" title="Ver os serviços deste cliente">🛠 ${o.n} ${o.n===1?'serviço':'serviços'} · ${esc(money(o.total))}</button>`:'';})()}</td>`
+  +`<td><span class="product-name">${esc(s.client||'Sem cliente')}</span>${s.cpf?`<br><small>CPF ${esc(s.cpf)}</small>`:''}${(()=>{const o=svcBySale[String(s.id)];return o?`<br><span class="nota-badge com" title="Serviço vinculado a esta venda">🛠 ${o.n} ${o.n===1?'serviço':'serviços'} · ${esc(money(o.total))}</span>`:'';})()}</td>`
   +`<td><ul class="sale-items">${s.items.map(i=>`<li>${i.quantity}× ${esc(i.name)}</li>`).join('')}</ul></td>`
   +`<td class="${s.canceled?'sale-money-canceled':''}">${esc(money(s.total))}</td>`
   +`<td>${s.canceled||!s.profitKnown?'—':esc(money(s.profit))}</td>`
@@ -909,8 +913,6 @@ function cancelSale(saleId){
  if(saveData())toast(missing.length?`Venda cancelada. Não foi possível devolver ao estoque (produto excluído): ${missing.join(', ')}.`:'Venda cancelada. Estoque e valores atualizados.',missing.length>0);
 }
 document.getElementById('listaVendasBusca').addEventListener('click',e=>{
- const sc=e.target.closest('[data-svc-cliente]');
- if(sc){document.getElementById('buscaVenda').value=sc.dataset.svcCliente;renderSaleSearch();return;}   // filtra: vendas e serviços deste cliente
  const se=e.target.closest('[data-svc-edit]'),sd=e.target.closest('[data-svc-delete]');
  if(se){if(window.ckrServicoEdit)window.ckrServicoEdit(se.dataset.svcEdit);return;}
  if(sd){if(window.ckrServicoDelete)window.ckrServicoDelete(sd.dataset.svcDelete);return;}
