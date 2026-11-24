@@ -94,7 +94,7 @@ function accountOptions(){
 }
 // Campo "Saiu de qual conta?" da Nova despesa: só as 4 contas do Conceito caixa (Pedidos à fábrica continua usando accountOptions)
 function expenseAccountOptions(){
- return CAIXA.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
+ return '<option value="">Selecione a conta…</option>'+CAIXA.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('');
 }
 function syncAccounts(){
  const opts=expenseAccountOptions();
@@ -414,6 +414,20 @@ function save(ev){
  if(!(amount>0)){toast('Informe o valor da despesa.',true);$('finValor').focus();return;}
  const date=$('finData').value||todayISO(),status=$('finStatus').value;
  let pays=readPays();
+ // Não permita quitar despesas novas sem uma origem financeira explícita.
+ // Contas externas de despesas históricas já pagas são preservadas em edições,
+ // sem migração para o Conceito Caixa (evita alterar saldos conciliados).
+ if(status==='pago'){
+  const antigo=editId?list().find(x=>x.id===editId):null;
+  const origensAntigas=antigo&&antigo.status==='pago'?payList(antigo).map(p=>p.account):[];
+  for(const p of pays){
+   if(!p.account){toast('Selecione a conta de origem antes de marcar a despesa como paga.',true);return;}
+   if(!CAIXA.some(a=>a[0]===p.account)&&!origensAntigas.includes(p.account)){
+    toast('Para novos pagamentos, selecione uma conta do Conceito Caixa. Contas externas antigas são preservadas apenas no histórico.',true);return;
+   }
+  }
+ }
+
  if(pays.length===1)pays[0].amount=amount;
  else{
   const blank=pays.filter(p=>!(p.amount>0));
@@ -442,7 +456,17 @@ function onListClick(ev){
  const x=list().find(i=>i.id===b.dataset.id);if(!x)return;
  const act=b.dataset.fin;
  if(act==='edit'){fillForm(x);return;}
- if(act==='pay'){x.status='pago';x.paidDate=todayISO();if(saveData())toast(payList(x).some(p=>p.account)?'Despesa marcada como paga.':'Despesa marcada como paga. Em Editar, escolha de qual conta saiu para descontar do caixa.');return;}
+ if(act==='pay'){
+  // Abrir o formulário, sem quitar automaticamente: a conta deve ser escolhida
+  // conscientemente no momento de registrar a saída.
+  fillForm(x);
+  $('finStatus').value='pago';
+  $('finPago').value=todayISO();
+  document.querySelectorAll('#finPagtos .pg-c').forEach(sel=>{sel.value='';});
+  syncForm();
+  toast('Escolha a conta de origem e clique em Salvar alterações para confirmar o pagamento.');
+  return;
+ }
  if(act==='repeat'){
   const c={...x,id:id(),date:addMonths(x.date,1),dueDate:x.dueDate?addMonths(x.dueDate,1):'',status:'pendente',paidDate:'',compMonth:x.compMonth?addMonths(x.compMonth+'-01',1).slice(0,7):'',recurring:true,createdAt:new Date().toISOString()};
   x.recurring=true;list().push(c);if(saveData())toast(`Lançada de novo em ${dayText(c.date)} (pendente).`);return;
