@@ -221,7 +221,7 @@
           <div id="executiveDashboard" class="exec-dashboard" aria-label="Painel executivo">
             <div class="exec-toolbar surface">
               <div class="exec-toolbar-title"><span class="exec-kicker">GESTÃO FINANCEIRA</span><h2>Resumo executivo</h2><p>Desempenho por competência e caixa realizado. Saldos e pendências sempre na posição de hoje.</p></div>
-              <div class="exec-period-control"><label for="execMes">Mês de referência</label><div class="exec-period-row"><button id="execPrev" type="button" aria-label="Mês anterior" title="Mês anterior">‹</button><input id="execMes" type="month" aria-label="Mês de referência"><button id="execNext" type="button" aria-label="Próximo mês" title="Próximo mês">›</button></div></div>
+              <div class="exec-period-control"><label for="execMes">Mês de referência</label><div class="exec-period-row"><button id="execPrev" type="button" aria-label="Mês anterior" title="Mês anterior">‹</button><input id="execMes" type="month" aria-label="Mês de referência"><button id="execNext" type="button" aria-label="Próximo mês" title="Próximo mês">›</button></div><button id="execRefresh" type="button" class="exec-refresh" title="Recalcular indicadores sem modificar lançamentos">Atualizar indicadores</button></div>
             </div>
             <p class="exec-period-caption" id="execPositionDate">Posição financeira de hoje · Resultado do mês selecionado</p>
             <div class="exec-kpi-grid">
@@ -235,7 +235,7 @@
               <article class="exec-mini"><span>Margem líquida · DRE</span><strong id="execMargem">—</strong><small>Lucro ÷ receita bruta da DRE</small></article>
               <article class="exec-mini"><span>Geração líquida de caixa</span><strong id="execCaixaLiquido">—</strong><small>Recebimentos menos pagamentos no período</small></article>
             </div>
-            <p id="execConferencia" class="exec-conference" role="status">Indicadores calculados a partir dos módulos financeiros do Conceito.</p>
+            <p id="execConferencia" class="exec-conference" role="status">Carregando indicadores financeiros…</p>
             <div class="exec-chart-grid">
               <section class="surface exec-chart-card"><div class="exec-heading"><div><h2>Faturamento e margem líquida</h2><p>6 meses · vendas/serviços e rentabilidade segundo a DRE</p></div></div><div id="execRevenueChart" class="exec-chart" role="img" aria-label="Gráfico de faturamento e margem líquida dos seis últimos meses"></div><div class="exec-legend"><span><i class="exec-legend-dot exec-dot-blue"></i> Faturamento</span><span><i class="exec-legend-line"></i> Margem líquida</span></div></section>
               <section class="surface exec-chart-card"><div class="exec-heading"><div><h2>Entradas e saídas de caixa</h2><p>6 meses · movimentação monetária pelo DFC</p></div></div><div id="execCashChart" class="exec-chart" role="img" aria-label="Gráfico de recebimentos e pagamentos dos seis últimos meses"></div><div class="exec-legend"><span><i class="exec-legend-dot exec-dot-blue"></i> Entradas</span><span><i class="exec-legend-dot exec-dot-sand"></i> Saídas</span></div></section>
@@ -954,6 +954,15 @@
   <script src="impostos.js?v=13"></script>
   <script src="dre.js?v=7"></script>
   <script src="fluxo.js?v=2"></script>
-  <script src="dashboard.js?v=1"></script>
+  <script src="dashboard.js?v=2"></script>
+  <script>
+    // Diagnóstico visual quando o arquivo novo não existe na pasta do programa.
+    window.addEventListener('load',function(){
+      if(typeof window.ckrAtualizarDashboard!=='function'){
+        var e=document.getElementById('execConferencia');
+        if(e)e.textContent='O arquivo dashboard.js não foi carregado. Copie dashboard.js para a mesma pasta de app.js e atualize a página (Ctrl+F5).';
+      }
+    });
+  </script>
 </body>
 </html>
