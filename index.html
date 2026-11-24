@@ -683,6 +683,7 @@
             <section class="surface backup-card"><div class="backup-icon blue-bg">↓</div><p class="eyebrow">ETAPA 01</p><h2>Exportar backup</h2><p>ZIP completo: registros financeiros, fotos dos produtos e XML originais das compras. O programa verifica o conteúdo antes de disponibilizar o arquivo.</p><button id="fazerBackup" class="button button-primary full-button" type="button">Baixar backup completo (.zip)</button><button id="backupJsonLegado" class="button button-light full-button" type="button" style="margin-top:8px">Backup só dos dados (.json, sem XML)</button><button id="copiarBackupTexto" class="button button-light full-button" type="button" style="margin-top:8px">Copiar dados como texto (sem XML)</button><p id="backupStatus" class="payment-notice" role="status" aria-live="polite"></p></section>
             <section class="surface backup-card" id="cardRestaurar"><div class="backup-icon violet-bg">↑</div><p class="eyebrow">ETAPA 02</p><h2>Restaurar backup</h2><p>O arquivo é validado primeiro e uma cópia preventiva será exigida. <b>Os dados atuais deste navegador serão substituídos somente após sua confirmação.</b></p><label class="field file-field">Escolher arquivo de backup (.zip, .json ou .txt)<input id="arquivoBackup" type="file" accept=".zip,.json,.txt,application/zip,application/json,text/plain"></label><label class="field file-field">Ou cole o texto do backup<textarea id="textoBackup" rows="2" placeholder="CKR1:..." style="width:100%;box-sizing:border-box;border:1px solid #e0e6ef;border-radius:8px;padding:8px;font:500 11px 'DM Sans'"></textarea></label><button id="verificarBackup" class="button button-light full-button" type="button" style="margin-bottom:8px">Verificar arquivo (sem restaurar)</button><button id="restaurarBackup" class="button button-light full-button" type="button">Restaurar dados</button><p id="restoreStatus" class="payment-notice" role="status" aria-live="polite"></p></section>
           </div>
+          <section class="surface" id="recuperarXml" style="margin-top:16px;padding:24px"><h2>Recuperar XML de uma nota já importada</h2><p>Use somente quando o backup informar que o documento original de uma nota existente está ausente. Este recurso <b>não importa produtos, não altera o estoque e não cria compras ou pagamentos.</b></p><label class="field file-field">Selecionar XML original (.xml)<input id="reporArquivoXML" type="file" accept=".xml,text/xml,application/xml"></label><button id="reporBotaoXML" type="button" class="button button-light">Repor XML original</button><p class="payment-notice">O Conceito confere chave, número, série, valor e autorização antes de vincular o arquivo à importação existente.</p></section>
           <section class="surface danger-zone" id="zonaApagar"><div><h2>Apagar dados locais</h2><p>Remove todos os produtos, entradas e vendas deste navegador. Esta ação não pode ser desfeita sem backup.</p></div><button id="apagarTudo" class="button button-danger-light" type="button">Apagar todos os dados</button></section>
           <div class="notice warning-notice" id="avisoRestaurar"><span class="notice-icon">!</span><p><b>Importante:</b> o computador e o celular têm dados separados. Restaurar um backup substitui os dados do destino; não combina automaticamente duas bases. Faça backup antes de importar.</p></div>
         </section>
@@ -947,7 +948,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=39"></script>
-  <script src="modulos.js?v=36"></script>
+  <script src="modulos.js?v=37"></script>
   <script src="encomendas.js?v=6"></script>
   <script src="despesas.js?v=17"></script>
   <script src="caixa.js?v=24"></script>
@@ -955,7 +956,7 @@
   <script src="dre.js?v=7"></script>
   <script src="fluxo.js?v=2"></script>
   <script src="dashboard.js?v=2"></script>
-  <script src="backup_seguro.js?v=1"></script>
+  <script src="backup_seguro.js?v=2"></script>
   <script>
     // Diagnóstico visual quando o arquivo novo não existe na pasta do programa.
     window.addEventListener('load',function(){
