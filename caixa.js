@@ -206,6 +206,25 @@ window.ckrEncomendaCredito=()=>r2(encCreditos().reduce((n,x)=>n+x.credit,0));
 window.ckrCaixaLinhas=function(){ensureStart();const S=balances();return {rows:rowsAll(S),saldos:Object.assign({},S.b),inicio:conf().start||'',pend:{qtd:S.agQtd,valor:S.agComp}};};   // pend: pagamentos à fábrica com a Agenda BLU aguardando conciliação
 // Agenda BLU: bruto (sem os comprometidos), comprometido (pagamentos pendentes de conciliação) e disponível (já sem comprometidos e sem o bloqueado de encomendas). Somente leitura.
 window.ckrAgendaResumo=function(){ensureStart();const S=balances();return {pendentes:S.agQtd,bruto:S.agBruto,comprometido:S.agComp,disponivel:S.agDisp};};
+// Consulta para a Visão Geral. Apenas apresenta os valores calculados pelo próprio Caixa.
+// Não altera a data de corte, não grava e não cria lançamentos.
+window.ckrCaixaPainelResumo=function(){
+ const S=balances(),keys=['blu','nubank','dinheiro'],hoje=todayISO();
+ // A tela Caixa pode exibir lançamento manual datado no futuro. O painel só considera
+ // disponível o que consta no extrato ATÉ HOJE (mesma base cronológica do DFC).
+ const realizados={blu:0,nubank:0,dinheiro:0};
+ rowsAll(S).forEach(r=>{
+  if(!keys.includes(r.acc)||!r.date)return;
+  const dia=/^\d{4}-\d{2}-\d{2}$/.test(String(r.date))?String(r.date):localDateKey(r.date);
+  if(dia&&dia<=hoje)realizados[r.acc]=r2(realizados[r.acc]+Number(r.amount||0));
+ });
+ const disponivel=r2(keys.reduce((n,k)=>n+realizados[k]-Number(S.lock[k]||0),0));
+ const futuro=r2(keys.reduce((n,k)=>n+S.b[k]-realizados[k],0));
+ return {disponivel,contas:Object.fromEntries(keys.map(k=>[k,{saldo:realizados[k],bloqueado:S.lock[k]||0}])),
+   agenda:S.b.agenda,agendaBloqueada:S.lock.agenda||0,agendaPendente:S.agQtd,
+   agendaComprometida:S.agComp,lancamentosFuturos:futuro,inicio:conf().start||''};
+};
+
 // Saldo disponivel do credito com a fabrica (leitura; nao entra no saldo total)
 function fabSaldo(){
  const sales=r2((data.movements||[]).filter(m=>m.type==='venda'&&!m.canceled).reduce((x,m)=>x+Number(m.factoryCredit||0),0));
