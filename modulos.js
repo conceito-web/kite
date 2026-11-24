@@ -561,10 +561,30 @@ $('taxasForm').addEventListener('submit',e=>{
  st.blu={online:parsePercentInput($('bluOnline').value),extraFrom:Math.max(1,Math.round(Number($('bluExtraDe').value)||10)),extraPerInstallment:parsePercentInput($('bluExtraParcela').value)};
  st.factoryCreditPct=Math.min(100,parsePercentInput($('fabCreditoPct').value));
  st.promissory={remindDays:Math.max(0,Math.round(Number($('promLembreteDias').value)||0))};
- data.settings=st;
+ // Atualiza somente os parâmetros desta tela, sem apagar preferências de outros módulos (ex.: quoteDays).
+ const atual=data.settings&&typeof data.settings==='object'&&!Array.isArray(data.settings)?data.settings:{};
+ data.settings={...atual,
+  rates:{...(atual.rates||{}),vm:{...((atual.rates||{}).vm||{}),...st.rates.vm},ae:{...((atual.rates||{}).ae||{}),...st.rates.ae}},
+  blu:{...(atual.blu||{}),...st.blu},
+  factoryCreditPct:st.factoryCreditPct,
+  promissory:{...(atual.promissory||{}),...st.promissory}
+ };
  if(saveData()){loadTaxasForm();toast('Configurações salvas. Valem para as próximas vendas.');}
 });
-$('taxasPadrao').addEventListener('click',()=>{if(!confirm('Voltar todas as taxas e percentuais para os valores padrão?'))return;data.settings={};if(saveData()){loadTaxasForm();toast('Valores padrão restaurados.');}});
+$('taxasPadrao').addEventListener('click',()=>{
+ if(!confirm('Voltar todas as taxas e percentuais para os valores padrão?'))return;
+ const atual=data.settings&&typeof data.settings==='object'&&!Array.isArray(data.settings)?data.settings:{};
+ // Exclui apenas as propriedades que esta tela controla. getSettings() recupera os padrões de DEFAULT_SETTINGS.
+ // Outras configurações (ex.: quoteDays) e chaves futuras são preservadas.
+ const novo={...atual};
+ for(const k of ['rates','blu','factoryCreditPct'])delete novo[k];
+ if(atual.promissory&&typeof atual.promissory==='object'&&!Array.isArray(atual.promissory)){
+  novo.promissory={...atual.promissory};delete novo.promissory.remindDays;
+  if(!Object.keys(novo.promissory).length)delete novo.promissory;
+ }
+ data.settings=novo;
+ if(saveData()){loadTaxasForm();toast('Valores padrão restaurados.');}
+});
 const ledger=()=>data.factoryLedger||(data.factoryLedger=[]);
 const manual=()=>data.factoryCreditsManual||(data.factoryCreditsManual=[]);
 const orders=()=>data.factoryOrders||(data.factoryOrders=[]);
