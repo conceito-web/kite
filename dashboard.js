@@ -21,7 +21,7 @@
  const getCaixa=()=>typeof window.ckrCaixaPainelResumo==='function'?window.ckrCaixaPainelResumo():null;
  function obligations(){
   const now=today(),future=localDateKey(new Date(new Date().getFullYear(),new Date().getMonth(),new Date().getDate()+30));
-  const exps=(Array.isArray(data.expenses)?data.expenses:[]).filter(x=>x&&x.status!=='pago');
+  const exps=(Array.isArray(data.expenses)?data.expenses:[]).filter(x=>x&&x.status!=='pago'&&x.forecast!==true);
   const fac=(Array.isArray(data.factoryOrders)?data.factoryOrders:[]).flatMap(o=>Array.isArray(o.installments)?o.installments.filter(p=>p&&!p.paid):[]);
   const prom=(Array.isArray(data.receivables)?data.receivables:[]).filter(r=>r&&!r.canceled&&!r.paid);
   const promRem=r=>Math.max(0,r2(number(r.amount)-number(r.received)));
@@ -89,7 +89,7 @@
    statusEl('execMargem',fmtPct(dre.margem),dre.margem);
    statusEl('execCaixaLiquido',signed(dfc.liquido),dfc.liquido);
    $('execReceberNota').textContent=`Agenda BLU ${signed(cx.agenda)} + promissórias ${money(obl.promValue)}`;
-   $('execPagarNota').textContent=`Despesas ${money(obl.expensesValue)} + fábrica ${money(obl.factoryValue)}`;
+   $('execPagarNota').textContent=`Obrigações registradas ${money(obl.expensesValue)} + fábrica ${money(obl.factoryValue)} · previsões excluídas`;
    let notes=[];
    if(Math.abs(cx.lancamentosFuturos||0)>.005)notes.push(`Há ${signed(cx.lancamentosFuturos)} em lançamentos monetários com data futura, excluídos do disponível de hoje.`);
    if(cx.agendaPendente)notes.push(`${cx.agendaPendente} conciliação(ões) BLU pendente(s): valores da Agenda ainda sujeitos a ajuste.`);
