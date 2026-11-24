@@ -50,6 +50,51 @@
  }
  function countText(m){return `${m.financialRecords.movements} movimentações, ${m.financialRecords.expenses} despesas, ${m.productPhotos} fotos e ${m.xml.length} XML`}
  async function saveZip(pkg,name){const message=await ckrSaveFile(name,pkg.blob,'application/zip');if(/cancelad/i.test(String(message)))throw Error('Salvamento cancelado');return message;}
+
+ // Reanexa documento XML perdido, exclusivamente a uma NF-e já importada.
+ // Nenhuma compra é reimportada e nenhum lançamento financeiro é modificado.
+ window.ckrReporXMLOriginal=async()=>{
+  if(!isAdminRole()){toast('Somente ADMIN pode repor documentos fiscais.',true);return;}
+  if(busy)return;
+  const el=$('reporArquivoXML'),file=el&&el.files&&el.files[0];
+  if(!file){state('Escolha o XML original que deseja recuperar.');return;}
+  busy=true;
+  try{
+   if(window.ckrStorageCorrompido)throw Error('Armazenamento financeiro ilegível; recuperação bloqueada');
+   if(file.size>5*1024*1024)throw Error('O arquivo XML ultrapassa o limite de 5 MB');
+   const xml=await file.text();
+   const doc=new DOMParser().parseFromString(xml,'application/xml');
+   if(doc.getElementsByTagName('parsererror').length)throw Error('O documento não é um XML válido');
+   const tag=(parent,n)=>{
+    if(!parent)return '';
+    for(const el of parent.getElementsByTagNameNS('*',n))return String(el.textContent||'').trim();
+    return '';
+   };
+   const info=doc.getElementsByTagNameNS('*','infNFe')[0];
+   const ide=doc.getElementsByTagNameNS('*','ide')[0];
+   const total=doc.getElementsByTagNameNS('*','ICMSTot')[0];
+   const protocolo=doc.getElementsByTagNameNS('*','infProt')[0];
+   if(!info||!ide||!total||!protocolo)throw Error('Escolha uma NF-e processada e autorizada (nfeProc)');
+   const key=String(info.getAttribute('Id')||'').replace(/^NFe/,'');
+   const nf=tag(ide,'nNF'),serie=tag(ide,'serie'),valor=Number(tag(total,'vNF'));
+   if(!/^\d{44}$/.test(key)||tag(protocolo,'chNFe')!==key||tag(protocolo,'cStat')!=='100')throw Error('Chave ou protocolo de autorização não confere');
+   const imp=(data.xmlImports||[]).find(x=>String(x.key)===key);
+   if(!imp)throw Error('Essa NF-e não consta nas importações atuais. NÃO use o recurso de recuperação para cadastrar novas compras');
+   if(String(imp.number)!==String(nf)||String(imp.serie)!==String(serie)||!Number.isFinite(valor)||Math.abs(Number(imp.total)-valor)>.005)throw Error('Número, série ou valor do XML não coincidem com a importação existente');
+   if(typeof window.ckrBackupLerXML!=='function'||typeof window.ckrBackupReporXML!=='function')throw Error('O módulo de documentos fiscais não está atualizado');
+   const exists=(await window.ckrBackupLerXML()).find(x=>x.key===key);
+   if(exists&&exists.text&&exists.text.trim()){
+    state('O XML da NF-e nº '+nf+' já está armazenado. Nenhum dado foi alterado.');return;
+   }
+   await window.ckrBackupReporXML(key,xml);
+   const confirmed=(await window.ckrBackupLerXML()).find(x=>x.key===key);
+   if(!confirmed||confirmed.text!==xml)throw Error('O XML não pôde ser confirmado após a gravação');
+   el.value='';
+   state('XML original da NF-e nº '+nf+' recuperado com sucesso. Sem alterações em estoque, vendas ou Caixa. Agora tente gerar o backup completo.');
+   toast('Documento XML vinculado à importação existente.');
+  }catch(e){fail(e);}finally{busy=false;}
+ };
+ const repor=$('reporBotaoXML');if(repor)repor.addEventListener('click',()=>window.ckrReporXMLOriginal());
  window.ckrExportarBackupCompleto=async()=>{
   if(!document.body.dataset.ckrRole){toast('Entre no sistema para fazer backup.',true);return;}
   if(busy){toast('Já existe uma operação de backup em andamento.',true);return;}
