@@ -19,16 +19,20 @@ const pfWarn=()=>toast('Não foi possível gravar a foto no armazenamento do nav
 function pfPut(id,url){pf.set(id,url);pfTx(s=>s.put(url,id)).catch(pfWarn);}
 window.pfDelete=id=>{pf.delete(id);pfTx(s=>s.delete(id)).catch(()=>{});};
 window.pfClear=()=>{pf.clear();pfTx(s=>s.clear()).catch(()=>{});};
-window.pfRestore=obj=>{
- pf.clear();pfTx(s=>s.clear()).catch(()=>{});
- if(obj&&typeof obj==='object')Object.keys(obj).forEach(k=>{const v=obj[k];if(typeof v==='string'&&v.indexOf('data:image/')===0)pfPut(k,v);});
+// Operações de fotos para backup/restauração, aguardando o IndexedDB.
+window.pfRestore=async obj=>{
+ if(obj===undefined)return; // backup antigo sem fotos: PRESERVAR as imagens atuais
+ if(!obj||typeof obj!=='object'||Array.isArray(obj))throw Error('Fotos inválidas no backup');
+ await window.ckrFotosProntas;if(!pfDb)throw Error('Armazenamento de fotos indisponível');
+ const entries=Object.entries(obj);
+ for(const [k,v] of entries)if(typeof k!=='string'||!k||typeof v!=='string'||!/^data:image\/(?:jpeg|png|webp);base64,/i.test(v))throw Error('Foto inválida');
+ await pfTx(s=>{s.clear();entries.forEach(([k,v])=>s.put(v,k));});
+ pf.clear();entries.forEach(([k,v])=>pf.set(k,v));
  try{window.renderAll();}catch(_){}
 };
 window.pfThumb=id=>pf.has(id)?`<img class="p-thumb" src="${pf.get(id)}" alt="">`:'';
-pfOpen().then(db=>{pfDb=db;return new Promise(ok=>{const r=db.transaction('fotos').objectStore('fotos').openCursor();r.onsuccess=()=>{const c=r.result;if(c){pf.set(c.key,c.value);c.continue();}else ok();};r.onerror=()=>ok();});}).then(()=>{if(typeof window.renderAll==='function')window.renderAll();}).catch(()=>{});
-// o backup leva as fotos junto (adicionadas só durante a exportação)
-document.getElementById('fazerBackup').addEventListener('click',()=>{if(pf.size)data.productPhotos=Object.fromEntries(pf);setTimeout(()=>{delete data.productPhotos;},0);},true);
-document.getElementById('copiarBackupTexto').addEventListener('click',()=>{if(pf.size)data.productPhotos=Object.fromEntries(pf);setTimeout(()=>{delete data.productPhotos;},0);},true);
+window.ckrFotosProntas=pfOpen().then(db=>{pfDb=db;return new Promise((ok,no)=>{const r=db.transaction('fotos').objectStore('fotos').openCursor();r.onsuccess=()=>{const c=r.result;if(c){pf.set(c.key,c.value);c.continue();}else ok();};r.onerror=()=>no(r.error);});}).then(()=>{if(typeof window.renderAll==='function')window.renderAll();return true;}).catch(()=>false);
+window.ckrBackupFotos=async()=>{if(!await window.ckrFotosProntas)throw Error('Não foi possível acessar as fotos do navegador');return Object.fromEntries(pf);};
 
 // formulário de produto
 const pfForm={pending:undefined};
@@ -224,6 +228,24 @@ document.addEventListener('keydown',e=>{if(e.key==='F2'&&$('panel-pdv').classLis
 const idb=()=>new Promise((ok,err)=>{const q=indexedDB.open('conceito_xml',1);q.onupgradeneeded=()=>q.result.createObjectStore('xml');q.onsuccess=()=>ok(q.result);q.onerror=()=>err(q.error);});
 const xmlPut=async(k,v)=>{const d=await idb();return new Promise((ok,err)=>{const t=d.transaction('xml','readwrite');t.objectStore('xml').put(v,k);t.oncomplete=ok;t.onerror=()=>err(t.error);});};
 const xmlGet=async k=>{const d=await idb();return new Promise((ok,err)=>{const q=d.transaction('xml').objectStore('xml').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>err(q.error);});};
+// Exporta TODOS os XML armazenados, inclusive documentos sem referência ativa no cadastro.
+window.ckrBackupLerXML=async()=>{
+ const d=await idb();return new Promise((ok,no)=>{
+  const out=[],t=d.transaction('xml','readonly'),q=t.objectStore('xml').openCursor();
+  q.onsuccess=()=>{const c=q.result;if(c){out.push({key:String(c.key),text:String(c.value)});c.continue();}};
+  q.onerror=()=>no(q.error||Error('Falha ao ler XML'));
+  t.oncomplete=()=>ok(out);
+  t.onerror=()=>no(t.error||Error('Falha ao ler XML'));
+ });
+};
+window.ckrBackupSubstituirXML=async entries=>{
+ if(!Array.isArray(entries)||entries.some(x=>!x||typeof x.key!=='string'||!x.key||typeof x.text!=='string'||!x.text.trim().startsWith('<')))throw Error('Arquivo XML inválido');
+ const d=await idb();return new Promise((ok,no)=>{
+  const t=d.transaction('xml','readwrite'),s=t.objectStore('xml');s.clear();entries.forEach(x=>s.put(x.text,x.key));
+  t.oncomplete=()=>ok();t.onerror=()=>no(t.error||Error('Falha ao gravar XML'));t.onabort=()=>no(t.error||Error('Transação XML abortada'));
+ });
+};
+
 function allocateCents(total,weights){
  const sum=weights.reduce((x,y)=>x+y,0),cents=Math.round(total*100);
  if(!(cents>0)||!(sum>0))return weights.map(()=>0);
