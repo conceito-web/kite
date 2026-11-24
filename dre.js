@@ -157,6 +157,14 @@ function compute(s,e){
  return R;
 }
 
+// Consulta de leitura para a Visão Geral: a mesma DRE usada na tela financeira.
+window.ckrDreResumoPeriodo=function(inicio,fim){
+ const R=compute(inicio,fim);
+ return {receitaBruta:R.rec,descontos:R.desc,devolucoes:R.dev,receitaLiquida:R.liq,
+   faturamento:r2(R.rec-R.desc-R.dev),lucro:R.res,
+   margem:R.rec>0?r2(100*R.res/R.rec):null,vendas:R.vendasQtd,semCusto:R.sem};
+};
+
 // ---------- montagem da tabela ----------
 function rows(R){
  const L=R.L,out=[];
