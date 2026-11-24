@@ -36,7 +36,7 @@ function grupo(r){
 function compute(s,e){
  if(typeof window.ckrCaixaLinhas!=='function')return null;
  const hoje=todayISO(),L=window.ckrCaixaLinhas();
- const rows=L.rows.filter(r=>AV.indexOf(r.acc)>=0&&!r.pendConc).map(r=>Object.assign({},r,{dk:dk(r.date)})).filter(r=>r.dk);
+ const rows=L.rows.filter(r=>AV.indexOf(r.acc)>=0).map(r=>Object.assign({},r,{dk:dk(r.date)})).filter(r=>r.dk);
  const fim=(e&&e<hoje)?e:hoje;                 // saldo final nunca passa da data de hoje
  const futuro=!!s&&s>hoje;                      // período inteiro no futuro: não há movimento realizado
  let ini,mov;
@@ -59,9 +59,18 @@ function compute(s,e){
   const fut=rows.filter(r=>r.dk>hoje);
   conf={atual,dif,futQtd:fut.length,futVal:r2(fut.reduce((n,r)=>n+r.amount,0))};
  }
- return {s,e,fim,hoje,futuro,ini,rec,pag,aj,itn,fin,interno,fecha,conf,inicio:L.inicio,pend:L.pend||{qtd:0,valor:0},
+ return {s,e,fim,hoje,futuro,ini,rec,pag,aj,itn,fin,interno,fecha,conf,inicio:L.inicio,
   gRec:grp(por.rec),gPag:grp(por.pag),gAj:grp(por.aj),mov:mov.map(r=>Object.assign({},r,{t:tipo(r)}))};
 }
+
+// Consulta sem gravação para a Visão Geral: utiliza o cálculo já utilizado no DFC.
+window.ckrFluxoResumoPeriodo=function(inicio,fim){
+ const R=compute(inicio,fim);
+ if(!R)return null;
+ return {entradas:R.rec.total,saidas:r2(Math.abs(R.pag.total)),
+  liquido:r2(R.rec.total+R.pag.total),ajustes:R.aj.total,
+  saldoFinal:R.fin.total,fecha:R.fecha,futuro:R.futuro,ateEfetivo:R.fim};
+};
 
 // ---------- tela ----------
 function monthRange(off){
@@ -117,12 +126,11 @@ function render(){
  av.push(`<p>Cartão da loja entra no Caixa já líquido da taxa, por isso a taxa do cartão (que o DRE mostra como despesa) não aparece como pagamento aqui.</p>`);
  if(R.interno>0.004)av.push(`<p>Transferências entre as três contas no período: ${money(R.interno)}. Não entram como recebimento nem como pagamento: movem o saldo entre as contas e somam zero no total.</p>`);
  if(R.conf){
-  if(Math.abs(R.conf.dif)<0.005)av.push(`<p><b>Confere com o Conceito Caixa${R.pend.qtd?' (provisório)':''}:</b> o saldo final é igual à soma das três contas hoje (${signed(R.conf.atual)}).</p>`);
+  if(Math.abs(R.conf.dif)<0.005)av.push(`<p><b>Confere com o Conceito Caixa:</b> o saldo final é igual à soma das três contas hoje (${signed(R.conf.atual)}).</p>`);
   else av.push(`<p><b>Diferença de ${signed(R.conf.dif)} para o Conceito Caixa</b> (soma das três contas hoje: ${signed(R.conf.atual)}). ${R.conf.futQtd?`Há ${R.conf.futQtd} lançamento(s) com data futura somando ${signed(R.conf.futVal)}: o Caixa já os soma ao saldo, mas o fluxo respeita a data e só os conta quando chegar o dia.`:'Nenhum lançamento com data futura explica a diferença; confira o extrato do Caixa.'}</p>`);
  }
  if(R.inicio&&(!s||s<R.inicio))av.push(`<p><b>Data de corte do Caixa:</b> as vendas, serviços e despesas só contam a partir de ${dayText(R.inicio)}. Antes disso o saldo inicial reflete apenas os lançamentos manuais e ajustes que existem no Caixa; nenhum saldo foi estimado.</p>`);
  if(R.futuro)av.push(`<p>A data inicial é posterior a hoje: não há movimento realizado neste período.</p>`);
- if(R.pend.qtd>0)av.unshift(`<p><b>⚠ Pagamentos à fábrica aguardando conciliação:</b> ${R.pend.qtd} ${R.pend.qtd===1?'pagamento':'pagamentos'}, ${money(R.pend.valor)}, feitos com a Agenda BLU. Não entram nos recebimentos nem nos pagamentos acima (não movimentam Caixa BLU, NUBANK nem Dinheiro CAIXA). Os recebíveis consumidos ainda não foram identificados: a distribuição dos recebimentos futuros pode estar incorreta, então o saldo da Agenda BLU e do Caixa BLU não deve ser tratado como definitivo até a conciliação.</p>`);
  $('fcAvisos').innerHTML=av.join('');
 
  const ord=R.mov.slice().sort((a,b)=>b.dk.localeCompare(a.dk)||String(b.ts||'').localeCompare(String(a.ts||'')));
