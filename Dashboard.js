@@ -1,5 +1,5 @@
 'use strict';
-// Conceito · Visão Geral Executiva v1
+// Conceito · Visão Geral Executiva v2 — inicialização segura depois do login
 // Somente leitura: utiliza resumos do Caixa, DRE e Fluxo, sem salvar ou criar lançamentos.
 (function(){
  const $=key=>document.getElementById(key);
@@ -76,7 +76,10 @@
   $('execPositionDate').textContent=`Posição financeira em ${dayText(today())} · Desempenho de ${fullLabel(selected)}`;
   try{
    const cx=getCaixa(),dre=getDre(start,end),dfc=getDfc(start,end),obl=obligations();
-   if(!cx||!dre||!dfc)throw new Error('Um dos módulos financeiros não forneceu o resumo.');
+   if(!cx||!dre||!dfc){
+    const missing=[!cx?'Caixa':'',!dre?'DRE':'',!dfc?'DFC':''].filter(Boolean).join(', ');
+    throw new Error('Resumo indisponível: '+missing+'. Confirme se caixa.js, dre.js e fluxo.js foram atualizados.');
+   }
    const receber=r2(cx.agenda+obl.promValue),pagar=r2(obl.expensesValue+obl.factoryValue);
    statusEl('execDisponivel',signed(cx.disponivel));
    statusEl('execReceber',signed(receber));
@@ -108,12 +111,15 @@
    ].join('');
   }catch(err){
    console.error('Conceito · Visão Geral',err);
-   $('execConferencia').textContent='Não foi possível carregar todos os indicadores. Os registros permanecem inalterados. Confira os módulos financeiros.';
+   $('execConferencia').textContent='Indicadores indisponíveis: '+(err&&err.message?err.message:'confira os arquivos financeiros atualizados')+'. Nenhum dado foi alterado.';
    ['execDisponivel','execReceber','execPagar','execFaturamento','execLucro','execMargem','execCaixaLiquido'].forEach(k=>statusEl(k,'—'));
    ['execRevenueChart','execCashChart'].forEach(k=>$(k).innerHTML='<div class="exec-chart-empty">Indicador indisponível. Consulte os módulos originais.</div>');
    $('execAlertRows').textContent='Alertas indisponíveis. Consulte os painéis de despesas e recebíveis.';
   }
  }
+ // Permite que login, troca de aba e usuário solicitem atualização de maneira explícita.
+ // Não registra nem modifica movimentações financeiras.
+ window.ckrAtualizarDashboard=render;
  const monthControl=$('execMes');
  if(!monthControl)return;
  monthControl.value=selected;
@@ -121,12 +127,26 @@
  $('execPrev').addEventListener('click',()=>{selected=newMonth(selected,-1);render();});
  $('execNext').addEventListener('click',()=>{selected=newMonth(selected,1);render();});
  $('execAlertRows').addEventListener('click',ev=>{const btn=ev.target.closest('[data-exec-go]');if(btn&&typeof window.goTo==='function')window.goTo(btn.dataset.execGo);});
+ const refreshButton=$('execRefresh');if(refreshButton)refreshButton.addEventListener('click',render);
  // Em primeiro acesso, a autenticação pode liberar o painel sem disparar renderAll/goTo.
  // Após o submit (tratado pelo app.js), atualiza somente a leitura do dashboard.
  ['ckrLoginForm','ckrSetupForm'].forEach(id=>{const form=$(id);if(form)form.addEventListener('submit',()=>Promise.resolve().then(render));});
+ // O app.js pode restaurar uma sessão ou abrir a Visão Geral em momentos distintos.
+ // O painel anterior só tentava renderizar na carga inicial e em alguns eventos.
+ // Observamos APENAS mudanças de autorização e visibilidade da aba, não os dados.
+ if(typeof MutationObserver==='function'){
+  const roleObserver=new MutationObserver(()=>render());
+  roleObserver.observe(document.body,{attributes:true,attributeFilter:['data-ckr-role']});
+  const panel=$('panel-dashboard');
+  if(panel){const tabObserver=new MutationObserver(()=>render());tabObserver.observe(panel,{attributes:true,attributeFilter:['class']});}
+ }
+ if(typeof window.addEventListener==='function'){
+  window.addEventListener('pageshow',render);
+  window.addEventListener('focus',render);
+ }
  const baseRender=window.renderAll;
- window.renderAll=function(){baseRender.apply(this,arguments);render();};
+ window.renderAll=function(){if(typeof baseRender==='function')baseRender.apply(this,arguments);render();};
  const baseGoTo=window.goTo;
- window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='dashboard')render();};
+ window.goTo=function(name){if(typeof baseGoTo==='function')baseGoTo.apply(this,arguments);if(name==='dashboard')render();};
  render();
 })();
