@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=37">
+  <link rel="stylesheet" href="style.css?v=38">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -213,14 +213,42 @@
       <div class="content">
         <section class="panel active" id="panel-dashboard">
           <div class="welcome-row">
-            <div><p class="eyebrow">PAINEL DE CONTROLE</p><h1>Visão geral <span class="wave">✦</span></h1><p class="subtitle">Acompanhe o estoque e as movimentações da sua loja.</p></div>
+            <div><p class="eyebrow">PAINEL DE CONTROLE</p><h1>Visão geral <span class="wave">✦</span></h1><p class="subtitle">Indicadores financeiros, desempenho comercial e operações em um só lugar.</p></div>
             <button class="button button-primary" data-go="venda"><span>＋</span> Nova venda</button>
           </div>
           <div class="notice"><span class="notice-icon">i</span><p><b>Seus dados ficam neste dispositivo.</b> Para transferir dados entre computador e celular, use <button class="text-button" data-go="backup">Backup e transferência</button>.</p><button class="notice-close" id="closeNotice" aria-label="Fechar aviso">×</button></div>
 
+          <div id="executiveDashboard" class="exec-dashboard" aria-label="Painel executivo">
+            <div class="exec-toolbar surface">
+              <div class="exec-toolbar-title"><span class="exec-kicker">GESTÃO FINANCEIRA</span><h2>Resumo executivo</h2><p>Desempenho por competência e caixa realizado. Saldos e pendências sempre na posição de hoje.</p></div>
+              <div class="exec-period-control"><label for="execMes">Mês de referência</label><div class="exec-period-row"><button id="execPrev" type="button" aria-label="Mês anterior" title="Mês anterior">‹</button><input id="execMes" type="month" aria-label="Mês de referência"><button id="execNext" type="button" aria-label="Próximo mês" title="Próximo mês">›</button></div></div>
+            </div>
+            <p class="exec-period-caption" id="execPositionDate">Posição financeira de hoje · Resultado do mês selecionado</p>
+            <div class="exec-kpi-grid">
+              <article class="exec-kpi exec-kpi-primary"><span>Disponível agora</span><strong id="execDisponivel">—</strong><small>Caixa BLU + NUBANK + dinheiro, descontados valores bloqueados</small><button type="button" class="exec-inline-link" data-go="financeiro">Ver Conceito Caixa →</button></article>
+              <article class="exec-kpi"><span>A receber</span><strong id="execReceber">—</strong><small id="execReceberNota">Agenda BLU + promissórias em aberto · posição atual</small></article>
+              <article class="exec-kpi"><span>A pagar</span><strong id="execPagar">—</strong><small id="execPagarNota">Despesas + parcelas da fábrica em aberto · posição atual</small></article>
+              <article class="exec-kpi"><span>Faturamento do mês</span><strong id="execFaturamento">—</strong><small>Vendas e serviços, após descontos e devoluções</small><button type="button" class="exec-inline-link" data-go="dre">Conferir DRE →</button></article>
+            </div>
+            <div class="exec-mini-grid">
+              <article class="exec-mini"><span>Lucro líquido · DRE</span><strong id="execLucro">—</strong><small>Competência do mês selecionado</small></article>
+              <article class="exec-mini"><span>Margem líquida · DRE</span><strong id="execMargem">—</strong><small>Lucro ÷ receita bruta da DRE</small></article>
+              <article class="exec-mini"><span>Geração líquida de caixa</span><strong id="execCaixaLiquido">—</strong><small>Recebimentos menos pagamentos no período</small></article>
+            </div>
+            <p id="execConferencia" class="exec-conference" role="status">Indicadores calculados a partir dos módulos financeiros do Conceito.</p>
+            <div class="exec-chart-grid">
+              <section class="surface exec-chart-card"><div class="exec-heading"><div><h2>Faturamento e margem líquida</h2><p>6 meses · vendas/serviços e rentabilidade segundo a DRE</p></div></div><div id="execRevenueChart" class="exec-chart" role="img" aria-label="Gráfico de faturamento e margem líquida dos seis últimos meses"></div><div class="exec-legend"><span><i class="exec-legend-dot exec-dot-blue"></i> Faturamento</span><span><i class="exec-legend-line"></i> Margem líquida</span></div></section>
+              <section class="surface exec-chart-card"><div class="exec-heading"><div><h2>Entradas e saídas de caixa</h2><p>6 meses · movimentação monetária pelo DFC</p></div></div><div id="execCashChart" class="exec-chart" role="img" aria-label="Gráfico de recebimentos e pagamentos dos seis últimos meses"></div><div class="exec-legend"><span><i class="exec-legend-dot exec-dot-blue"></i> Entradas</span><span><i class="exec-legend-dot exec-dot-sand"></i> Saídas</span></div></section>
+            </div>
+            <section class="surface exec-alert-card"><div class="exec-heading"><div><h2>Pendências e alertas</h2><p>Contas vencidas, conciliações pendentes e compromissos próximos</p></div><span id="execAlertBadge" class="exec-alert-badge">—</span></div><div id="execAlertRows" class="exec-alert-rows" aria-live="polite"><p>Carregando pendências...</p></div></section>
+            <p class="exec-technical-note">Os saldos não incluem o crédito comercial com a Ortobom. A receber inclui o saldo líquido apresentado na Agenda BLU, que pode conter ajuste inicial. Contas a pagar podem conter duplicidades se o mesmo compromisso estiver cadastrado em Despesas e Pedidos à fábrica. A DRE segue o critério de competência existente; o caixa não inclui ajustes de saldo na geração líquida.</p>
+          </div>
+
+          <div class="exec-legacy-heading"><div><span class="exec-kicker">OPERAÇÃO DA LOJA</span><h2>Estoque e movimentações</h2><p>Indicadores operacionais já disponíveis no Conceito.</p></div></div>
           <div id="promAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="promAlertaTexto"></p><button class="text-button" data-go="promissorias">Ver promissórias</button></div>
           <div id="pedAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="pedAlertaTexto"></p><button class="text-button" data-go="pedidos">Ver pedidos à fábrica</button></div>
           <div id="despAlerta" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="despAlertaTexto"></p><button class="text-button" data-go="financeiro">Ver despesas</button></div>
+
 
           <div class="stats-grid">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-blue">▤</span><span class="stat-label">Produtos cadastrados</span></div><strong id="totalProdutos">0</strong><div class="stat-foot"><span class="tiny-dot blue"></span> Itens diferentes no catálogo</div></article>
@@ -922,9 +950,10 @@
   <script src="modulos.js?v=35"></script>
   <script src="encomendas.js?v=6"></script>
   <script src="despesas.js?v=17"></script>
-  <script src="caixa.js?v=23"></script>
+  <script src="caixa.js?v=24"></script>
   <script src="impostos.js?v=13"></script>
-  <script src="dre.js?v=6"></script>
-  <script src="fluxo.js?v=1"></script>
+  <script src="dre.js?v=7"></script>
+  <script src="fluxo.js?v=2"></script>
+  <script src="dashboard.js?v=1"></script>
 </body>
 </html>
