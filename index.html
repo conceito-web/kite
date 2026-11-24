@@ -494,6 +494,14 @@
         <section class="panel" id="panel-financeiro">
           <div class="page-heading fin-heading"><div><p class="eyebrow">FINANCEIRO</p><h1>Gestão de Despesas</h1><p class="subtitle">Lance os gastos da loja e acompanhe o que foi pago, o que está pendente e o que já venceu.</p></div><button class="button button-primary" id="finNovo" type="button"><span>＋</span> Nova despesa</button></div>
 
+          <section class="surface form-surface" id="planejSec" style="margin-bottom:14px">
+            <div class="surface-heading"><div><h2>Planejamento mensal de despesas</h2><p>Previsões não são dívidas; confirme apenas os gastos que serão lançados neste mês.</p></div></div>
+            <div style="padding:14px 18px">
+              <p id="planejResumo" class="fin-meta-text">Verificando despesas antigas…</p>
+              <div class="form-actions" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="button button-light" type="button" id="planejRevisao">Revisar recorrências futuras</button><label class="field">Mês das sugestões <input type="month" id="planejMes"></label><button class="button button-light" type="button" id="planejAbrir">Ver sugestões do mês</button></div>
+              <div id="planejLista" hidden></div>
+            </div>
+          </section>
           <section class="surface form-surface">
             <div class="surface-heading"><div><h2>Período da análise</h2><p id="finPeriodoDesc"></p></div></div>
             <div class="report-filters fin-filters">
@@ -508,7 +516,7 @@
           </div>
           <div class="stats-grid fin-stats">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-green">✓</span><span class="stat-label">Despesas pagas</span></div><strong id="finPagas">R$ 0,00</strong></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">◔</span><span class="stat-label">Despesas pendentes (vencidas + a vencer)</span></div><strong id="finPend">R$ 0,00</strong><div class="stat-foot" id="finPendNota"></div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">◔</span><span class="stat-label">Contas pendentes efetivas (vencidas + a vencer)</span></div><strong id="finPend">R$ 0,00</strong><div class="stat-foot" id="finPendNota"></div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="stat-label">Vencidas</span></div><strong id="finVenc2">R$ 0,00</strong><div class="stat-foot" id="finVencNota"></div></article>
           </div>
 
@@ -562,7 +570,7 @@
           </section>
 
           <section class="surface form-surface fin-form" id="finFormCard" style="display:none">
-            <div class="surface-heading"><div><h2 id="finFormTitulo">Nova despesa</h2><p>Registre qualquer gasto da loja. Despesas recorrentes podem ser repetidas nos próximos meses.</p></div><span class="form-badge" id="finFormBadge">LANÇAMENTO</span></div>
+            <div class="surface-heading"><div><h2 id="finFormTitulo">Nova despesa</h2><p>Registre qualquer gasto da loja. Despesas recorrentes serão sugeridas mensalmente, mediante sua confirmação.</p></div><span class="form-badge" id="finFormBadge">LANÇAMENTO</span></div>
             <form id="finForm" autocomplete="off">
               <div class="form-grid">
                 <label class="field">Data da despesa<input id="finData" type="date" required></label>
@@ -583,7 +591,7 @@
                 <label class="field">Vencimento (opcional)<input id="finVenc" type="date"></label>
                 <label class="field" id="finPagoBox">Data do pagamento<input id="finPago" type="date"></label>
                 <label class="field">Tipo<select id="finTipo"><option value="avulsa">Avulsa</option><option value="rec">Recorrente (todo mês)</option></select></label>
-                <label class="field" id="finRepeteBox" hidden>Repetir por mais (meses)<input id="finRepete" type="number" min="0" max="24" step="1" value="0"></label>
+                <label class="field" id="finRepeteBox" hidden>Repetir por mais (meses)<input id="finRepete" type="number" min="0" max="0" step="1" value="0"></label>
                 <label class="field">Mês de competência na DRE<input id="finComp" type="month"><small class="imp-hint" id="finCompHint"></small></label>
                 <label class="field field-wide">Observação (opcional)<input id="finObs" maxlength="180" placeholder="Ex.: contrato até dez/2026"></label>
                 <div class="form-actions field-wide"><button class="button button-primary" id="finSalvar" type="submit">Salvar despesa</button><button class="button button-light" id="finCancelar" type="button">Fechar</button></div>
@@ -950,12 +958,13 @@
   <script src="app.js?v=39"></script>
   <script src="modulos.js?v=37"></script>
   <script src="encomendas.js?v=6"></script>
-  <script src="despesas.js?v=17"></script>
+  <script src="despesas.js?v=18"></script>
+  <script src="planejamento.js?v=1"></script>
   <script src="caixa.js?v=24"></script>
   <script src="impostos.js?v=13"></script>
-  <script src="dre.js?v=7"></script>
+  <script src="dre.js?v=8"></script>
   <script src="fluxo.js?v=2"></script>
-  <script src="dashboard.js?v=2"></script>
+  <script src="dashboard.js?v=3"></script>
   <script src="backup_seguro.js?v=2"></script>
   <script>
     // Diagnóstico visual quando o arquivo novo não existe na pasta do programa.
