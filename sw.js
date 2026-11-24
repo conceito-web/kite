@@ -1,6 +1,6 @@
-const CACHE = 'conceito-v86';
-const CORE = ['./', 'index.html', 'app.js?v=38', 'modulos.js?v=34', 'encomendas.js?v=6', 'despesas.js?v=16', 'caixa.js?v=23', 'impostos.js?v=13', 'dre.js?v=6', 'fluxo.js?v=1', 'servicos.js?v=4', 'style.css?v=37', 'manifest.webmanifest'];
-const OPCIONAIS = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
+const CACHE = 'conceito-v91';
+const CORE = ['./', 'index.html', 'app.js?v=39', 'modulos.js?v=36', 'encomendas.js?v=6', 'despesas.js?v=17', 'caixa.js?v=24', 'impostos.js?v=13', 'dre.js?v=7', 'fluxo.js?v=2', 'servicos.js?v=4', 'style.css?v=38', 'dashboard.js?v=2', 'backup_seguro.js?v=1', 'manifest.webmanifest',
+  'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
 
@@ -8,7 +8,6 @@ self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
     await Promise.all(CORE.map(async u=>{ const res=await fetch(new Request(u,{cache:'reload'})); if(!res.ok) throw new Error(u); await c.put(u,res); }));   // cache:'reload' = sempre baixa a versão nova
-    for (const u of OPCIONAIS) { try { const res=await fetch(new Request(u,{cache:'reload'})); if(res.ok) await c.put(u,res); } catch (_) {} }
     try { await c.add(JSPDF); } catch (_) {}
     try { await c.add(JSZIP); } catch (_) {}
     self.skipWaiting();
