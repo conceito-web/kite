@@ -95,6 +95,6 @@
    showMonth();banner();toast(`${chosen.length} despesa(s) criada(s) para ${month}.`);
   }catch(err){data=JSON.parse(snapshot);try{saveData();}catch(_){}alert('Não foi possível salvar. Nenhuma criação foi mantida.');}
  }
- function init(){if(!$('planejMes'))return;$('planejMes').value=(todayISO().slice(0,7)<'2026-12'?'2026-12':todayISO().slice(0,7));$('planejRevisao').addEventListener('click',review);$('planejAbrir').addEventListener('click',showMonth);banner();}
- init();
+ function init(){if(!$('planejMes'))return;$('planejMes').value=(todayISO().slice(0,7)<'2026-12'?'2026-12':todayISO().slice(0,7));$('planejRevisao').addEventListener('click',review);$('planejAbrir').addEventListener('click',showMonth);banner();window.ckrPlanejamentoCarregado=true;}
+ try{init();}catch(err){console.error('Conceito: erro no planejamento mensal',err);const el=document.getElementById('planejResumo');if(el)el.textContent='Falha ao iniciar o planejamento mensal. Nenhum dado foi alterado. Detalhe: '+(err&&err.message||err);}
 })();
