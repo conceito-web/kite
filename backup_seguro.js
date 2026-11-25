@@ -171,9 +171,32 @@
    if(old){const msg=await ckrSaveFile('conceito-dados-ilegíveis-antes-restauracao-'+DATE()+'.txt',old,'text/plain');if(/cancelad/i.test(String(msg)))throw Error('Cópia preventiva cancelada');}
    return 'Cópia do conteúdo ilegível gerada';
   }
-  const snap=await zipFromSource(data,await photos(),await xmlAll());
-  const msg=await saveZip(snap,'conceito-ANTES-DA-RESTAURACAO-'+DATE()+'.zip');
-  return msg;
+  const currentPhotos=await photos(), currentXml=await xmlAll();
+  try{
+   // A cópia integral é a primeira escolha quando o aparelho de destino já possui todos os XML.
+   const snap=await zipFromSource(data,currentPhotos,currentXml);
+   return await saveZip(snap,'conceito-ANTES-DA-RESTAURACAO-'+DATE()+'.zip');
+  }catch(e){
+   // O destino pode estar incompleto, mas o ZIP de ORIGEM já passou pela verificação rigorosa.
+   // Preserve o estado anterior do aparelho sem exigir XML que ele ainda não recebeu.
+   if(!/^XML original da nota .* não encontrado/.test(errText(e)))throw e;
+   if(!window.JSZip)throw Error('Biblioteca ZIP indisponível para a cópia preventiva');
+   const original=validate({...cloneData(data),productPhotos:currentPhotos,exportedAt:new Date().toISOString()});
+   const present=currentXml.filter(x=>x&&typeof x.key==='string'&&typeof x.text==='string'&&x.text.trim().startsWith('<'));
+   const keys=new Set(present.map(x=>x.key));
+   const missing=original.xmlImports.filter(x=>!keys.has(String(x.key))).map(x=>String(x.number||x.key));
+   const z=new JSZip();
+   z.file('dados.json',JSON.stringify(original,null,2));
+   present.forEach((x,i)=>z.file('xml-existentes/'+String(i+1).padStart(5,'0')+'.xml',x.text));
+   z.file('relacao-xml-existentes.json',JSON.stringify(present.map((x,i)=>({key:x.key,path:'xml-existentes/'+String(i+1).padStart(5,'0')+'.xml'})),null,2));
+   z.file('ATENCAO-LEIA.txt','COPIA PREVENTIVA PARCIAL DO APARELHO ANTES DA RESTAURACAO\n\nEsta copia preserva os dados antigos e os XML que existiam neste aparelho.\nNÃO é um backup integral e NÃO pode ser restaurada automaticamente como ZIP completo.\nXML ausentes antes da restauracao: '+missing.join(', ')+'\nUse o backup completo da origem para restaurar o aparelho.\n');
+   const blob=await z.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+   state('O aparelho antigo não tem XML da(s) nota(s) '+missing.join(', ')+'. Salvando uma cópia preventiva PARCIAL antes de receber o backup completo.');
+   const msg=await ckrSaveFile('conceito-ANTES-DA-RESTAURACAO-PARCIAL-'+DATE()+'.zip',blob,'application/zip');
+   if(/cancelad/i.test(String(msg)))throw Error('Cópia preventiva parcial cancelada');
+   alert('ATENÇÃO: o aparelho de destino tinha XML ausentes: '+missing.join(', ')+'.\nFoi gerada uma cópia preventiva PARCIAL do estado antigo. Guarde-a; ela não substitui o ZIP completo da origem.\nA restauração do ZIP completo selecionado poderá continuar após sua confirmação.');
+   return msg;
+  }
  }
  window.ckrRestaurarBackupSeguro=async()=>{
   if(!isAdminRole()){toast('Somente ADMIN pode restaurar backup.',true);return;}
