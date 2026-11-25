@@ -340,14 +340,18 @@ function montarAjuda(id){
   const d=detalhe[id];
   if(!d){fecharAjuda();return;}
   const imposto=round2(d.total*d.ae/100);
-  const lucro=round2(d.profit-imposto);
+  const taxa=round2(d.fee||0);                      // taxa da maquininha: muda sozinha com parcelas/bandeira (aba Taxas e crédito)
+  const apos=round2(d.profit-imposto);              // (=) Lucro, já com a taxa descontada
+  const antes=round2(apos+taxa);                    // lucro antes da taxa do cartão
   pop.innerHTML=`<h4>De onde vem o lucro</h4>`
     +`<div class="r"><span>Total da venda</span><span>${money(d.total)} · 100,0%</span></div>`
     +linha('(−) Custo dos produtos (CMV)',d.cost,d.total)
     +linha(`(−) Imposto (alíq. efetiva ${d.ae.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})}%)`,imposto,d.total)
-    +(d.fee>0.004?linha('(−) Taxa da maquininha',d.fee,d.total):'')
-    +linha('(=) Lucro',lucro,d.total,'t')
-    +`<small>A porcentagem de cada linha é sobre o total da venda (já com desconto).</small>`;
+    +linha('Lucro antes da taxa',antes,d.total)
+    +linha('(−) Taxa do cartão',taxa,d.total)
+    +linha('(=) Lucro após a taxa',apos,d.total,'t')
+    +`<div class="r"><span>Margem líquida sobre a venda</span><span>${pct1(d.total>0?apos/d.total*100:0)}</span></div>`
+    +`<small>A porcentagem de cada linha é sobre o total da venda (já com desconto). A taxa do cartão segue as parcelas e a bandeira escolhidas e os percentuais de Taxas e crédito.</small>`;
 }
 function abrirAjuda(id){
   if(somenteVer()){fecharAjuda();return;}   // usuário comum não abre o detalhe do lucro
