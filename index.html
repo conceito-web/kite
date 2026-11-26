@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=44">
+  <link rel="stylesheet" href="style.css?v=45">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -1697,6 +1697,99 @@
   }
   new MutationObserver(syncAccessibility).observe(notification,{attributes:true,attributeFilter:['class']});
   syncAccessibility();
+})();
+</script>
+
+<script id="conceito-ui-ux-v114">
+/* Melhorias de usabilidade: não altera arrays de dados nem os handlers do negócio. */
+(function(){
+  'use strict';
+  const formIds=new Set(['finForm','formProduto','formCliente','formEntrada','formVenda','cxForm','impostoForm','recForm','encModalForm','novoProdForm']);
+  const actionIds=new Set(['pedSalvar','loteSalvar','xmlConfirmar','salvarOrcamentoVenda']);
+  const lastForm=new WeakMap(),lastAction=new WeakMap();
+  const intervalMs=1400;
+  const now=()=>Date.now();
+  // Bloqueia só a tentativa repetida, preservando o primeiro evento e seus listeners originais.
+  document.addEventListener('submit',function(ev){
+    const form=ev.target;
+    if(!(form instanceof HTMLFormElement)||!formIds.has(form.id))return;
+    const t=now();
+    if(t-(lastForm.get(form)||0)<intervalMs){ev.preventDefault();ev.stopImmediatePropagation();return;}
+    lastForm.set(form,t);
+    form.setAttribute('aria-busy','true');
+    setTimeout(()=>form.removeAttribute('aria-busy'),intervalMs);
+  },true);
+  document.addEventListener('click',function(ev){
+    const btn=ev.target instanceof Element?ev.target.closest('button'):null;
+    if(!btn||!actionIds.has(btn.id))return;
+    const t=now();
+    if(t-(lastAction.get(btn)||0)<intervalMs){ev.preventDefault();ev.stopImmediatePropagation();return;}
+    lastAction.set(btn,t);
+  },true);
+  // Validação nativa do navegador, com marcação do campo e mensagem auxiliar.
+  document.addEventListener('invalid',function(ev){
+    const field=ev.target;
+    if(!(field instanceof HTMLInputElement||field instanceof HTMLSelectElement||field instanceof HTMLTextAreaElement))return;
+    if(!field.closest('.panel,.users-modal'))return;
+    field.classList.add('ui-field-invalid');field.setAttribute('aria-invalid','true');
+    const wrapper=field.closest('label.field')||field.closest('.field');
+    if(wrapper&&!wrapper.querySelector('.ui-field-error')){
+      const tip=document.createElement('small');tip.className='ui-field-error';
+      tip.textContent=field.validity.valueMissing?'Este campo é obrigatório.':'Confira o valor informado.';
+      wrapper.appendChild(tip);
+    }
+  },true);
+  function clearInvalid(ev){
+    const field=ev.target;
+    if(!(field instanceof HTMLInputElement||field instanceof HTMLSelectElement||field instanceof HTMLTextAreaElement))return;
+    if(field.validity.valid){
+      field.classList.remove('ui-field-invalid');field.removeAttribute('aria-invalid');
+      const wrapper=field.closest('label.field')||field.closest('.field');
+      const tip=wrapper&&wrapper.querySelector('.ui-field-error');if(tip)tip.remove();
+    }
+  }
+  document.addEventListener('input',clearInvalid,true);
+  document.addEventListener('change',clearInvalid,true);
+
+  // Sinaliza operações com possível processamento assíncrono, sem impedir sua execução.
+  const operationNames={gerarRelatorio:'Gerando relatório...',fazerBackup:'Preparando backup...',xmlConfirmar:'Registrando entrada do XML...',reporBotaoXML:'Processando arquivo XML...'};
+  const active=new WeakMap();
+  function showProcess(target,label){
+    if(active.has(target))return;
+    const status=document.createElement('span');status.className='ui-process';
+    status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.textContent=label;
+    target.insertAdjacentElement('afterend',status);
+    target.classList.add('ui-is-busy');target.setAttribute('aria-busy','true');
+    let finished=false,obs=null,elapsed=null,hard=null;
+    const done=()=>{
+      if(finished)return;finished=true;
+      if(obs)obs.disconnect();clearTimeout(elapsed);clearTimeout(hard);
+      status.remove();target.classList.remove('ui-is-busy');target.removeAttribute('aria-busy');active.delete(target);
+    };
+    active.set(target,done);
+    const panel=target.closest('.panel')||target.parentElement;
+    if(panel){
+      obs=new MutationObserver(records=>{
+        const changed=records.some(r=>{
+          if(status.contains(r.target)||target.contains(r.target))return false;
+          if(Array.from(r.addedNodes).some(n=>n===status||status.contains(n)))return false;
+          return true;
+        });
+        if(changed&&!elapsed)elapsed=setTimeout(done,700);
+      });
+      obs.observe(panel,{childList:true,subtree:true,characterData:true});
+    }
+    hard=setTimeout(done,12000);
+  }
+  document.addEventListener('click',function(ev){
+    const btn=ev.target instanceof Element?ev.target.closest('button'):null;
+    if(btn&&operationNames[btn.id])showProcess(btn,operationNames[btn.id]);
+  },true);
+  document.addEventListener('change',function(ev){
+    if(ev.target&&ev.target.id==='xmlArquivos'&&ev.target.files&&ev.target.files.length){
+      showProcess(ev.target,'Lendo e conferindo arquivos XML...');
+    }
+  },true);
 })();
 </script>
 </body>
