@@ -214,6 +214,22 @@ window.ckrDreResumoPeriodo=function(inicio,fim){
    margem:R.rec>0?r2(100*R.res/R.rec):null,vendas:R.vendasQtd,semCusto:R.sem};
 };
 
+// API SOMENTE LEITURA v117 — fonte única de despesas fixas do ponto de equilíbrio.
+// Reaproveita compute() da DRE para manter competência e critérios idênticos.
+window.ckrDrePontoEquilibrioPeriodo=function(inicio,fim){
+ const R=compute(inicio,fim);
+ const lines=LINES.filter(l=>l[2]==='fixa').map(l=>({key:l[0],name:l[1],value:r2(R.L[l[0]]||0)}));
+ const bases=R.itens.filter(it=>!it.fora&&LINES.some(l=>l[0]===it.k&&l[2]==='fixa'));
+ return {
+   fixed:r2(R.fixas),lines,registeredFixedCount:bases.length,
+   salesCommission:r2(R.L.comissao||0),sellingFreight:r2(R.L.frete||0),
+   salesPayroll:r2((R.L.salariosOp||0)+(R.L.fgtsOp||0)),
+   financialExpenses:r2((R.L.despBancarias||0)+(R.L.jurosPassivos||0)+(R.L.descontosConc||0)),
+   serviceRevenue:r2(R.servico||0),
+   warnings:[],periodStart:inicio,periodEnd:fim
+ };
+};
+
 // ---------- montagem da tabela ----------
 function rows(R){
  const L=R.L,out=[];
