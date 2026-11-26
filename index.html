@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=46">
+  <link rel="stylesheet" href="style.css?v=116">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -806,11 +806,31 @@
             <strong id="mcSummary">Selecione o período para consultar os dados.</strong>
             <p id="mcTaxInfo">O cálculo será estimado quando utilizar o rateio mensal do Simples Nacional.</p>
           </div>
+          <div class="mc-quality" aria-label="Qualidade dos dados de margem">
+            <section class="mc-quality-card"><h3>Cobertura da análise</h3><strong id="mcCoveragePct">—</strong><div class="mc-quality-progress" role="progressbar" aria-label="Cobertura da receita calculada" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="mcCoverageBar"><span id="mcQualityProgress"></span></div><span class="mc-submetric" id="mcCoverageMoney">—</span><p>Percentual da receita de vendas ativas que possui informação suficiente. Não confundir a margem parcial com o resultado total do mês.</p></section>
+            <section class="mc-quality-card"><h3>Conferências de controladoria</h3><strong id="mcReviewCount">—</strong><span class="mc-submetric" id="mcReviewSummary">—</span><p id="mcReviewReasons" class="mc-quality-alert">Aguardando período.</p><p>Diferenças fiscais ou de pagamento são alertas de análise, não ajustes automáticos.</p></section>
+          </div>
+          <section class="surface mc-reconcile" aria-label="Composição mensal da margem">
+            <h2>Conciliação da margem analisável</h2>
+            <table class="mc-reconcile-table"><tbody>
+              <tr><td>Receita de vendas ativas no mês</td><td id="mcAllRevenue">—</td></tr>
+              <tr><td>Receita não analisável (dados incompletos)</td><td id="mcExcluded">—</td></tr>
+              <tr><td>Receita efetivamente analisada</td><td id="mcAnalysed">—</td></tr>
+              <tr><td>(−) CMV PEPS</td><td id="mcTotalCmv">—</td></tr>
+              <tr><td>(−) Simples Nacional estimado</td><td id="mcTotalTax">—</td></tr>
+              <tr><td>(−) Taxas de recebimento registradas</td><td id="mcTotalFees">—</td></tr>
+              <tr><td>(−) Entregas diretamente vinculadas</td><td id="mcTotalFreights">—</td></tr>
+              <tr><td>Margem de contribuição das vendas analisáveis</td><td id="mcTotalResult">—</td></tr>
+            </tbody></table>
+            <p class="mc-note" id="mcTaxOrigin">Impostos estimados, sujeitos à conferência fiscal.</p>
+          </section>
           <section class="surface mc-sales">
-            <div class="surface-heading responsive-heading"><div><h2>Rentabilidade por venda</h2><p id="mcCount">—</p></div></div>
+            <div class="surface-heading responsive-heading"><div><h2>Rentabilidade por venda</h2><p id="mcCount">—</p></div><button type="button" id="mcExport" class="button button-light button-small">Exportar auditoria CSV</button></div>
             <div class="table-wrap"><table class="mc-table"><thead><tr>
-              <th>DATA</th><th>VENDA / CLIENTE</th><th>RECEITA</th><th>CMV</th><th>SIMPLES EST.</th><th>TAXA CARTÃO</th><th>CONTRIBUIÇÃO</th><th>MC %</th><th>STATUS</th><th>ANALISAR</th>
+              <th>DATA</th><th>VENDA / CLIENTE</th><th>RECEITA</th><th>CMV</th><th>SIMPLES EST.</th><th>TAXA CARTÃO</th><th>CONTRIBUIÇÃO</th><th>MC %</th><th>STATUS</th><th>AÇÕES</th>
             </tr></thead><tbody id="mcRows"><tr><td colspan="10" class="mc-empty">Abra a Controladoria para calcular.</td></tr></tbody></table></div>
+            <div class="mc-table-scroll-hint">Deslize a tabela horizontalmente para consultar todas as colunas.</div>
+            <div class="mc-detail" id="mcDetail" hidden aria-live="polite"></div>
             <p class="mc-table-foot">Os pagamentos da fábrica destinados a crédito Ortobom não representam despesa adicional. Vendas canceladas não entram neste indicador. Uma nota fiscal vigente de venda cancelada continua na apuração fiscal separada.</p>
           </section>
           <section class="surface mc-sim" id="mcSimulation">
@@ -1571,7 +1591,7 @@
   <script src="dre.js?v=11"></script>
   <script src="fluxo.js?v=2"></script>
   <script src="dashboard.js?v=3"></script>
-  <script src="contribuicao.js?v=1"></script>
+  <script src="contribuicao.js?v=116"></script>
   <script src="backup_seguro.js?v=3"></script>
   <script>
     // Diagnóstico visual quando o arquivo novo não existe na pasta do programa.
