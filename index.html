@@ -56,6 +56,18 @@
     </div>
   </div>
 
+  <div id="fiscalCancelModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="fiscalCancelTitulo">
+    <div class="users-card" style="max-width:570px">
+      <div class="users-heading"><div><p class="auth-eyebrow">CONFERÊNCIA FISCAL</p><h2 id="fiscalCancelTitulo">A nota fiscal foi cancelada?</h2><p id="fiscalCancelVenda"></p></div></div>
+      <p class="pay-hint" style="margin:8px 0 14px">Considere como cancelada somente a nota cujo cancelamento foi autorizado/registrado na SEFAZ. Cancelar a venda no Conceito <strong>não cancela a nota na SEFAZ.</strong></p>
+      <button id="fiscalCancelNao" class="button button-primary full-button" type="button">Não. A nota continua válida</button>
+      <p class="pay-hint" style="margin:6px 0 14px">A venda será cancelada e o estoque retornará, mas a nota permanecerá na apuração do Simples. Em caso de troca, verifique com a contabilidade a necessidade de documento de devolução/regularização.</p>
+      <button id="fiscalCancelSim" class="button button-light full-button" type="button">Sim. O cancelamento fiscal foi confirmado</button>
+      <p class="pay-hint" style="margin:6px 0 14px">A nota ficará registrada no histórico como cancelada e não comporá a base de cálculo, sem ser excluída.</p>
+      <button id="fiscalCancelVoltar" class="button button-light full-button" type="button">Voltar sem cancelar a venda</button>
+    </div>
+  </div>
+
   <div id="vincNotaModal" class="users-modal" hidden role="dialog" aria-modal="true" aria-labelledby="vincTitulo">
     <div class="users-card">
       <div class="users-heading"><div><p class="auth-eyebrow">IMPOSTOS</p><h2 id="vincTitulo">Vincular nota à venda</h2><p id="vincVenda"></p></div><button type="button" id="vincFechar" class="users-close" aria-label="Fechar">×</button></div>
@@ -969,7 +981,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=41"></script>
+  <script src="app.js?v=42"></script>
   <script src="modulos.js?v=37"></script>
   <script src="encomendas.js?v=6"></script>
   <script src="despesas.js?v=18"></script>
@@ -1344,7 +1356,7 @@
     });
   </script>
   <script src="caixa.js?v=24"></script>
-  <script src="impostos.js?v=13"></script>
+  <script src="impostos.js?v=14"></script>
   <script src="dre.js?v=11"></script>
   <script src="fluxo.js?v=2"></script>
   <script src="dashboard.js?v=3"></script>
