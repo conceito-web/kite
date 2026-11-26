@@ -994,7 +994,10 @@ async function ckrSaveFile(name,text,mime){
 // Backup seguro é implementado em backup_seguro.js e carregado após modulos.js.
 document.getElementById('fazerBackup').addEventListener('click',()=>window.ckrExportarBackupCompleto?window.ckrExportarBackupCompleto():toast('Módulo de backup seguro não carregou. Não exporte um arquivo incompleto.',true));
 document.getElementById('backupJsonLegado').addEventListener('click',()=>window.ckrExportarBackupJson?window.ckrExportarBackupJson():toast('Módulo de backup não carregou.',true));
-document.getElementById('copiarBackupTexto').addEventListener('click',()=>window.ckrCopiarBackupTexto?window.ckrCopiarBackupTexto():toast('Módulo de backup não carregou.',true));
+// Controle legado 'Copiar backup como texto' removido da interface na correção v97.
+// Não tentar vincular um botão que não existe: interromperia a inicialização e o login.
+const botaoBackupTextoLegado=document.getElementById('copiarBackupTexto');
+if(botaoBackupTextoLegado)botaoBackupTextoLegado.addEventListener('click',()=>window.ckrCopiarBackupTexto?window.ckrCopiarBackupTexto():toast('Módulo de backup não carregou.',true));
 document.getElementById('verificarBackup').addEventListener('click',()=>window.ckrVerificarBackupSeguro?window.ckrVerificarBackupSeguro():toast('Módulo de verificação não carregou.',true));
 document.getElementById('restaurarBackup').addEventListener('click',()=>window.ckrRestaurarBackupSeguro?window.ckrRestaurarBackupSeguro():toast('Módulo de restauração segura não carregou.',true));
 document.getElementById('apagarTudo').addEventListener('click',()=>{if(!isAdminRole()){toast('Somente o ADMIN pode apagar os dados.',true);return;}if(!confirm('Isso apagará todos os produtos, clientes, entradas e vendas deste navegador. Continuar?'))return;if(!confirm('Confirme mais uma vez. Só será possível recuperar com backup.'))return;data=emptyData();window.pfClear&&pfClear();if(saveData()){resetProductForm();toast('Dados locais apagados.');}});
