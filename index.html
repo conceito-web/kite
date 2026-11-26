@@ -1670,8 +1670,145 @@
   <script src="fluxo.js?v=2"></script>
   <script src="dashboard.js?v=3"></script>
   <script src="contribuicao.js?v=116"></script>
-  <script src="equilibrio.js?v=1171"></script>
-  <script id="pe-diagnostico-carregamento-v1171">
+  <script id="pe-calculo-integrado-v1172">
+'use strict';
+/* Conceito v117.1 — Ponto de equilíbrio operacional (consulta e simulação, sem gravação).
+   Usa exclusivamente os indicadores do módulo de Margem de Contribuição e as
+   despesas fixas por competência da própria DRE. Não cria lançamentos. */
+(function () {
+  const $ = id => document.getElementById(id);
+  const panel = $('panel-equilibrio');
+  if (!panel) return;
+  const money = v => Number(v).toLocaleString('pt-BR', {style:'currency',currency:'BRL'});
+  const pct = v => Number(v).toLocaleString('pt-BR', {minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+  const escapeHTML = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const monthEnd = k => {const [y,m] = k.split('-').map(Number);return `${k}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;};
+  const isMoney = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  const show = (id, value) => {const el=$(id);if(el)el.textContent=value;};
+  const bnd = (x,lo,hi) => Math.max(lo,Math.min(hi,x));
+  let current=null,lastMonth='',marginTouched=false;
+
+  function calculate(month) {
+    if (!/^\d{4}-\d{2}$/.test(month)) return {valid:false,reason:'Escolha um mês válido.'};
+    if(typeof window.ckrContribuicaoAnalise!=='function')return {valid:false,reason:'O módulo Margem de contribuição não está carregado.'};
+    if(typeof window.ckrDrePontoEquilibrioPeriodo!=='function')return {valid:false,reason:'A fonte de despesas fixas da DRE não está disponível. Atualize dre.js.'};
+    const m=window.ckrContribuicaoAnalise(month);
+    const d=window.ckrDrePontoEquilibrioPeriodo(`${month}-01`,monthEnd(month));
+    const r=Number(m.percent)/100;
+    if(!m.ok?.length||!Number.isFinite(r)||r<=0||!(m.revenue>0))return {valid:false,month,marginData:m,dreData:d,reason:'Não há margem de contribuição positiva e calculável neste mês. Não é possível estimar um ponto de equilíbrio com os dados disponíveis.'};
+    if(!isMoney(d.fixed)||!(d.registeredFixedCount>0))return {valid:false,month,marginData:m,dreData:d,reason:'Não foram identificadas despesas fixas por competência na DRE. Antes de calcular, confira se existem despesas registradas para este mês.'};
+    const breakeven=d.fixed/r;
+    if(!Number.isFinite(breakeven)||breakeven<0)return {valid:false,month,marginData:m,dreData:d,reason:'Não foi possível calcular o ponto de equilíbrio com os valores disponíveis.'};
+    return {
+      valid:true,month,marginData:m,dreData:d,
+      ratio:r,contribution:m.mc,variableCosts:m.revenue-m.mc,
+      revenue:m.revenue,fixed:d.fixed,breakEven:breakeven,
+      safety:m.revenue-breakeven,safetyRate:100*(m.revenue-breakeven)/m.revenue,
+      progress:breakeven>0?100*m.revenue/breakeven:100,
+      partial:m.incomplete?.length>0||m.coverage<99.995,
+      reviewed:(m.reviewed||[]).length,
+    };
+  }
+
+  function renderScenario(){
+    const r=current;
+    if(!r?.valid){['peScenarioBreakEven','peScenarioTarget','peScenarioResult'].forEach(id=>show(id,'—'));show('peScenarioWarning','Simulação indisponível: revise os dados de origem.');return;}
+    const margin=Number($('peMarginInput').value),adjustment=Number($('peFixedAdjustment').value),profit=Number($('peProfitGoal').value);
+    const correctedFixed=r.fixed+adjustment;
+    const valid=$('peMarginInput').value!==''&&$('peFixedAdjustment').value!==''&&$('peProfitGoal').value!==''&&Number.isFinite(margin)&&margin>0&&margin<=100&&Number.isFinite(adjustment)&&correctedFixed>=0&&Number.isFinite(profit)&&profit>=0;
+    if(!valid){['peScenarioBreakEven','peScenarioTarget','peScenarioResult'].forEach(id=>show(id,'—'));show('peScenarioWarning','Informe uma margem entre 0 e 100%, despesas ajustadas não negativas e lucro-alvo não negativo.');return;}
+    // Enquanto o usuário não altera a margem, usar a precisão integral da média apurada.
+    // Evita diferença de arredondamento entre o indicador principal e o simulador.
+    const ratio=marginTouched?margin/100:r.ratio;
+    show('peScenarioBreakEven',money(correctedFixed/ratio));
+    show('peScenarioTarget',money((correctedFixed+profit)/ratio));
+    show('peScenarioResult',money(r.revenue*ratio-correctedFixed));
+    show('peScenarioWarning',adjustment===0&&Math.abs(margin-r.ratio*100)<0.005?'Cenário de referência da margem observada. O lucro-alvo e os demais valores são simulações, não provisões.':'Cenário ajustado manualmente. Nenhum valor foi gravado e o resultado não substitui a DRE.');
+  }
+
+  function render(){
+    if(!panel.classList.contains('active'))return;
+    const month=$('peMonth').value;
+    try{current=calculate(month);}catch(e){current={valid:false,reason:'Ocorreu um erro de leitura: '+String(e?.message||e)};console.error('Ponto de equilíbrio: cálculo',e);}
+    const a=current;
+    if(!a.valid){
+      show('peSourceBadge','Dados insuficientes');
+      $('peSourceBadge').className='pe-tag pe-tag-warning';
+      show('peStatus','Ponto de equilíbrio indisponível');show('peStatusDetail',a.reason);
+      for(const id of ['peValue','peMargin','peFixed','peSafety','peRevenue','peContribution','peWeightedPct','peFixedDetail','peBreakdownResult','peProgressTitle'])show(id,'—');
+      show('peFixedLines','');$('peFixedLines').innerHTML='<tr><td colspan="2" class="pe-empty">Sem valores suficientes para exibir a composição.</td></tr>';
+      show('peGapDescription',a.reason);show('peMethodAlerts',a.reason);
+      $('peProgress').setAttribute('aria-valuenow','0');$('peProgressFill').style.width='0%';
+      renderScenario();return;
+    }
+    const m=a.marginData,d=a.dreData;
+    const needsReview=a.partial||a.reviewed>0||d.salesCommission>0||d.sellingFreight>0||d.financialExpenses>0||d.serviceRevenue>0;
+    show('peSourceBadge',needsReview?'Estimativa · revisar':'Estimativa gerencial');
+    $('peSourceBadge').className='pe-tag '+(needsReview?'pe-tag-warning':'pe-tag-neutral');
+    show('peValue',money(a.breakEven));show('peMargin',pct(a.ratio*100));show('peFixed',money(a.fixed));
+    show('peMarginInfo',`${m.ok.length} de ${m.all.length} venda(s) incluídas · imposto estimado`);
+    show('peSafety',money(a.safety));$('peSafety').classList.toggle('pe-neg',a.safety<0);
+    show('peSafetyInfo',a.safety>=0?`Acima da meta em ${pct(a.safetyRate)} da receita`:`Abaixo da meta em ${pct(Math.abs(a.safetyRate))} da receita`);
+    show('peRevenue',money(a.revenue));show('peContribution',money(a.contribution));show('peWeightedPct',pct(a.ratio*100));
+    show('peFixedDetail',money(a.fixed));show('peBreakdownResult',money(a.breakEven));
+    show('peProgressTitle',pct(a.progress));show('peGapDescription',a.safety>=0?`A receita analisada superou o ponto de equilíbrio em ${money(a.safety)}. Isso não representa o lucro líquido da empresa.`:`Faltam ${money(-a.safety)} de faturamento analisável, se a margem de contribuição e os custos fixos permanecerem constantes.`);
+    $('peProgress').setAttribute('aria-valuenow',String(Math.round(bnd(a.progress,0,100))));
+    $('peProgressFill').style.width=bnd(a.progress,0,100)+'%';
+    show('peStatus','Ponto de equilíbrio operacional ESTIMADO — valores sujeitos à conferência');
+    show('peStatusDetail',`Base: ${m.ok.length} venda(s) · ${pct(m.coverage)} de cobertura do faturamento · ${a.reviewed} com observações · despesas fixas reconhecidas na DRE. Não é um ponto de equilíbrio auditado.`);
+    const lines=d.lines.filter(l=>Math.abs(l.value)>0.004);
+    $('peFixedLines').innerHTML=lines.length?lines.map(l=>`<tr><td>${escapeHTML(l.name)}</td><td>${money(l.value)}</td></tr>`).join('')+`<tr class="pe-result-line"><td>Total classificado como fixo</td><td>${money(d.fixed)}</td></tr>`:'<tr><td colspan="2">Nenhuma linha de despesa fixa encontrada.</td></tr>';
+    const alerts=[];
+    if(a.partial)alerts.push(`Margem parcialmente analisável: ${m.incomplete.length} venda(s) fora do cálculo; o equilíbrio utiliza somente o mix analisado.`);
+    if(a.reviewed>0)alerts.push(`${a.reviewed} venda(s) da margem possuem alertas de conferência de notas, pagamentos ou outros dados. Cobertura de ${pct(m.coverage)} não equivale à confiabilidade auditada.`);
+    alerts.push('A tributação da margem é um rateio gerencial do Simples, não uma apuração fiscal por venda.');
+    alerts.push('As despesas fixas são as linhas assim classificadas na DRE por competência, inclusive lançamentos ainda sujeitos a revisão; despesas não provisionadas não entram automaticamente.');
+    if(d.salesCommission>0||d.sellingFreight>0)alerts.push(`Existem despesas de venda na DRE (comissões ${money(d.salesCommission)}; fretes ${money(d.sellingFreight)}) que precisam ser conferidas quanto à natureza variável e ao possível vínculo com vendas.`);
+    if(d.financialExpenses>0)alerts.push(`Despesas financeiras diversas de ${money(d.financialExpenses)} no mês estão fora deste equilíbrio operacional. Verifique se alguma parcela é recorrente/fixa antes de usar a meta como definitiva.`);
+    if(d.serviceRevenue>0)alerts.push(`Receitas de serviços de ${money(d.serviceRevenue)} aparecem na DRE, mas não compõem a margem de mercadorias usada nesta análise.`);
+    $('peMethodAlerts').innerHTML=alerts.map(t=>`<p>${escapeHTML(t)}</p>`).join('');
+    if(month!==lastMonth){$('peFixedAdjustment').value='0';marginTouched=false;lastMonth=month;}
+    if(!marginTouched)$('peMarginInput').value=String(Number((a.ratio*100).toFixed(2))); 
+    renderScenario();
+  }
+
+  function init(){
+    const d=new Date();$('peMonth').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    $('peMonth').addEventListener('change',render);
+    $('peRefresh').addEventListener('click',render);
+    $('peMarginInput').addEventListener('input',()=>{marginTouched=true;renderScenario();});
+    ['peFixedAdjustment','peProfitGoal'].forEach(id=>$(id).addEventListener('input',renderScenario));
+    $('peGoMargin').addEventListener('click',()=>{const month=$('peMonth').value;const source=$('mcMonth');if(source){source.value=month;source.dispatchEvent(new Event('change',{bubbles:true}));}const nav=document.querySelector('.nav-link[data-panel="contribuicao"]');if(nav)nav.click();});
+    // A troca de telas do Conceito é gerenciada por app.js. Em versões recentes,
+    // o menu lateral também possui agrupamentos e observadores. Assim, não
+    // substituímos goTo/renderAll: observamos a ativação real deste painel.
+    let pending=false;
+    function scheduleRender(){
+      if(pending)return;
+      pending=true;
+      Promise.resolve().then(()=>{
+        pending=false;
+        if(panel.classList.contains('active'))render();
+      });
+    }
+    const nav=document.querySelector('.nav-link[data-panel="equilibrio"]');
+    if(nav)nav.addEventListener('click',scheduleRender);
+    if(typeof MutationObserver==='function'){
+      new MutationObserver(changes=>{
+        if(changes.some(x=>x.attributeName==='class'))scheduleRender();
+      }).observe(panel,{attributes:true,attributeFilter:['class']});
+    }
+    // Funciona também se o painel for aberto por atalho, restauração de sessão
+    // ou se o usuário já estiver na aba quando o script terminar de carregar.
+    scheduleRender();
+    window.addEventListener('pageshow',scheduleRender);
+    window.ckrPontoEquilibrioCalcular=calculate; // API somente leitura.
+  }
+  try{init();}catch(e){console.error('Ponto de equilíbrio: inicialização',e);show('peStatus','Não foi possível inicializar o painel.');show('peStatusDetail',String(e?.message||e));}
+})();
+
+  </script>
+  <script id="pe-diagnostico-carregamento-v1172">
     window.addEventListener('load', function(){
       if (typeof window.ckrPontoEquilibrioCalcular === 'function') return;
       var badge=document.getElementById('peSourceBadge');
@@ -1679,7 +1816,7 @@
       var detail=document.getElementById('peStatusDetail');
       if (badge) badge.textContent='Módulo indisponível';
       if (title) title.textContent='O cálculo do ponto de equilíbrio não foi carregado.';
-      if (detail) detail.textContent='Confirme se o arquivo equilibrio.js está na mesma pasta de index.html e atualize com Ctrl + F5. Os dados financeiros não foram alterados.';
+      if (detail) detail.textContent='A rotina está incluída nesta página, mas ocorreu uma falha de inicialização. Confira se os scripts dre.js e contribuicao.js estão atualizados; nenhum dado foi modificado.';
     });
   </script>
   <script src="backup_seguro.js?v=3"></script>
