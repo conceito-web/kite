@@ -1670,7 +1670,18 @@
   <script src="fluxo.js?v=2"></script>
   <script src="dashboard.js?v=3"></script>
   <script src="contribuicao.js?v=116"></script>
-  <script src="equilibrio.js?v=117"></script>
+  <script src="equilibrio.js?v=1171"></script>
+  <script id="pe-diagnostico-carregamento-v1171">
+    window.addEventListener('load', function(){
+      if (typeof window.ckrPontoEquilibrioCalcular === 'function') return;
+      var badge=document.getElementById('peSourceBadge');
+      var title=document.getElementById('peStatus');
+      var detail=document.getElementById('peStatusDetail');
+      if (badge) badge.textContent='Módulo indisponível';
+      if (title) title.textContent='O cálculo do ponto de equilíbrio não foi carregado.';
+      if (detail) detail.textContent='Confirme se o arquivo equilibrio.js está na mesma pasta de index.html e atualize com Ctrl + F5. Os dados financeiros não foram alterados.';
+    });
+  </script>
   <script src="backup_seguro.js?v=3"></script>
   <script>
     // Diagnóstico visual quando o arquivo novo não existe na pasta do programa.
