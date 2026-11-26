@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=117">
+  <link rel="stylesheet" href="style.css?v=118">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -317,13 +317,19 @@
           <div class="nav-group-items" id="navGroupItems3" hidden>
             <button class="nav-link" data-panel="financeiro"><span class="nav-icon">$</span> Gestão de Despesas <span class="nav-count" id="menuDespesasPend">0</span></button>
             <button class="nav-link" data-panel="dre"><span class="nav-icon">≡</span> DRE</button>
-            <button type="button" class="nav-link" data-panel="contribuicao"><span class="nav-icon" aria-hidden="true">◈</span> Margem de contribuição</button>
-            <button type="button" class="nav-link" data-panel="equilibrio"><span class="nav-icon" aria-hidden="true">◎</span> Ponto de equilíbrio</button>
             <button class="nav-link" data-panel="fluxo"><span class="nav-icon">⇅</span> Fluxo de Caixa</button>
             <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
             <button class="nav-link" data-panel="impostos"><span class="nav-icon">§</span> Impostos <span class="nav-count" id="menuImpostos">0</span></button>
             <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
             <button class="nav-link" data-panel="contador"><span class="nav-icon">✉</span> Exportar p/ contador</button>
+          </div>
+        </section>
+        <section class="nav-group" data-nav-group="5" aria-label="Controladoria">
+          <button class="nav-group-toggle" type="button" aria-expanded="false" aria-controls="navGroupItems5"><span class="nav-group-emblem" aria-hidden="true">◈</span><span class="nav-group-name">Controladoria</span><span class="nav-group-chevron" aria-hidden="true">⌄</span></button>
+          <div class="nav-group-items" id="navGroupItems5" hidden>
+            <button type="button" class="nav-link" data-panel="contribuicao"><span class="nav-icon" aria-hidden="true">◈</span> Margem de contribuição</button>
+            <button type="button" class="nav-link" data-panel="equilibrio"><span class="nav-icon" aria-hidden="true">◎</span> Ponto de equilíbrio</button>
+            <button type="button" class="nav-link" data-panel="rentabilidade"><span class="nav-icon" aria-hidden="true">▥</span> Rentabilidade por produto</button>
           </div>
         </section>
         <section class="nav-group" data-nav-group="4" aria-label="Administração">
@@ -856,6 +862,58 @@
               </div>
               <p id="mcSimWarning" class="mc-sim-warning" role="status">Preencha os campos para simular.</p>
             </div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-rentabilidade" aria-labelledby="rp-title">
+          <div class="page-heading"><div>
+            <p class="eyebrow">CONTROLADORIA · COMPOSIÇÃO DO RESULTADO</p>
+            <h1 id="rp-title">Rentabilidade por produto</h1>
+            <p class="subtitle">Identifique quais colchões, bases e acessórios contribuem mais para o resultado. Indicador gerencial estimado, sem gravar dados.</p>
+          </div></div>
+          <section class="surface rp-period-surface">
+            <div class="surface-heading"><div><h2>Período e comparação</h2><p>Custos PEPS e custos variáveis obtidos das vendas calculáveis na Margem de Contribuição</p></div></div>
+            <div class="rp-filters">
+              <label class="field">Mês de referência<input type="month" id="rpMonth" aria-label="Mês de referência de rentabilidade por produto"></label>
+              <label class="field rp-search">Buscar produto<input type="search" id="rpSearch" placeholder="Nome do colchão, base ou acessório" aria-label="Buscar produto na análise"></label>
+              <label class="field">Ordenar por<select id="rpSort"><option value="contribution">Maior contribuição em reais</option><option value="revenue">Maior faturamento</option><option value="margin">Maior margem percentual</option><option value="units">Maior quantidade vendida</option><option value="low">Menor contribuição em reais</option></select></label>
+              <button type="button" class="button button-light" id="rpUpdate">Atualizar análise</button>
+            </div>
+          </section>
+          <div class="rp-kpis" aria-label="Resumo da rentabilidade dos produtos">
+            <article class="rp-kpi rp-primary"><span>Contribuição somada dos produtos</span><strong id="rpTotal">—</strong><small>Deve coincidir com a margem das vendas analisáveis</small></article>
+            <article class="rp-kpi"><span>Produtos com contribuição calculável</span><strong id="rpProducts">—</strong><small>Produtos distintos vendidos no período</small></article>
+            <article class="rp-kpi"><span>Produto com maior contribuição</span><strong id="rpBest">—</strong><small id="rpBestValue">Produto líder em contribuição absoluta</small></article>
+            <article class="rp-kpi"><span>Cobertura de receita por produto</span><strong id="rpCoverage">—</strong><small id="rpCoverageDetail">Vendas com itens e custos passíveis de alocação</small></article>
+          </div>
+          <div class="rp-advice" role="status" aria-live="polite">
+            <strong id="rpStatus">Aguardando cálculo.</strong>
+            <p id="rpExplanation">Os impostos, as taxas e os fretes serão distribuídos proporcionalmente à receita de cada item. A contabilidade fiscal permanece no módulo Impostos.</p>
+          </div>
+          <div class="rp-detail-grid">
+            <section class="surface rp-reconcile">
+              <div class="surface-heading"><div><h2>Conciliação com a Margem de Contribuição</h2><p>Evita que o ranking apresente um resultado diferente do painel mensal</p></div></div>
+              <table class="rp-small-table"><tbody>
+                <tr><td>Receita por produtos alocáveis</td><td id="rpRevenue">—</td></tr>
+                <tr><td>(−) CMV PEPS dos itens</td><td id="rpCmv">—</td></tr>
+                <tr><td>(−) Simples estimado alocado</td><td id="rpTax">—</td></tr>
+                <tr><td>(−) Taxas de pagamento alocadas</td><td id="rpFees">—</td></tr>
+                <tr><td>(−) Entregas vinculadas alocadas</td><td id="rpFreights">—</td></tr>
+                <tr class="rp-strong-row"><td>Contribuição atribuída aos produtos</td><td id="rpContrib">—</td></tr>
+                <tr><td>Diferença em relação à margem mensal</td><td id="rpDiff">—</td></tr>
+              </tbody></table>
+              <p id="rpReconcileNote" class="rp-footnote">Aguardando período.</p>
+            </section>
+            <section class="surface rp-leaders">
+              <div class="surface-heading"><div><h2>Produtos que mais contribuem</h2><p>Ranking por contribuição total, não por percentual isolado</p></div></div>
+              <div id="rpLeaders" class="rp-leaders-list">Aguardando período.</div>
+              <p class="rp-footnote">Um produto com margem percentual alta pode contribuir pouco se vender poucas unidades. Compare valor absoluto, quantidade e margem.</p>
+            </section>
+          </div>
+          <section class="surface rp-table-block">
+            <div class="surface-heading responsive-heading"><div><h2>Rentabilidade por produto</h2><p id="rpCount">—</p></div><button type="button" id="rpExport" class="button button-light button-small">Exportar CSV</button></div>
+            <div class="table-wrap"><table class="rp-table"><thead><tr><th>PRODUTO</th><th>UNIDADES</th><th>VENDAS</th><th>RECEITA</th><th>CMV</th><th>VARIÁVEIS EST.</th><th>CONTRIBUIÇÃO</th><th>MC %</th><th>CONFERÊNCIA</th></tr></thead><tbody id="rpRows"><tr><td colspan="9">Abra o relatório para calcular.</td></tr></tbody></table></div>
+            <p class="rp-footnote">Dados agrupados por identificador do produto, quando disponível. A análise exclui vendas incompletas ou impossíveis de ratear por item. Serviços e vendas canceladas não entram no ranking.</p>
           </section>
         </section>
 
@@ -1818,6 +1876,151 @@
       if (title) title.textContent='O cálculo do ponto de equilíbrio não foi carregado.';
       if (detail) detail.textContent='A rotina está incluída nesta página, mas ocorreu uma falha de inicialização. Confira se os scripts dre.js e contribuicao.js estão atualizados; nenhum dado foi modificado.';
     });
+  </script>
+  <script id="rp-controladoria-integrada-v118">
+'use strict';
+/* Conceito v118 — Rentabilidade por produto (somente leitura).
+   Fonte única: ckrContribuicaoAnalise() v116.
+   Aloca tributo gerencial, taxas e entregas da venda proporcionalmente à receita de cada item.
+   Preserva centavos e não altera, salva ou recalcula lançamentos contábeis.
+*/
+(function(){
+  const $=id=>document.getElementById(id);
+  const panel=$('panel-rentabilidade');
+  if(!panel)return;
+  const toCents=n=>Math.round(Number(n)*100);
+  const fromCents=n=>Math.round(n)/100;
+  const money=n=>Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const fmtPct=n=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+  const fmtQty=n=>Number(n).toLocaleString('pt-BR',{maximumFractionDigits:3});
+  const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const valid=n=>n!==null&&n!==undefined&&n!==''&&Number.isFinite(Number(n));
+  const empty=(text)=>{
+    $('rpStatus').textContent=text;
+    $('rpExplanation').textContent='Nenhum dado financeiro foi alterado. Confira o período e a disponibilidade dos módulos de origem.';
+    ['rpTotal','rpProducts','rpBest','rpCoverage','rpRevenue','rpCmv','rpTax','rpFees','rpFreights','rpContrib','rpDiff'].forEach(id=>$(id).textContent='—');
+    $('rpBestValue').textContent='—';$('rpCoverageDetail').textContent='—';
+    $('rpCount').textContent='—';$('rpRows').innerHTML='<tr><td colspan="9" class="rp-empty">'+escape(text)+'</td></tr>';
+    $('rpLeaders').textContent='Sem dados para este período.';$('rpReconcileNote').textContent='—';
+  };
+  // Distribui valores de cada venda pelo peso do item, em centavos, sem perder ou criar centavos.
+  function prorate(totalCents,weights){
+    const sum=weights.reduce((v,w)=>v+w,0);
+    if(!(sum>0))throw new Error('Itens sem valores que permitam rateio');
+    const total=Math.round(totalCents);
+    const portions=[];let used=0;
+    for(let i=0;i<weights.length;i++){
+      const n=i===weights.length-1 ? total-used : Math.round(total*weights[i]/sum);
+      portions.push(n);used+=n;
+    }
+    return portions;
+  }
+  function calc(month){
+    if(typeof window.ckrContribuicaoAnalise!=='function')return {ready:false,reason:'A Margem de Contribuição não está disponível. Confira contribuicao.js.'};
+    const original=window.ckrContribuicaoAnalise(month);
+    if(!original||!Array.isArray(original.ok))return {ready:false,reason:'Não foi possível obter as vendas analisáveis do período.'};
+    const products=new Map();
+    const skipped=[];const eligible=[];
+    const sums={revenue:0,cmv:0,tax:0,fees:0,freights:0,mc:0};
+    for(const sale of original.ok){
+      const lines=Array.isArray(sale.lines)?sale.lines:[];
+      const total=Number(sale.revenue);
+      const lineTotals=lines.map(l=>Number(l.total));
+      const costs=lines.map(l=>Number(l.costTotal));
+      const qtys=lines.map(l=>Number(l.quantity));
+      const costsSum=costs.reduce((a,b)=>a+b,0);
+      // Não gerar produto inventado: mantém a venda na Margem, mas a exclui da análise por item.
+      if(!lines.length||!valid(sale.revenue)||total<=0||!lineTotals.every(n=>Number.isFinite(n)&&n>=0)||!costs.every(n=>Number.isFinite(n)&&n>=0)||!qtys.every(n=>Number.isFinite(n)&&n>0)||Math.abs(costsSum-Number(sale.cmv))>0.03||Math.abs(lineTotals.reduce((a,b)=>a+b,0)-total)>0.03||![sale.tax,sale.fees,sale.freight,sale.mc].every(valid)){
+        skipped.push({id:sale.id||'—',reason:'Itens sem base consistente para rateio de receita ou custo'});continue;
+      }
+      const weights=lineTotals.map(v=>toCents(v));
+      if(weights.reduce((a,b)=>a+b,0)<=0){skipped.push({id:sale.id||'—',reason:'Receita não alocável por item'});continue;}
+      const revenueParts=prorate(toCents(sale.revenue),weights);
+      const cmvParts=prorate(toCents(sale.cmv),costs.map(v=>toCents(v)));
+      const taxParts=prorate(toCents(sale.tax),weights);
+      const feeParts=prorate(toCents(sale.fees),weights);
+      const freightParts=prorate(toCents(sale.freight),weights);
+      eligible.push(sale);
+      const reviewed=!!(sale.review||((sale.remarks||[]).length));
+      for(let i=0;i<lines.length;i++){
+        const line=lines[i];const key=line.productId?`id:${line.productId}`:'nome:'+String(line.productName||'Produto sem identificação').trim().toLocaleLowerCase('pt-BR');
+        let p=products.get(key);
+        if(!p){p={key,name:String(line.productName||'Produto sem identificação'),units:0,sales:new Set(),reviewedSales:new Set(),revenueC:0,cmvC:0,taxC:0,feesC:0,freightsC:0,mcC:0};products.set(key,p);}
+        p.units+=qtys[i];p.sales.add(String(sale.id));if(reviewed)p.reviewedSales.add(String(sale.id));
+        p.revenueC+=revenueParts[i];p.cmvC+=cmvParts[i];p.taxC+=taxParts[i];p.feesC+=feeParts[i];p.freightsC+=freightParts[i];
+        p.mcC+=revenueParts[i]-cmvParts[i]-taxParts[i]-feeParts[i]-freightParts[i];
+      }
+      sums.revenue+=toCents(sale.revenue);sums.cmv+=toCents(sale.cmv);sums.tax+=toCents(sale.tax);sums.fees+=toCents(sale.fees);sums.freights+=toCents(sale.freight);sums.mc+=toCents(sale.mc);
+    }
+    const items=[...products.values()].map(p=>({...p,margin:p.revenueC?100*p.mcC/p.revenueC:null}));
+    const itemSums=items.reduce((s,p)=>{s.revenue+=p.revenueC;s.cmv+=p.cmvC;s.tax+=p.taxC;s.fees+=p.feesC;s.freights+=p.freightsC;s.mc+=p.mcC;return s;},{revenue:0,cmv:0,tax:0,fees:0,freights:0,mc:0});
+    // Os centavos distribuídos por produto devem reproduzir exatamente as vendas elegíveis.
+    const balanced=Object.keys(sums).every(k=>Math.abs(sums[k]-itemSums[k])<=1);
+    return {ready:true,original,items,skipped,eligible,sums,itemSums,balanced,
+      revenueAll:toCents(original.totalRevenue||0),
+      coverage:original.totalRevenue>0?100*sums.revenue/100/original.totalRevenue:0,
+      difference:toCents(original.mc||0)-itemSums.mc};
+  }
+  let current=null;
+  const sorters={contribution:(a,b)=>b.mcC-a.mcC,low:(a,b)=>a.mcC-b.mcC,revenue:(a,b)=>b.revenueC-a.revenueC,units:(a,b)=>b.units-a.units,margin:(a,b)=>(b.margin??-Infinity)-(a.margin??-Infinity)};
+  function render(){
+    if(!panel.classList.contains('active'))return;
+    const month=$('rpMonth').value;
+    if(!/^\d{4}-\d{2}$/.test(month)){empty('Selecione um mês de referência.');return;}
+    try{current=calc(month);}catch(e){console.error('Rentabilidade por produto',e);empty('Falha ao calcular: '+String(e?.message||e));return;}
+    if(!current.ready){empty(current.reason);return;}
+    const d=current, sum=d.itemSums, all=d.items;
+    if(!all.length){empty(d.original.all?.length?'Nenhum produto com dados suficientes para rateio neste mês.':'Nenhuma venda de mercadoria neste mês.');return;}
+    $('rpTotal').textContent=money(fromCents(sum.mc));
+    $('rpProducts').textContent=String(all.length);
+    const best=[...all].sort(sorters.contribution)[0];
+    $('rpBest').textContent=best.name;
+    $('rpBestValue').textContent=money(fromCents(best.mcC))+' de contribuição no período';
+    $('rpCoverage').textContent=fmtPct(d.coverage);
+    $('rpCoverageDetail').textContent=`${d.eligible.length} de ${d.original.all.length} vendas ativas com itens alocáveis`;
+    const ids={rpRevenue:'revenue',rpCmv:'cmv',rpTax:'tax',rpFees:'fees',rpFreights:'freights',rpContrib:'mc'};
+    Object.entries(ids).forEach(([id,key])=>$(id).textContent=money(fromCents(sum[key])));
+    $('rpDiff').textContent=money(fromCents(d.difference));
+    $('rpDiff').classList.toggle('rp-negative',Math.abs(d.difference)>1);
+    const reviews=d.eligible.filter(s=>s.review||s.remarks?.length).length;
+    const exception=d.skipped.length;
+    const reconciled=d.balanced&&Math.abs(d.difference)<=1;
+    $('rpStatus').textContent=reconciled?'Conciliação concluída — resultado gerencial estimado.':'Conciliação parcial — verificar itens não alocáveis.';
+    $('rpExplanation').textContent=`${d.eligible.length} venda(s) alocadas, ${exception} não alocável(is) e ${reviews} com observações de conferência. Custos, impostos e taxas permanecem sujeitos à auditoria.`;
+    $('rpReconcileNote').textContent=reconciled?'A soma dos produtos concilia com a Margem de Contribuição mensal (diferença máxima de um centavo por arredondamento).':`Diferença de ${money(fromCents(d.difference))} em relação à Margem de Contribuição. ${exception} venda(s) calculável(is) não pôde(puderam) ser distribuída(s) por produto. ${d.skipped.slice(0,5).map(v=>v.id).join(', ')}${exception>5?' e outras':''}.`;
+    const leaders=[...all].sort(sorters.contribution).slice(0,3);
+    $('rpLeaders').innerHTML=leaders.map((p,i)=>`<div class="rp-leader"><span class="rp-leader-index">${i+1}</span><div class="rp-leader-desc"><strong title="${escape(p.name)}">${escape(p.name)}</strong><small>${fmtQty(p.units)} unidade(s) · ${fmtPct(p.margin??0)} de MC</small></div><b>${money(fromCents(p.mcC))}</b></div>`).join('');
+    const query=$('rpSearch').value.trim().toLocaleLowerCase('pt-BR');
+    const order=sorters[$('rpSort').value]||sorters.contribution;
+    const list=all.filter(p=>!query||p.name.toLocaleLowerCase('pt-BR').includes(query)).sort((a,b)=>order(a,b)||a.name.localeCompare(b.name,'pt-BR'));
+    $('rpCount').textContent=`${list.length} produto(s) encontrado(s)${list.length>100?' · primeiros 100 exibidos (CSV contém todos)':''}`;
+    $('rpRows').innerHTML=list.length?list.slice(0,100).map(p=>`<tr><td><strong>${escape(p.name)}</strong></td><td>${fmtQty(p.units)}</td><td>${p.sales.size}</td><td>${money(fromCents(p.revenueC))}</td><td>${money(fromCents(p.cmvC))}</td><td>${money(fromCents(p.taxC+p.feesC+p.freightsC))}</td><td class="rp-number-strong ${p.mcC<0?'rp-negative':''}">${money(fromCents(p.mcC))}</td><td>${p.margin===null?'—':fmtPct(p.margin)}</td><td><span class="rp-product-status ${p.reviewedSales.size?'rp-review':''}">${p.reviewedSales.size?`${p.reviewedSales.size} venda(s) a conferir`:'Estimada'}</span></td></tr>`).join(''):'<tr><td colspan="9" class="rp-empty">Nenhum produto encontrado para a pesquisa.</td></tr>';
+  }
+  function exportCSV(){
+    if(!current||!current.ready)return;
+    const form=n=>String(fromCents(n)).replace('.',',');
+    const cell=v=>{let t=String(v??'');if(/^[=+@\-\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
+    const columns=['Produto','Unidades','Vendas','Receita','CMV','Simples estimado','Taxas','Fretes','Contribuição','Margem %','Vendas com observações'];
+    const rows=current.items.map(p=>[p.name,fmtQty(p.units),p.sales.size,form(p.revenueC),form(p.cmvC),form(p.taxC),form(p.feesC),form(p.freightsC),form(p.mcC),p.margin===null?'':String(p.margin.toFixed(2)).replace('.',','),p.reviewedSales.size]);
+    const csv='\ufeff'+[columns,...rows].map(row=>row.map(cell).join(';')).join('\r\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download='conceito-rentabilidade-produtos-'+$('rpMonth').value+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+  function init(){
+    const now=new Date();$('rpMonth').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    ['rpMonth','rpSearch','rpSort'].forEach(id=>$(id).addEventListener(id==='rpSearch'?'input':'change',render));
+    $('rpUpdate').addEventListener('click',render);$('rpExport').addEventListener('click',exportCSV);
+    const nav=document.querySelector('.nav-link[data-panel="rentabilidade"]');
+    if(nav)nav.addEventListener('click',()=>Promise.resolve().then(render));
+    let scheduled=false;
+    const schedule=()=>{if(scheduled)return;scheduled=true;Promise.resolve().then(()=>{scheduled=false;render();});};
+    new MutationObserver(changes=>{if(changes.some(c=>c.attributeName==='class'))schedule();}).observe(panel,{attributes:true,attributeFilter:['class']});
+    if(panel.classList.contains('active'))render();
+    window.ckrRentabilidadeProdutoAnalise=calc; // API apenas para testes/consulta.
+  }
+  try{init();}catch(e){console.error('Rentabilidade por produto: inicialização',e);empty('Erro de inicialização do relatório: '+String(e?.message||e));}
+})();
+
   </script>
   <script src="backup_seguro.js?v=3"></script>
   <script>
