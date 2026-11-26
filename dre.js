@@ -3,7 +3,7 @@
 // Competência: despesas pagas no mês seguinte entram no mês anterior (ver DEFER).
 // Fontes: vendas (movimentos 'venda' ativos), serviços e despesas (painel Despesas).
 // CMV = sempre o custo real gravado na venda (o crédito retido com a fábrica é ativo: aparece só como linha informativa).
-// Simples Nacional = DAS efetivamente PAGO (despesas do item Simples Nacional), por mês de competência; a estimativa pelas notas (painel Impostos) só aparece como aviso.
+// Simples Nacional = apuração por COMPETÊNCIA do painel Impostos (notas e ajuste de DAS), independentemente da quitação. Despesa de pagamento do DAS não duplica o resultado.
 // Cada despesa pode ter um item do catálogo (x.itemId): o item define a linha da DRE e a competência padrão. As palavras-chave ficam só como reserva.
 // Usa as funções e dados do app.js (data, money, saveData, localDateKey, todayISO, esc, fold, toast, PM, ...).
 (function(){
@@ -18,7 +18,7 @@ const numN=v=>(v===undefined||v===null||v==='')?NaN:Number(v);
 // [chave, rótulo, grupo]. O grupo define em qual bloco da DRE a linha aparece.
 const LINES=[
  ['devolucoes','Devoluções','ded'],
- ['simples','Simples Nacional (DAS pago)','ded'],
+ ['simples','Simples Nacional (competência)','ded'],
  ['comissao','Comissão','vend'],['salariosOp','Salários (OP)','vend'],['frete','Frete','vend'],['fgtsOp','FGTS (OP)','vend'],
  ['agua','Água e Esgoto','fixa'],['aluguel','Aluguel','fixa'],['contabeis','Serviços Contábeis','fixa'],['fgtsF','FGTS (F)','fixa'],
  ['energia','Energia','fixa'],['telefone','Telefone e Internet','fixa'],['propaganda','Propaganda e Publicidade','fixa'],['gps','GPS','fixa'],
@@ -100,7 +100,7 @@ function compDate(x){
 const COMP_LBL={pag:'Mês do pagamento',ant:'Mês anterior'};
 
 // ---------- cálculo ----------
-// O DAS de um mês só entra se o período escolhido cobrir o mês inteiro.
+// Permite reconhecimento por competências inteiras ao usar DAS registrado como fonte auxiliar (na ausência de notas).
 function mesInteiro(mes,s,e){
  const y=+mes.slice(0,4),m=+mes.slice(5,7),ini=`${mes}-01`,fim=localDateKey(new Date(y,m,0));
  return (!s||s<=ini)&&(!e||e>=fim);
@@ -123,22 +123,66 @@ function compute(s,e){
  C.servico=0;
  (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{if(!inR(localDateKey(sv.date),s,e))return;C.servico+=Number(sv.amount||0);C.fee+=Number((sv.payment||{}).fee||0);C.credFab+=Number((sv.payment||{}).factoryCredit||0);});   // serviço não tem CMV; o crédito da fábrica do serviço também é só informativo
  // despesas lançadas (pela data de competência)
- const L={};LINES.forEach(l=>L[l[0]]=0);const itens=[],dasPend=[],dasParc={},dasPago={};
+ const L={};LINES.forEach(l=>L[l[0]]=0);
+ const itens=[],dasPend=[],dasPago={},dasRegistrados={},dasParc={};
  exps().forEach(x=>{
-  if(x.forecast===true)return; // previsão gerencial não é obrigação nem despesa incorrida
+  if(x.forecast===true)return; // previsões não entram na DRE
   const cd=compDate(x);
   if(!inR(cd,s,e))return;
   const k=lineOf(x),v=Number(x.amount||0);
-  if(k==='simples'){   // Simples Nacional = só o DAS efetivamente PAGO, por competência
-   const mes=cd.slice(0,7);
-   if(x.status!=='pago'){dasPend.push(v);itens.push({x,k,v,cd,fora:'pendente: só entra depois de paga'});return;}
-   if(!mesInteiro(mes,s,e)){dasParc[mes]=r2((dasParc[mes]||0)+v);itens.push({x,k,v,cd,fora:'o período não cobre o mês inteiro'});return;}
-   dasPago[mes]=r2((dasPago[mes]||0)+v);
+  if(k==='simples'){
+   // O pagamento/conta a pagar do DAS controla a QUITAÇÃO, não é uma segunda despesa.
+   // Recorrência automática pendente é apenas previsão, não comprovação de DAS apurado.
+   const mes=String(cd||'').slice(0,7);
+   if(x.recurring===true&&x.status!=='pago'){
+    itens.push({x,k,v,cd,fora:'previsão automática de DAS, sem efeito na DRE'});
+    return;
+   }
+   if(/^\d{4}-\d{2}$/.test(mes)){
+    const a=dasRegistrados[mes]||(dasRegistrados[mes]={pago:0,pendente:0,qtde:0});
+    a.qtde++;
+    if(x.status==='pago'){
+     a.pago=r2(a.pago+v);
+     dasPago[mes]=r2((dasPago[mes]||0)+v);
+    }else{
+     a.pendente=r2(a.pendente+v);
+     dasPend.push(v);
+    }
+   }
+   itens.push({x,k,v,cd,fora:'DAS em Contas a Pagar/Caixa; competência calculada separadamente na DRE'});
+   return;
   }
   L[k]+=v;itens.push({x,k,v,cd});
  });
- // Estimativa do Simples pelas notas (painel Impostos): NÃO entra no resultado, só alimenta os avisos
+ // Fonte prioritária: a apuração do painel Impostos, inclusive correções manuais salvas.
+ // A apuração é independente de a guia ter sido paga ou não.
  const sn=typeof window.ckrSimplesPeriodo==='function'?window.ckrSimplesPeriodo(s,e):{total:0,meses:[]};
+ const simplesFonte={};
+ let totalSimples=0;
+ (sn.meses||[]).forEach(m=>{
+  const valor=r2(Number(m.valor||0));
+  simplesFonte[m.mes]={valor,origem:m.ajustado?'ajuste em Impostos':'apuração em Impostos',parcial:!!m.parcial};
+  totalSimples+=valor;
+ });
+ // Compatibilidade: se NÃO houver notas/apuração para a competência, um DAS real
+ // individualmente lançado (não uma recorrência projetada) pode ser base provisória.
+ // Nunca somar esse DAS sobre a apuração já existente: evita dupla dedução.
+ const extras=new Set([...Object.keys(dasRegistrados),
+  ...Object.keys(data.taxAdj||{}).filter(k=>/^\d{4}-\d{2}$/.test(k))]);
+ extras.forEach(mes=>{
+  if(simplesFonte[mes]||!mesInteiro(mes,s,e))return;
+  const manual=(data.taxAdj||{})[mes],a=dasRegistrados[mes]||{pago:0,pendente:0};
+  let valor=0,origem='';
+  if(manual!==null&&manual!==undefined&&manual!==''&&Number.isFinite(Number(manual))&&Number(manual)>=0){
+   valor=r2(Number(manual));origem='ajuste salvo em Impostos, sem notas cadastradas';
+  }else if(a.pago>0.004){
+   valor=r2(a.pago);origem='DAS quitado, sem notas cadastradas';
+  }else if(a.pendente>0.004){
+   valor=r2(a.pendente);origem='DAS pendente individual, sem notas cadastradas';
+  }
+  if(origem){simplesFonte[mes]={valor,origem,parcial:false};totalSimples+=valor;}
+ });
+ L.simples=r2(totalSimples);
  const R={};
  R.gross=r2(C.gross);R.servico=r2(C.servico);R.rec=r2(R.gross+R.servico);
  R.dev=r2(L.devolucoes);R.simples=r2(L.simples);R.desc=r2(C.desc);R.ded=r2(R.dev+R.simples+R.desc);
@@ -153,7 +197,12 @@ function compute(s,e){
  R.divers=r2(L.rendimentos+L.jurosAtivos-L.despBancarias-L.jurosPassivos-L.descontosConc);
  R.res=r2(R.oper+R.divers);
  R.L=L;R.itens=itens;R.sem=C.sem;R.vendasQtd=C.vendasQtd;R.meses=sn.meses;R.ignorado=r2(L.ignorar);
- R.dasPago=dasPago;R.dasParc=dasParc;R.dasPend=dasPend;
+ R.dasPago=dasPago;R.dasParc=dasParc;R.dasPend=dasPend;R.simplesFonte=simplesFonte;
+ // Conferência gerencial: notas da aba Impostos podem não coincidir com as vendas
+ // devido a diferença de competência, vendas sem nota ou ajustes fiscais.
+ const notas=Array.isArray(data.taxNotes)?data.taxNotes:[];
+ R.baseNotas=r2(notas.filter(n=>inR(String(n.date||''),s,e)).reduce((n,x)=>n+Number(x.value||0),0));
+ R.diferencaBase=r2((R.rec-R.desc-R.dev)-R.baseNotas);
  return R;
 }
 
@@ -235,21 +284,22 @@ function renderAvisos(R,s,e){
  if(R.sem)av.push(`${R.sem} lançamento(s) de venda antigos não têm custo registrado: o CMV deles não foi considerado.`);
  if(R.credFab>0.004)av.push(`Crédito retido com a fábrica no período: ${money(R.credFab)}. É um ativo (valor a usar em compras na fábrica), não custo: o CMV usa sempre o custo real do produto. A divisão dinheiro/crédito aparece no Caixa (DFC), não na DRE.`);
  {
-  const mm=k=>k.slice(5)+'/'+k.slice(0,4),estM={};R.meses.forEach(m=>{estM[m.mes]=m;});
-  [...new Set([...Object.keys(R.dasPago),...R.meses.map(m=>m.mes)])].sort().forEach(k=>{
-   const est=estM[k],pago=R.dasPago[k]||0;
-   if(est&&est.parcial){av.push(`Simples ${mm(k)}: o período não cobre o mês inteiro, então o DAS desse mês não foi considerado.`);return;}
-   if(pago>0.004){
-    if(!est)av.push(`Simples ${mm(k)}: DAS pago de ${money(pago)}, mas não há notas registradas em Impostos para conferir o valor.`);
-    else if(Math.abs(pago-est.valor)>0.01)av.push(`Simples ${mm(k)}: o DAS pago (${money(pago)}) difere do calculado pelas notas (${money(est.valor)}${est.ajustado?', já com seu ajuste':''}). Diferença de ${money(Math.abs(pago-est.valor))}.`);
-   }else if(est&&est.valor>0.004)av.push(`Simples ${mm(k)}: ainda não há DAS pago. Estimativa pelas notas: ${money(est.valor)} (não somada no resultado). Lance a despesa no item Simples Nacional quando pagar.`);
+  const mm=k=>k.slice(5)+'/'+k.slice(0,4),fontes=R.simplesFonte||{};
+  Object.keys(fontes).sort().forEach(k=>{
+   const f=fontes[k],pago=R.dasPago[k]||0;
+   if(f.parcial)av.push(`Simples ${mm(k)}: apuração parcial de ${money(f.valor)}, referente às notas incluídas no período selecionado.`);
+   if(/sem notas cadastradas/.test(f.origem))av.push(`Simples ${mm(k)}: valor ${money(f.valor)} utilizado provisoriamente de ${f.origem}. Confirme a apuração no painel Impostos e com o contador.`);
+   if(pago>0.004&&Math.abs(pago-f.valor)>0.01)av.push(`Simples ${mm(k)}: DAS quitado ${money(pago)} difere da apuração na DRE ${money(f.valor)}. Diferença ${money(Math.abs(pago-f.valor))}. Confira o ajuste na aba Impostos; o pagamento não foi somado novamente à DRE.`);
+   else if(pago<=0.004&&f.valor>0.004)av.push(`Simples ${mm(k)}: ${money(f.valor)} reconhecido por competência na DRE, mesmo sem pagamento de DAS registrado.`);
   });
-  Object.keys(R.dasParc).sort().forEach(k=>{if(estM[k]&&estM[k].parcial)return;av.push(`Simples ${mm(k)}: DAS pago de ${money(R.dasParc[k])} não entrou, pois o período não cobre o mês inteiro.`);});
-  if(R.dasPend.length)av.push(`${R.dasPend.length} despesa(s) do item Simples Nacional ainda pendente(s), somando ${money(r2(R.dasPend.reduce((n,v)=>n+v,0)))}: só entram na DRE depois de pagas.`);
+  Object.keys(R.dasPago).filter(k=>!fontes[k]).sort().forEach(k=>av.push(`Simples ${mm(k)}: pagamento de ${money(R.dasPago[k])} registrado, mas o período selecionado não contém uma apuração completa dessa competência. Verifique o filtro da DRE.`));
+  if(R.rec>0.004&&(!R.meses||!R.meses.length))av.push('Há receitas no período, mas nenhuma nota do período foi localizada no painel Impostos. O Simples poderá estar subestimado; confira os registros fiscais.');
+  if(R.rec>0.004&&Math.abs(R.diferencaBase)>1)av.push(`Conferência fiscal: receita de vendas/serviços após descontos e devoluções ${money(r2(R.rec-R.desc-R.dev))}; notas registradas em Impostos ${money(R.baseNotas)}. A diferença ${money(Math.abs(R.diferencaBase))} pode refletir datas de emissão distintas, serviços ou notas faltantes. Verifique antes de considerar o Simples definitivo.`);
+  av.push('Simples Nacional: a DRE usa a apuração por competência da aba Impostos, com eventuais ajustes salvos. O DAS pago é quitação e não é deduzido uma segunda vez. Confira notas e RBT12 com o contador.');
  }
  {const sem=R.itens.filter(o=>!itemOf(o.x)).length;if(sem)av.push(`${sem} despesa(s) do período ainda sem item do catálogo (classificadas pelas palavras-chave). Veja a lista “Despesas sem item do catálogo” abaixo para reclassificar.`);}
  if(R.ignorado>0)av.push(`${money(R.ignorado)} em despesas marcadas como “Não entra na DRE” (ex.: parcelamento de impostos, que não é despesa do período).`);
- av.push('Contas pagas no mês seguinte (contador, internet, luz, água, GPS, FGTS, Simples) entram no mês anterior; o mês de competência de cada despesa pode ser ajustado ao lançá-la em Fluxo de Caixa. Por isso o mês atual pode mostrar essas contas zeradas até o pagamento ser lançado.');
+ av.push('Contas pagas no mês seguinte (contador, internet, luz, água, GPS, FGTS) podem entrar no mês anterior; o mês de competência de cada despesa pode ser ajustado ao lançá-la em Fluxo de Caixa. Por isso o mês atual pode mostrar essas contas zeradas até o pagamento ser lançado.');
  av.push('Devoluções, comissões, frete, salários, FGTS e as demais linhas vêm das despesas lançadas. Confira na lista abaixo em qual linha cada despesa caiu.');
  $('dreAvisos').innerHTML=av.map(t=>`<p>${esc(t)}</p>`).join('');
  $('drePeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · vendas e Simples pelo mês da venda/nota (competência); despesas pelo mês a que se referem.`;
