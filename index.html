@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=45">
+  <link rel="stylesheet" href="style.css?v=46">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -317,6 +317,7 @@
           <div class="nav-group-items" id="navGroupItems3" hidden>
             <button class="nav-link" data-panel="financeiro"><span class="nav-icon">$</span> Gestão de Despesas <span class="nav-count" id="menuDespesasPend">0</span></button>
             <button class="nav-link" data-panel="dre"><span class="nav-icon">≡</span> DRE</button>
+            <button type="button" class="nav-link" data-panel="contribuicao"><span class="nav-icon" aria-hidden="true">◈</span> Margem de contribuição</button>
             <button class="nav-link" data-panel="fluxo"><span class="nav-icon">⇅</span> Fluxo de Caixa</button>
             <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
             <button class="nav-link" data-panel="impostos"><span class="nav-icon">§</span> Impostos <span class="nav-count" id="menuImpostos">0</span></button>
@@ -777,6 +778,63 @@
             </div>
             <div class="table-wrap"><table><thead><tr><th>LANÇAMENTO</th><th>CATEGORIA</th><th>DESCRIÇÃO</th><th>PAGAMENTO</th><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>AÇÕES</th></tr></thead><tbody id="finLista"></tbody></table></div>
             <div id="finVazio" class="empty-state"><div class="empty-symbol">$</div><b>Nenhuma despesa encontrada</b><p>Use “Nova despesa” para lançar o primeiro gasto ou altere os filtros.</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-contribuicao" aria-labelledby="mc-title">
+          <div class="page-heading">
+            <div><p class="eyebrow">CONTROLADORIA · RENTABILIDADE</p>
+              <h1 id="mc-title">Margem de contribuição</h1>
+              <p class="subtitle">Quanto as vendas de mercadorias contribuem para cobrir os custos fixos. Consulta gerencial sem alterar registros.</p>
+            </div>
+          </div>
+          <section class="surface mc-filter-surface">
+            <div class="surface-heading"><div><h2>Período e abrangência</h2><p>Vendas ativas, agrupadas pelo identificador da venda</p></div></div>
+            <div class="mc-filter-bar">
+              <label class="field">Mês de referência<input id="mcMonth" type="month" aria-label="Mês da margem de contribuição"></label>
+              <label class="field">Localizar venda<input id="mcSearch" type="search" placeholder="Cliente ou número da venda" aria-label="Filtrar vendas"></label>
+              <span id="mcCoverage" class="mc-coverage" role="status">Carregando dados…</span>
+            </div>
+          </section>
+          <div class="mc-kpi-grid">
+            <article class="mc-kpi mc-main"><span>Margem de contribuição (R$)</span><strong id="mcVal">—</strong><small>Somente vendas com dados suficientes</small></article>
+            <article class="mc-kpi"><span>Margem de contribuição (%)</span><strong id="mcPct">—</strong><small>Contribuição ÷ receita analisável</small></article>
+            <article class="mc-kpi"><span>Receita analisável</span><strong id="mcRevenue">—</strong><small>Não inclui vendas incompletas</small></article>
+            <article class="mc-kpi"><span>Custos e despesas variáveis</span><strong id="mcCosts">—</strong><small>CMV, Simples estimado, taxas e frete vinculado</small></article>
+          </div>
+          <div class="mc-info" role="status">
+            <strong id="mcSummary">Selecione o período para consultar os dados.</strong>
+            <p id="mcTaxInfo">O cálculo será estimado quando utilizar o rateio mensal do Simples Nacional.</p>
+          </div>
+          <section class="surface mc-sales">
+            <div class="surface-heading responsive-heading"><div><h2>Rentabilidade por venda</h2><p id="mcCount">—</p></div></div>
+            <div class="table-wrap"><table class="mc-table"><thead><tr>
+              <th>DATA</th><th>VENDA / CLIENTE</th><th>RECEITA</th><th>CMV</th><th>SIMPLES EST.</th><th>TAXA CARTÃO</th><th>CONTRIBUIÇÃO</th><th>MC %</th><th>STATUS</th><th>ANALISAR</th>
+            </tr></thead><tbody id="mcRows"><tr><td colspan="10" class="mc-empty">Abra a Controladoria para calcular.</td></tr></tbody></table></div>
+            <p class="mc-table-foot">Os pagamentos da fábrica destinados a crédito Ortobom não representam despesa adicional. Vendas canceladas não entram neste indicador. Uma nota fiscal vigente de venda cancelada continua na apuração fiscal separada.</p>
+          </section>
+          <section class="surface mc-sim" id="mcSimulation">
+            <div class="surface-heading"><div><h2>Simulador de descontos</h2><p>Compare preços e margens sem salvar nem registrar uma venda</p></div></div>
+            <div class="mc-sim-content">
+              <label class="field mc-wide">Preencher a partir de uma venda já registrada (opcional)
+                <select id="mcSale"><option value="">Preencher manualmente</option></select>
+              </label>
+              <div class="mc-sim-fields">
+                <label class="field">Preço-base da venda (R$)<input id="mcPrice" type="text" inputmode="decimal" placeholder="1.200,00"></label>
+                <label class="field">Custo PEPS / CMV (R$)<input id="mcCost" type="text" inputmode="decimal" placeholder="650,00"></label>
+                <label class="field">Simples estimado (%)<input id="mcTaxRate" type="text" inputmode="decimal" placeholder="5,50"></label>
+                <label class="field">Taxa sobre recebimento (%)<input id="mcFeeRate" type="text" inputmode="decimal" placeholder="4,50"></label>
+                <label class="field">Entrega diretamente identificável (R$)<input id="mcDelivery" type="text" inputmode="decimal" placeholder="0,00"></label>
+                <label class="field">Outros custos variáveis diretos (R$)<input id="mcExtra" type="text" inputmode="decimal" placeholder="0,00"></label>
+              </div>
+              <div class="mc-discount-row"><label for="mcDiscount">Desconto adicional</label><input id="mcDiscount" type="range" min="0" max="30" step="1" value="0"><strong id="mcDiscountVal">0,0%</strong></div>
+              <div class="mc-sim-results">
+                <div><span>Preço simulado</span><strong id="mcSimSaleValue">—</strong></div>
+                <div><span>Margem de contribuição</span><strong id="mcSimValue">—</strong></div>
+                <div><span>MC percentual</span><strong id="mcSimPercent">—</strong></div>
+              </div>
+              <p id="mcSimWarning" class="mc-sim-warning" role="status">Preencha os campos para simular.</p>
+            </div>
           </section>
         </section>
 
@@ -1513,6 +1571,7 @@
   <script src="dre.js?v=11"></script>
   <script src="fluxo.js?v=2"></script>
   <script src="dashboard.js?v=3"></script>
+  <script src="contribuicao.js?v=1"></script>
   <script src="backup_seguro.js?v=3"></script>
   <script>
     // Diagnóstico visual quando o arquivo novo não existe na pasta do programa.
