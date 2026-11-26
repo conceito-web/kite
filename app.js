@@ -822,12 +822,8 @@ function renderSaleSearch(){
   .filter(v=>{const day=localDateKey(v.date);if(start&&day<start)return false;if(end&&day>end)return false;
    return !tokens.length||tokens.every(t=>fold([v.client,v.description,'servico',new Date(v.date).toLocaleDateString('pt-BR'),day].join(' ')).includes(t));});
  const all=[...sales,...svc].sort((a,b)=>new Date(b.date)-new Date(a.date));
- // Associação precisa: um serviço só é exibido em uma venda quando há saleId explícito.
- // Serviços históricos sem saleId continuam como registros independentes, sem associação por nome.
- const svcBySale={};(typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(v=>{
-  const k=String(v.saleId||'').trim();if(!k)return;
-  const o=svcBySale[k]||(svcBySale[k]={n:0,total:0});o.n++;o.total+=Number(v.amount||0);
- });
+ // serviços já prestados a cada cliente (para o aviso dentro da linha da venda)
+ const svcByClient={};(typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(v=>{const k=fold(v.client||'');if(!k)return;const o=svcByClient[k]||(svcByClient[k]={n:0,total:0});o.n++;o.total+=Number(v.amount||0);});
  const active=all.filter(s=>!s.canceled),LIMIT=100;
  const totalAtivas=active.reduce((n,s)=>n+s.total,0),lucroAtivas=active.filter(s=>s.profitKnown).reduce((n,s)=>n+s.profit,0);
  const comNota=active.filter(s=>s.taxNote),totalNotas=comNota.reduce((n,s)=>n+Number(s.taxNote.value||0),0);
@@ -840,11 +836,11 @@ function renderSaleSearch(){
   +`<td class="sale-status"><span class="pill ativa">Ativa</span><br><small>Receita de serviço${s.edited?' · editada':''}</small></td>`
   +`<td><button type="button" class="row-action" data-svc-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-svc-delete="${esc(s.id)}">Excluir serviço</button></td></tr>`):(`<tr class="${s.canceled?'row-canceled':''}">`
   +`<td>${esc(dateText(s.date))}<br><small>Venda ${esc(s.id)}</small></td>`
-  +`<td><span class="product-name">${esc(s.client||'Sem cliente')}</span>${s.cpf?`<br><small>CPF ${esc(s.cpf)}</small>`:''}${(()=>{const o=svcBySale[String(s.id)];return o?`<br><span class="nota-badge com" title="Serviço vinculado a esta venda">🛠 ${o.n} ${o.n===1?'serviço':'serviços'} · ${esc(money(o.total))}</span>`:'';})()}</td>`
+  +`<td><span class="product-name">${esc(s.client||'Sem cliente')}</span>${s.cpf?`<br><small>CPF ${esc(s.cpf)}</small>`:''}${(()=>{const o=svcByClient[fold(s.client||'')];return o?`<br><button type="button" class="nota-badge com" data-svc-cliente="${esc(s.client)}" title="Ver os serviços deste cliente">🛠 ${o.n} ${o.n===1?'serviço':'serviços'} · ${esc(money(o.total))}</button>`:'';})()}</td>`
   +`<td><ul class="sale-items">${s.items.map(i=>`<li>${i.quantity}× ${esc(i.name)}</li>`).join('')}</ul></td>`
   +`<td class="${s.canceled?'sale-money-canceled':''}">${esc(money(s.total))}</td>`
   +`<td>${s.canceled||!s.profitKnown?'—':esc(money(s.profit))}</td>`
-  +`<td class="sale-status">${s.canceled?`<span class="pill cancelada">Cancelada</span>${s.canceledAt?`<br><small>${esc(dateText(s.canceledAt))}</small>`:''}`:'<span class="pill ativa">Ativa</span>'}${s.canceled?'':(s.taxNote?`<br><button type="button" class="nota-badge com" data-sale-nota="${esc(s.id)}" title="Clique para trocar ou remover a nota desta venda">✓ Com nota</button><br><small>Nota ${esc(s.taxNote.number)} · emitida em ${esc(noteDateBR(s.taxNote.date))}</small>`:`<br><button type="button" class="nota-badge sem" data-sale-nota="${esc(s.id)}" title="Clique para vincular uma nota a esta venda">✕ Sem nota</button>`)}${s.edited?'<br><small>editada</small>':''}</td>`
+  +`<td class="sale-status">${s.canceled?`<span class="pill cancelada">Cancelada</span>${s.canceledAt?`<br><small>${esc(dateText(s.canceledAt))}</small>`:''}`:'<span class="pill ativa">Ativa</span>'}${s.canceled?(s.taxNote?`<br><small>NF ${esc(s.taxNote.number)} · ${s.taxNote.fiscalStatus==='cancelada'?'cancelada fiscalmente':'vigente na apuração fiscal'}</small>`:''):(s.taxNote?`<br><button type="button" class="nota-badge com" data-sale-nota="${esc(s.id)}" title="Clique para trocar ou remover a nota desta venda">✓ Com nota</button><br><small>Nota ${esc(s.taxNote.number)} · emitida em ${esc(noteDateBR(s.taxNote.date))}</small>`:`<br><button type="button" class="nota-badge sem" data-sale-nota="${esc(s.id)}" title="Clique para vincular uma nota a esta venda">✕ Sem nota</button>`)}${s.edited?'<br><small>editada</small>':''}</td>`
   +`<td>${s.canceled?'—':`<button type="button" class="row-action" data-sale-receipt="${esc(s.id)}">Recibo PDF</button><button type="button" class="row-action" data-sale-whatsapp="${esc(s.id)}">WhatsApp</button><button type="button" class="row-action" data-sale-edit="${esc(s.id)}">Editar</button><button type="button" class="row-action delete" data-sale-cancel="${esc(s.id)}">Cancelar venda</button>`}</td></tr>`)).join('');
  document.getElementById('semVendasBusca').style.display=all.length?'none':'block';
 }
@@ -895,24 +891,67 @@ function startSaleEdit(saleId){
  renderCart();goTo('venda');
  toast('Venda carregada. Altere o que precisar e salve.');
 }
-function cancelSale(saleId){
+async function cancelSale(saleId){
  if(!hasFullAccess()){toast('Seu perfil não tem permissão para cancelar vendas.',true);return;}
  const s=getSales().find(x=>x.id===saleId);if(!s||s.canceled)return;
  const paidProm=receivables().filter(r=>r.saleId===s.id&&(r.paid||r.received>0)&&!r.canceled),promWarn=paidProm.length?`\n\nAtenção: ${paidProm.length} parcela(s) de promissória já recebida(s) (${money(paidProm.reduce((n,r)=>n+(r.received!=null?Number(r.received):Number(r.amount)),0))}). Devolva ao cliente, se for o caso.`:'';
  const lines=s.items.map(i=>`• ${i.quantity}× ${i.name}`).join('\n');
  if(!confirm(`Cancelar a venda ${s.id}${s.client?' de '+s.client:''}?\n\n${lines}\n\nOs produtos voltarão ao estoque e ${money(s.total)} será retirado do total de vendas e do lucro.${promWarn}`))return;
- const when=new Date().toISOString(),missing=[];
- receivables().forEach(r=>{if(r.saleId===s.id)r.canceled=true;});
- s.movements.forEach(m=>{
-  if(m.canceled)return;
-  const p=productById(m.productId);
-  if(p)stockBack(p,m);else missing.push(m.productName);
-  m.canceled=true;m.canceledAt=when;m.canceledBy=currentUserName();
- });
+ // Cancelamento comercial e cancelamento fiscal são eventos distintos.
+ // A pergunta só é feita quando a venda tem uma nota cadastrada e vinculada.
+ const nota=s.taxNote;
+ let notaFoiCancelada=null;
+ if(nota){
+  if(typeof window.ckrPerguntarCancelamentoFiscal!=='function'){
+   toast('O módulo fiscal não está disponível. Para proteger a nota, o cancelamento foi interrompido.',true);return;
+  }
+  notaFoiCancelada=await window.ckrPerguntarCancelamentoFiscal({saleId:s.id,number:nota.number,date:nota.date,value:nota.value});
+  if(notaFoiCancelada===null)return; // "Voltar": não altera venda, estoque nem nota.
+ }
+ // Não prosseguir se a venda foi alterada enquanto a pergunta estava aberta.
+ const current=getSales().find(x=>x.id===saleId);
+ if(!current||current.canceled||!!(nota&&current.taxNoteId!==nota.id)){
+  toast('A venda ou sua nota mudou durante a confirmação. Reabra o cancelamento.',true);return;
+ }
+ const when=new Date().toISOString(),who=currentUserName(),missing=[];
+ // Salva um instantâneo apenas dos campos que esta operação modifica para desfazer em caso de falha.
+ const snapshotMov=s.movements.map(m=>({m,canceled:m.canceled,canceledAt:m.canceledAt,canceledBy:m.canceledBy,fiscalNoteOnCancel:m.fiscalNoteOnCancel}));
+ const snapshotRece=receivables().filter(r=>r.saleId===s.id).map(r=>({r,canceled:r.canceled}));
+ const snapNote=nota?{fiscalStatus:nota.fiscalStatus,fiscalStatusCheckedAt:nota.fiscalStatusCheckedAt,fiscalStatusCheckedBy:nota.fiscalStatusCheckedBy,fiscalStatusSaleId:nota.fiscalStatusSaleId,events:Array.isArray(nota.fiscalStatusEvents)?nota.fiscalStatusEvents.slice():undefined}:null;
+ const snapProducts=[];
+ try{
+  receivables().forEach(r=>{if(r.saleId===s.id)r.canceled=true;});
+  s.movements.forEach(m=>{
+   if(m.canceled)return;
+   const p=productById(m.productId);
+   if(p){snapProducts.push({p,stock:p.stock,cost:p.cost,layers:p.layers===undefined?undefined:JSON.parse(JSON.stringify(p.layers))});stockBack(p,m);}else missing.push(m.productName);
+   m.canceled=true;m.canceledAt=when;m.canceledBy=who;
+   if(nota)m.fiscalNoteOnCancel=notaFoiCancelada?'cancelada':'vigente';
+  });
+  if(nota){
+   nota.fiscalStatus=notaFoiCancelada?'cancelada':'vigente';
+   nota.fiscalStatusCheckedAt=when;nota.fiscalStatusCheckedBy=who;nota.fiscalStatusSaleId=s.id;
+   if(!Array.isArray(nota.fiscalStatusEvents))nota.fiscalStatusEvents=[];
+   nota.fiscalStatusEvents.push({at:when,by:who,saleId:s.id,status:nota.fiscalStatus,reason:'Cancelamento comercial da venda; situação da nota informada pelo usuário'});
+  }
+  if(saveData()!==true)throw Error('Não foi possível gravar o cancelamento.');
+ }catch(err){
+  snapshotRece.forEach(x=>{if(x.canceled===undefined)delete x.r.canceled;else x.r.canceled=x.canceled;});
+  snapshotMov.forEach(x=>{for(const f of ['canceled','canceledAt','canceledBy','fiscalNoteOnCancel']){if(x[f]===undefined)delete x.m[f];else x.m[f]=x[f];}});
+  snapProducts.forEach(x=>{x.p.stock=x.stock;if(x.cost===undefined)delete x.p.cost;else x.p.cost=x.cost;if(x.layers===undefined)delete x.p.layers;else x.p.layers=x.layers;});
+  if(nota&&snapNote){
+   for(const f of ['fiscalStatus','fiscalStatusCheckedAt','fiscalStatusCheckedBy','fiscalStatusSaleId']){if(snapNote[f]===undefined)delete nota[f];else nota[f]=snapNote[f];}
+   if(snapNote.events===undefined)delete nota.fiscalStatusEvents;else nota.fiscalStatusEvents=snapNote.events;
+  }
+  toast('Cancelamento não concluído: '+(err.message||err),true);return;
+ }
  if(editingSale&&editingSale.saleId===s.id)cancelSaleEdit();
- if(saveData())toast(missing.length?`Venda cancelada. Não foi possível devolver ao estoque (produto excluído): ${missing.join(', ')}.`:'Venda cancelada. Estoque e valores atualizados.',missing.length>0);
+ const fiscal=nota?(notaFoiCancelada?'Nota registrada como cancelada fiscalmente e excluída da apuração do Simples.':'Nota fiscal permanece vigente e continua considerada na aba Impostos/Simples.'):'';
+ toast((missing.length?`Venda cancelada. Estoque não atualizado para: ${missing.join(', ')}. `:'Venda comercial cancelada. Estoque atualizado. ')+fiscal,missing.length>0);
 }
 document.getElementById('listaVendasBusca').addEventListener('click',e=>{
+ const sc=e.target.closest('[data-svc-cliente]');
+ if(sc){document.getElementById('buscaVenda').value=sc.dataset.svcCliente;renderSaleSearch();return;}   // filtra: vendas e serviços deste cliente
  const se=e.target.closest('[data-svc-edit]'),sd=e.target.closest('[data-svc-delete]');
  if(se){if(window.ckrServicoEdit)window.ckrServicoEdit(se.dataset.svcEdit);return;}
  if(sd){if(window.ckrServicoDelete)window.ckrServicoDelete(sd.dataset.svcDelete);return;}
@@ -955,6 +994,7 @@ async function ckrSaveFile(name,text,mime){
 // Backup seguro é implementado em backup_seguro.js e carregado após modulos.js.
 document.getElementById('fazerBackup').addEventListener('click',()=>window.ckrExportarBackupCompleto?window.ckrExportarBackupCompleto():toast('Módulo de backup seguro não carregou. Não exporte um arquivo incompleto.',true));
 document.getElementById('backupJsonLegado').addEventListener('click',()=>window.ckrExportarBackupJson?window.ckrExportarBackupJson():toast('Módulo de backup não carregou.',true));
+document.getElementById('copiarBackupTexto').addEventListener('click',()=>window.ckrCopiarBackupTexto?window.ckrCopiarBackupTexto():toast('Módulo de backup não carregou.',true));
 document.getElementById('verificarBackup').addEventListener('click',()=>window.ckrVerificarBackupSeguro?window.ckrVerificarBackupSeguro():toast('Módulo de verificação não carregou.',true));
 document.getElementById('restaurarBackup').addEventListener('click',()=>window.ckrRestaurarBackupSeguro?window.ckrRestaurarBackupSeguro():toast('Módulo de restauração segura não carregou.',true));
 document.getElementById('apagarTudo').addEventListener('click',()=>{if(!isAdminRole()){toast('Somente o ADMIN pode apagar os dados.',true);return;}if(!confirm('Isso apagará todos os produtos, clientes, entradas e vendas deste navegador. Continuar?'))return;if(!confirm('Confirme mais uma vez. Só será possível recuperar com backup.'))return;data=emptyData();window.pfClear&&pfClear();if(saveData()){resetProductForm();toast('Dados locais apagados.');}});
