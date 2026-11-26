@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=38">
+  <link rel="stylesheet" href="style.css?v=39">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -183,35 +183,51 @@
         <div class="brand-mark">C</div>
         <div><strong>Conceito<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div>
       </div>
-      <div class="side-caption">MENU PRINCIPAL</div>
-      <nav class="navigation">
-        <button class="nav-link active" data-panel="dashboard"><span class="nav-icon">▦</span> Visão geral</button>
-        <button class="nav-link" data-panel="produtos"><span class="nav-icon">▤</span> Produtos <span class="nav-count" id="menuProdutos">0</span></button>
-        <button class="nav-link" data-panel="clientes"><span class="nav-icon">♙</span> Clientes <span class="nav-count" id="menuClientes">0</span></button>
-        <button class="nav-link" data-panel="entrada"><span class="nav-icon">↙</span> Entrada de estoque</button>
-        <button class="nav-link" data-panel="lote"><span class="nav-icon">☰</span> Cadastro em lote</button>
-        <button class="nav-link" data-panel="xml"><span class="nav-icon">⇩</span> Importar XML</button>
-        <button class="nav-link" data-panel="venda"><span class="nav-icon">↗</span> Registrar venda</button>
-        <button class="nav-link" data-panel="pdv"><span class="nav-icon">▣</span> PDV (Caixa)</button>
-        <button class="nav-link" data-panel="orcamentos"><span class="nav-icon">✎</span> Orçamentos <span class="nav-count" id="menuOrcamentos">0</span></button>
-        <button class="nav-link" data-panel="encomendas"><span class="nav-icon">⧖</span> Encomendas <span class="nav-count" id="menuEncomendas">0</span></button>
-        <button class="nav-link" data-panel="promissorias"><span class="nav-icon">◔</span> Promissórias <span class="nav-count" id="menuPromissorias">0</span></button>
-        <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
-        <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
-        <button class="nav-link" data-panel="financeiro"><span class="nav-icon">$</span> Gestão de Despesas <span class="nav-count" id="menuDespesasPend">0</span></button>
-        <button class="nav-link" data-panel="dre"><span class="nav-icon">≡</span> DRE</button>
-        <button class="nav-link" data-panel="fluxo"><span class="nav-icon">⇅</span> Fluxo de Caixa</button>
-        <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
-        <button class="nav-link" data-panel="impostos"><span class="nav-icon">§</span> Impostos <span class="nav-count" id="menuImpostos">0</span></button>
-        <button class="nav-link" data-panel="pedidos"><span class="nav-icon">⊕</span> Pedidos à fábrica <span class="nav-count" id="menuPedidos">0</span></button>
-        <button class="nav-link" data-panel="contador"><span class="nav-icon">✉</span> Exportar p/ contador</button>
-        <div id="ckrExpiryStatus" class="expiry-status" hidden aria-live="polite"></div>
-        <button class="nav-link" data-panel="backup"><span class="nav-icon">⇄</span> Backup e transferência</button>
-        <button type="button" id="ckrManageUsersSidebar" class="nav-link admin-users-link" hidden><span class="nav-icon">♙</span> Gerenciar usuários</button>
+      <div class="nav-search"><label for="navSearch">Acesso rápido</label><div class="nav-search-field"><span aria-hidden="true">⌕</span><input id="navSearch" type="search" placeholder="Buscar módulo..." autocomplete="off" aria-label="Buscar módulo no menu"><kbd>Ctrl K</kbd></div></div>
+      <nav class="navigation" aria-label="Menu principal">
+        <div class="nav-group" data-nav-group="0">
+          <div class="nav-group-label">Início</div>
+          <button class="nav-link active" data-panel="dashboard"><span class="nav-icon">▦</span> Visão geral</button>
+        </div>
+        <div class="nav-group" data-nav-group="1">
+          <div class="nav-group-label">Vendas e atendimento</div>
+          <button class="nav-link" data-panel="venda"><span class="nav-icon">↗</span> Registrar venda</button>
+          <button class="nav-link" data-panel="pdv"><span class="nav-icon">▣</span> PDV (Caixa)</button>
+          <button class="nav-link" data-panel="orcamentos"><span class="nav-icon">✎</span> Orçamentos <span class="nav-count" id="menuOrcamentos">0</span></button>
+          <button class="nav-link" data-panel="encomendas"><span class="nav-icon">⧖</span> Encomendas <span class="nav-count" id="menuEncomendas">0</span></button>
+          <button class="nav-link" data-panel="clientes"><span class="nav-icon">♙</span> Clientes <span class="nav-count" id="menuClientes">0</span></button>
+          <button class="nav-link" data-panel="promissorias"><span class="nav-icon">◔</span> Promissórias <span class="nav-count" id="menuPromissorias">0</span></button>
+          <button class="nav-link" data-panel="historico"><span class="nav-icon">◷</span> Movimentações</button>
+        </div>
+        <div class="nav-group" data-nav-group="2">
+          <div class="nav-group-label">Estoque e compras</div>
+          <button class="nav-link" data-panel="produtos"><span class="nav-icon">▤</span> Produtos <span class="nav-count" id="menuProdutos">0</span></button>
+          <button class="nav-link" data-panel="entrada"><span class="nav-icon">↙</span> Entrada de estoque</button>
+          <button class="nav-link" data-panel="lote"><span class="nav-icon">☰</span> Cadastro em lote</button>
+          <button class="nav-link" data-panel="xml"><span class="nav-icon">⇩</span> Importar XML</button>
+          <button class="nav-link" data-panel="pedidos"><span class="nav-icon">⊕</span> Pedidos à fábrica <span class="nav-count" id="menuPedidos">0</span></button>
+        </div>
+        <div class="nav-group" data-nav-group="3">
+          <div class="nav-group-label">Financeiro</div>
+          <button class="nav-link" data-panel="financeiro"><span class="nav-icon">$</span> Gestão de Despesas <span class="nav-count" id="menuDespesasPend">0</span></button>
+          <button class="nav-link" data-panel="dre"><span class="nav-icon">≡</span> DRE</button>
+          <button class="nav-link" data-panel="fluxo"><span class="nav-icon">⇅</span> Fluxo de Caixa</button>
+          <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
+          <button class="nav-link" data-panel="impostos"><span class="nav-icon">§</span> Impostos <span class="nav-count" id="menuImpostos">0</span></button>
+          <button class="nav-link" data-panel="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
+          <button class="nav-link" data-panel="contador"><span class="nav-icon">✉</span> Exportar p/ contador</button>
+        </div>
+        <div class="nav-group" data-nav-group="4">
+          <div class="nav-group-label">Administração</div>
+          <button class="nav-link" data-panel="backup"><span class="nav-icon">⇄</span> Backup e transferência</button>
+          <button type="button" id="ckrManageUsersSidebar" class="nav-link admin-users-link" hidden><span class="nav-icon">♙</span> Gerenciar usuários</button>
+          <div id="ckrExpiryStatus" class="expiry-status" hidden aria-live="polite"></div>
+        </div>
+        <p class="nav-no-results" id="navNoResults" hidden>Nenhum módulo encontrado.</p>
       </nav>
       <div class="sidebar-bottom">
         <div class="local-status"><span class="status-dot"></span><div><b>Modo local</b><small>Dados deste dispositivo</small></div></div>
-        <div class="sidebar-version">VERSÃO 7 · ACESSO POR PERFIL</div>
+        <div class="sidebar-version">CONCEITO · GESTÃO LOCAL</div>
       </div>
     </aside>
 
@@ -1390,6 +1406,45 @@
         if(e)e.textContent='O arquivo dashboard.js não foi carregado. Copie dashboard.js para a mesma pasta de app.js e atualize a página (Ctrl+F5).';
       }
     });
+  </script>
+  <script>
+  // Interface: filtragem visual do menu. Nenhum dado do sistema é lido ou gravado.
+  (function () {
+    const field = document.getElementById('navSearch');
+    const nav = document.querySelector('.navigation');
+    const empty = document.getElementById('navNoResults');
+    if (!field || !nav || !empty) return;
+    const groups = Array.from(nav.querySelectorAll('.nav-group'));
+    const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    function filterMenu() {
+      const term = norm(field.value);
+      let visible = 0;
+      groups.forEach(group => {
+        let groupVisible = 0;
+        group.querySelectorAll('.nav-link').forEach(link => {
+          // Preserva o controle de visibilidade por perfil do app.
+          const matches = !term || norm(link.textContent).includes(term);
+          link.classList.toggle('nav-filter-hide', !matches);
+          if (matches && !link.hidden) groupVisible++;
+        });
+        group.classList.toggle('nav-filter-empty', !groupVisible);
+        visible += groupVisible;
+      });
+      empty.hidden = visible > 0;
+    }
+    field.addEventListener('input', filterMenu);
+    nav.addEventListener('click', e => {
+      if (e.target.closest('.nav-link')) { field.value = ''; filterMenu(); }
+    });
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault(); document.getElementById('sidebar').classList.add('open');
+        field.focus(); field.select();
+      } else if (e.key === 'Escape' && document.activeElement === field) {
+        field.value = ''; filterMenu(); field.blur();
+      }
+    });
+  })();
   </script>
 </body>
 </html>
