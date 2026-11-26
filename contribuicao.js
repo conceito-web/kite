@@ -1,5 +1,5 @@
 'use strict';
-/* Conceito v115 — Controladoria / margem de contribuição.
+/* Conceito v116 — Controladoria / margem de contribuição.
    Consulta SOMENTE LEITURA de vendas e notas; não grava ou altera lançamentos.
    Fonte: movimentos de venda ativos, custo PEPS guardado e taxas registradas na venda.
    Simples mensal: rateio gerencial da apuração vigente do módulo Impostos, quando disponível.
@@ -20,6 +20,7 @@
   const percentInput=s=>{const v=String(s??'').trim();return v===''?NaN:Number(v.replace('%','').replace(',','.'));};
   const payCard=p=>['Cartão de crédito','Cartão de débito','Link BLU'].includes(String(p.method||''))||/cart[aã]o|blu/i.test(String(p.method||''));
   const payOwn=p=>payCard(p)&&p.responsible!=='fabrica';
+  const ownCardWithoutFee=p=>payOwn(p)&&Number(p.fee||0)===0&&Number(p.feeRate||0)===0;
   const allNotes=()=>Array.isArray(data.taxNotes)?data.taxNotes:[];
   const activeNotes=()=>allNotes().filter(n=>n.fiscalStatus!=='cancelada');
   const monthCache={};
@@ -57,15 +58,26 @@
       s.tax=tx.rate===null?null:n2(s.revenue*tx.rate);
       s.note=s.taxNoteId?allNotes().find(n=>n.id===s.taxNoteId):null;
       s.noteIssue=!!(s.note&&s.note.fiscalStatus==='cancelada');
+      s.invoiceDiff=s.note&&hasNum(s.note.value)&&Math.abs(Number(s.note.value)-s.revenue)>0.025 ? n2(Number(s.note.value)-s.revenue):null;
+      s.remarks=[];
+      if(!s.taxNoteId)s.remarks.push('Nota fiscal não vinculada ao registro comercial');
+      else if(!s.note)s.remarks.push('Referência da nota não localizada no módulo Impostos');
+      if(s.invoiceDiff!==null)s.remarks.push('Valor da nota vinculada difere da venda comercial; verificar se houve emissão parcial, serviços ou devolução');
+      if(s.payments.length&&Math.abs(s.payments.reduce((v,p)=>v+Number(p.amount||0),0)-s.revenue)>0.03)s.remarks.push('Total das modalidades de pagamento difere do valor comercial; conferir forma de recebimento');
+      // Não presumir uma taxa zero em cartão da maquininha própria: pode ser falta de lançamento.
+      // O crédito comercial da Ortobom (responsible=fabrica) não é uma despesa variável.
+      if(s.payments.some(ownCardWithoutFee)&&s.fees===0)s.remarks.push('Cartão próprio ou link BLU sem tarifa documentada; revisar a taxa efetiva');
       // Só conta frete quando a despesa estiver explicitamente vinculada à venda.
       s.freight=n2((Array.isArray(data.expenses)?data.expenses:[]).filter(x=>String(x.saleId||'')===s.id&&!x.forecast&&!x.canceled&&(x.dre==='frete'||/frete|entrega|transporte/i.test(String(x.category||'')+' '+String(x.description||'')))).reduce((a,x)=>a+Number(x.amount||0),0));
       s.issues=[];
       if(s.cmv===null)s.issues.push('CMV PEPS ausente ou zerado');
       if(s.fees===null)s.issues.push('Taxa da forma de pagamento não registrada');
+      if(s.payments.some(ownCardWithoutFee)&&s.fees===0)s.issues.push('Tarifa de cartão próprio igual a zero sem comprovação');
       if(s.tax===null)s.issues.push('Imposto estimado indisponível');
       if(s.noteIssue)s.issues.push('Nota vinculada consta como cancelada fiscalmente');
       if(!(s.revenue>0))s.issues.push('Valor da venda inválido');
       s.complete=!s.issues.length;
+      s.review=!!s.remarks.length;
       s.mc=s.complete?n2(s.revenue-s.cmv-s.fees-s.tax-s.freight):null;
       s.margin=s.complete?n2(100*s.mc/s.revenue):null;
       return s;
@@ -81,31 +93,66 @@
     const fees=n2(ok.reduce((v,s)=>v+s.fees,0));
     const freights=n2(ok.reduce((v,s)=>v+s.freight,0));
     const mc=n2(ok.reduce((v,s)=>v+s.mc,0));
-    return {all,ok,revenue,cmv,tax,fees,freights,mc,percent:revenue>0?100*mc/revenue:null,totalRevenue:n2(all.reduce((v,s)=>v+s.revenue,0))};
+    const totalRevenue=n2(all.reduce((v,s)=>v+s.revenue,0));
+    const incomplete=all.filter(s=>!s.complete);const reviewed=all.filter(s=>s.review);
+    return {all,ok,incomplete,reviewed,revenue,cmv,tax,fees,freights,mc,percent:revenue>0?100*mc/revenue:null,totalRevenue,excluded:n2(totalRevenue-revenue),coverage:totalRevenue>0?100*revenue/totalRevenue:0};
   }
   let current=null;
   function render(){
     if(!panel.classList.contains('active'))return;
     const k=$('mcMonth').value;
     if(!/^\d{4}-\d{2}$/.test(k))return;
-    current=model(k);
-    const r=current;
+    current=model(k);const r=current;
     $('mcVal').textContent=r.ok.length?brMoney(r.mc):'—';
     $('mcPct').textContent=r.percent===null?'—':pct(r.percent);
     $('mcRevenue').textContent=r.ok.length?brMoney(r.revenue):'—';
     $('mcCosts').textContent=r.ok.length?brMoney(r.cmv+r.fees+r.tax+r.freights):'—';
-    $('mcCoverage').textContent=`${r.ok.length} de ${r.all.length} venda(s) com dados suficientes`;
-    $('mcSummary').textContent=r.all.length===0?'Nenhuma venda ativa neste período.':r.ok.length===0?'Não há vendas com dados suficientes para calcular a margem.':r.ok.length!==r.all.length?'Resultado parcial: as vendas incompletas NÃO entram no total acima.':'Resultado gerencial das vendas de mercadorias com dados suficientes.';
-    $('mcTaxInfo').textContent='Simples estimado pela alíquota média da apuração do mês (notas vigentes); não substitui o cálculo do DAS. Serviços não incluídos. Entregas só entram quando vinculadas expressamente à venda.';
+    $('mcCoverage').textContent=`${r.ok.length} de ${r.all.length} venda(s) calculáveis`;
+    $('mcSummary').textContent=r.all.length===0?'Nenhuma venda comercial ativa neste período.':r.ok.length===0?'Nenhuma venda possui informações suficientes para calcular a margem.':r.ok.length!==r.all.length?'ATENÇÃO — Margem PARCIAL: parte do faturamento não entrou no indicador.':'Margem de contribuição gerencial ESTIMADA sobre as vendas analisáveis.';
+    $('mcTaxInfo').textContent='A distribuição do Simples entre vendas é estimativa gerencial, não apuração por documento. Os efeitos fiscais de cancelamentos e devoluções requerem conferência separada. Serviços não incluídos.';
+    $('mcCoveragePct').textContent=r.all.length?pct(r.coverage):'—';
+    $('mcCoverageMoney').textContent=`${brMoney(r.revenue)} analisáveis de ${brMoney(r.totalRevenue)} em vendas ativas`;
+    $('mcCoverageBar').setAttribute('aria-valuenow',String(Math.round(r.coverage)));
+    $('mcQualityProgress').style.width=Math.max(0,Math.min(100,r.coverage))+'%';
+    $('mcReviewCount').textContent=String(new Set([...r.incomplete,...r.reviewed].map(s=>s.id)).size)+' venda(s)';
+    $('mcReviewSummary').textContent=`${r.incomplete.length} incompleta(s); ${r.reviewed.length} com observações de conferência`;
+    const reasons=new Map();
+    r.all.forEach(s=>[...s.issues,...s.remarks].forEach(i=>reasons.set(i,(reasons.get(i)||0)+1)));
+    $('mcReviewReasons').textContent=reasons.size?[...reasons].sort((a,b)=>b[1]-a[1]).slice(0,3).map(([m,n])=>`${n}× ${m}`).join(' · '):'Nenhuma ressalva adicional identificada.';
+    const totals={mcAllRevenue:r.totalRevenue,mcExcluded:r.excluded,mcAnalysed:r.revenue,mcTotalCmv:r.cmv,mcTotalTax:r.tax,mcTotalFees:r.fees,mcTotalFreights:r.freights,mcTotalResult:r.mc};
+    Object.keys(totals).forEach(id=>$(id).textContent=brMoney(totals[id]));
+    const meta=taxRate(k);
+    $('mcTaxOrigin').textContent='TRATAMENTO FISCAL: '+(meta.source||'Estimativa não disponível')+'. '+(meta.rate!==null?'Alíquota gerencial alocada: '+pct(meta.rate*100)+'. ':'')+'A DRE e o DAS oficial podem divergir deste recorte; não usar como apuração fiscal definitiva.';
     const search=String($('mcSearch').value||'').trim().toLowerCase();
-    const list=r.all.filter(s=>!search||(s.id+' '+s.client).toLowerCase().includes(search));
-    $('mcCount').textContent=`${list.length} venda(s) encontrada(s)${list.length>100?' · exibindo 100':''}`;
-    $('mcRows').innerHTML=list.length?list.slice(0,100).map(s=>`<tr><td>${escapeHtml(dateBR(s.date))}</td><td><strong>${escapeHtml(s.id)}</strong><small class="mc-smaller">${escapeHtml(s.client||'Cliente não identificado')}</small></td><td>${brMoney(s.revenue)}</td><td>${s.cmv===null?'—':brMoney(s.cmv)}</td><td>${s.tax===null?'—':brMoney(s.tax)}</td><td>${s.fees===null?'—':brMoney(s.fees)}</td><td><strong>${s.mc===null?'—':brMoney(s.mc)}</strong></td><td>${s.margin===null?'—':pct(s.margin)}</td><td><span title="${escapeHtml(s.issues.join('; ')||'Simples alocado por estimativa mensal')}" class="mc-status ${s.complete?'mc-estimate':'mc-incomplete'}">${s.complete?'Estimada':'Incompleta'}</span></td><td><button type="button" class="button button-light mc-use" data-mc-sale="${escapeHtml(s.id)}">Simular</button></td></tr>`).join(''):'<tr><td colspan="10" class="mc-empty">Nenhuma venda encontrada para o filtro escolhido.</td></tr>';
+    const list=r.all.filter(s=>!search||(s.id+' '+s.client+' '+s.lines.map(m=>m.productName||'').join(' ')).toLowerCase().includes(search));
+    $('mcCount').textContent=`${list.length} venda(s) encontrada(s)${list.length>100?' · exibindo 100 · CSV inclui todas':''}`;
+    $('mcRows').innerHTML=list.length?list.slice(0,100).map(s=>`<tr><td>${escapeHtml(dateBR(s.date))}</td><td><strong>${escapeHtml(s.id)}</strong><small class="mc-smaller">${escapeHtml(s.client||'Cliente não identificado')}</small></td><td>${brMoney(s.revenue)}</td><td>${s.cmv===null?'—':brMoney(s.cmv)}</td><td>${s.tax===null?'—':brMoney(s.tax)}</td><td>${s.fees===null?'—':brMoney(s.fees)}</td><td><strong>${s.mc===null?'—':brMoney(s.mc)}</strong></td><td>${s.margin===null?'—':pct(s.margin)}</td><td><span title="${escapeHtml([...s.issues,...s.remarks].join('; ')||'Taxação rateada pela apuração mensal')}" class="mc-status ${s.complete?'mc-estimate':'mc-incomplete'}">${s.complete?(s.review?'Estimada · revisar':'Estimada'):'Incompleta'}</span></td><td><div class="mc-actions"><button type="button" class="button button-light mc-use" data-mc-detail="${escapeHtml(s.id)}">Detalhar</button><button type="button" class="button button-light mc-use" data-mc-sale="${escapeHtml(s.id)}">Simular</button></div></td></tr>`).join(''):'<tr><td colspan="10" class="mc-empty">Nenhuma venda encontrada para o filtro escolhido.</td></tr>';
     const select=$('mcSale');const prev=select.value;
     select.innerHTML='<option value="">Preencher manualmente</option>'+r.all.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.id)} · ${escapeHtml(s.client||'Sem cliente')} · ${escapeHtml(brMoney(s.revenue))}</option>`).join('');
-    if(r.all.some(s=>s.id===prev))select.value=prev;
-    else select.value='';
+    select.value=r.all.some(s=>s.id===prev)?prev:'';
     $('mcRows').querySelectorAll('[data-mc-sale]').forEach(b=>b.addEventListener('click',()=>{select.value=b.dataset.mcSale;fillSale();$('mcSimulation').scrollIntoView({behavior:'smooth',block:'start'});}));
+    $('mcRows').querySelectorAll('[data-mc-detail]').forEach(b=>b.addEventListener('click',()=>showDetail(b.dataset.mcDetail)));
+    $('mcDetail').hidden=true;
+  }
+  function showDetail(id){
+    const s=current&&current.all.find(s=>s.id===id);if(!s)return;
+    const issues=[...s.issues,...s.remarks];
+    const txText=s.taxRate===null?'Imposto não estimável':`${pct(s.taxRate*100)} (alíquota efetiva média estimada, não do cupom)`;
+    const pairs=[['Receita após descontos',brMoney(s.revenue)],['CMV PEPS',s.cmv===null?'Indisponível':brMoney(s.cmv)],['Simples Nacional',s.tax===null?'Indisponível':brMoney(s.tax)],['Taxas de pagamento',s.fees===null?'Indisponível':brMoney(s.fees)],['Entregas vinculadas',brMoney(s.freight)],['Margem de contribuição',s.mc===null?'Não calculada':brMoney(s.mc)],['Margem (%)',s.margin===null?'—':pct(s.margin)]];
+    const el=$('mcDetail');el.hidden=false;
+    el.innerHTML=`<h3>Composição da venda ${escapeHtml(s.id)}</h3><p>${escapeHtml(dateBR(s.date))} · ${escapeHtml(s.client||'Cliente não identificado')} · ${s.lines.length} item(ns) · ${escapeHtml(s.taxNoteId?'Nota vinculada: '+(s.note?.number||s.taxNoteId):'Sem nota vinculada no registro')}</p><p>Taxação utilizada: ${escapeHtml(txText)}. Os pagamentos vinculados não são receitas adicionais.</p><table><tbody>${pairs.map(([l,v])=>`<tr><td>${escapeHtml(l)}</td><td>${escapeHtml(v)}</td></tr>`).join('')}</tbody></table><div class="mc-detail-items"><b>Itens e custos registrados (PEPS):</b><ul>${s.lines.map(m=>`<li>${escapeHtml(m.productName||'Produto não identificado')} · ${escapeHtml(String(m.quantity||0))} un. · Receita ${brMoney(Number(m.total||0))} · Custo ${hasNum(m.costTotal)?brMoney(Number(m.costTotal)):'não disponível'}</li>`).join('')}</ul></div>${issues.length?`<div class="mc-detail-warnings"><b>Verificações necessárias</b>${issues.map(i=>`<p>• ${escapeHtml(i)}</p>`).join('')}</div>`:'<p>Sem ressalvas adicionais identificadas nos campos disponíveis. A tributação permanece estimada.</p>'}<button type="button" id="mcCloseDetail" class="button button-light button-small">Fechar detalhamento</button>`;
+    $('mcCloseDetail').addEventListener('click',()=>{el.hidden=true;});
+    el.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+  function exportAudit(){
+    if(!current)return;
+    const format=n=>n===null||n===undefined?'':String(Number(n).toFixed(2)).replace('.',',');
+    const csv=(v)=>{let t=String(v??'');if(/^[=+@\-\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
+    const header=['Data','Venda','Cliente','Produtos','Receita','CMV','Simples estimado','Taxas','Entrega','Margem R$','Margem %','Situação','Pendências','Observações'];
+    const rows=current.all.map(s=>[dateBR(s.date),s.id,s.client,s.lines.map(m=>m.productName||'').join(' | '),format(s.revenue),format(s.cmv),format(s.tax),format(s.fees),format(s.freight),format(s.mc),format(s.margin),s.complete?'Estimada':'Incompleta',s.issues.join(' | '),s.remarks.join(' | ')]);
+    const body='\ufeff'+[header,...rows].map(row=>row.map(csv).join(';')).join('\r\n');
+    const url=URL.createObjectURL(new Blob([body],{type:'text/csv;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download=`conceito-margem-auditoria-${$('mcMonth').value}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
   }
   const setInput=(id,val)=>{$(id).value=val===null||val===undefined?'':Number(val).toFixed(2).replace('.',',');};
   function fillSale(){
@@ -133,6 +180,7 @@
   function init(){
     const d=new Date();$('mcMonth').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     $('mcMonth').addEventListener('change',render);
+    $('mcExport').addEventListener('click',exportAudit);
     $('mcSearch').addEventListener('input',render);
     $('mcSale').addEventListener('change',fillSale);
     ['mcPrice','mcCost','mcTaxRate','mcFeeRate','mcDelivery','mcExtra','mcDiscount'].forEach(id=>$(id).addEventListener('input',calcSimulation));
