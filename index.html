@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=116">
+  <link rel="stylesheet" href="style.css?v=117">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -318,6 +318,7 @@
             <button class="nav-link" data-panel="financeiro"><span class="nav-icon">$</span> Gestão de Despesas <span class="nav-count" id="menuDespesasPend">0</span></button>
             <button class="nav-link" data-panel="dre"><span class="nav-icon">≡</span> DRE</button>
             <button type="button" class="nav-link" data-panel="contribuicao"><span class="nav-icon" aria-hidden="true">◈</span> Margem de contribuição</button>
+            <button type="button" class="nav-link" data-panel="equilibrio"><span class="nav-icon" aria-hidden="true">◎</span> Ponto de equilíbrio</button>
             <button class="nav-link" data-panel="fluxo"><span class="nav-icon">⇅</span> Fluxo de Caixa</button>
             <button class="nav-link" data-panel="taxas"><span class="nav-icon">%</span> Taxas e crédito</button>
             <button class="nav-link" data-panel="impostos"><span class="nav-icon">§</span> Impostos <span class="nav-count" id="menuImpostos">0</span></button>
@@ -854,6 +855,83 @@
                 <div><span>MC percentual</span><strong id="mcSimPercent">—</strong></div>
               </div>
               <p id="mcSimWarning" class="mc-sim-warning" role="status">Preencha os campos para simular.</p>
+            </div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-equilibrio" aria-labelledby="pe-title">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">CONTROLADORIA · PLANEJAMENTO DE RESULTADO</p>
+              <h1 id="pe-title">Ponto de equilíbrio</h1>
+              <p class="subtitle">Faturamento necessário para cobrir as despesas fixas da operação, usando a margem de contribuição das vendas. Consulta e simulação, sem gravar dados.</p>
+            </div>
+          </div>
+          <section class="surface pe-header-surface" aria-label="Período de referência do ponto de equilíbrio">
+            <div class="surface-heading"><div><h2>Premissas da análise</h2><p>Margem observada nas vendas de mercadorias e despesas operacionais por competência da DRE</p></div></div>
+            <div class="pe-period-row">
+              <label class="field">Mês de referência<input id="peMonth" type="month" aria-label="Mês de referência do ponto de equilíbrio"></label>
+              <button type="button" class="button button-light" id="peRefresh">Atualizar análise</button>
+              <button type="button" class="button button-light" id="peGoMargin">Conferir margem de contribuição</button>
+              <span id="peSourceBadge" class="pe-tag pe-tag-neutral">Aguardando cálculo</span>
+            </div>
+          </section>
+          <div class="pe-kpis" aria-label="Indicadores de ponto de equilíbrio">
+            <article class="pe-kpi pe-main"><span>Ponto de equilíbrio operacional</span><strong id="peValue">—</strong><small>Meta de faturamento mensal em mercadorias</small></article>
+            <article class="pe-kpi"><span>Margem de contribuição utilizada</span><strong id="peMargin">—</strong><small id="peMarginInfo">Calculada no módulo de Margem</small></article>
+            <article class="pe-kpi"><span>Despesas fixas na DRE</span><strong id="peFixed">—</strong><small>Competência do mês selecionado</small></article>
+            <article class="pe-kpi"><span>Margem de segurança</span><strong id="peSafety">—</strong><small id="peSafetyInfo">Receita acima ou abaixo do equilíbrio</small></article>
+          </div>
+          <section class="pe-notice" role="status" aria-live="polite">
+            <strong id="peStatus">Aguardando período.</strong>
+            <p id="peStatusDetail">A apuração é gerencial e poderá mudar após a conferência das despesas, impostos e taxas.</p>
+          </section>
+          <div class="pe-columns">
+            <section class="surface pe-composition">
+              <div class="surface-heading"><div><h2>Composição do ponto de equilíbrio</h2><p>Os valores fixos vêm da mesma classificação usada pela DRE</p></div></div>
+              <div class="pe-block-content">
+                <table class="pe-table" aria-label="Composição do ponto de equilíbrio"><tbody>
+                  <tr><td>Receita de mercadorias analisável</td><td id="peRevenue">—</td></tr>
+                  <tr><td>Contribuição das vendas</td><td id="peContribution">—</td></tr>
+                  <tr><td>Índice médio de contribuição</td><td id="peWeightedPct">—</td></tr>
+                  <tr><td>Despesas fixas operacionais registradas</td><td id="peFixedDetail">—</td></tr>
+                  <tr class="pe-result-line"><td>Faturamento no ponto de equilíbrio</td><td id="peBreakdownResult">—</td></tr>
+                </tbody></table>
+                <div class="pe-progress-label"><span>Faturamento realizado / necessário</span><strong id="peProgressTitle">—</strong></div>
+                <div class="pe-progress" role="progressbar" aria-label="Progresso até o equilíbrio" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="peProgress"><span id="peProgressFill"></span></div>
+                <p class="pe-subline" id="peGapDescription">Aguardando dados.</p>
+              </div>
+            </section>
+            <section class="surface pe-composition">
+              <div class="surface-heading"><div><h2>Despesas fixas por linha</h2><p>Transparência sobre os valores que compõem a meta</p></div></div>
+              <div class="pe-block-content">
+                <table class="pe-table" aria-label="Detalhamento de despesas fixas"><tbody id="peFixedLines"><tr><td colspan="2">Aguardando dados.</td></tr></tbody></table>
+                <p class="pe-footnote">A classificação como “fixa” segue a DRE e ainda pode conter lançamentos que exigem reclassificação. Não inclui automaticamente despesas não reconhecidas, nem as despesas financeiras diversas.</p>
+              </div>
+            </section>
+          </div>
+          <section class="surface pe-scenario" id="peScenario">
+            <div class="surface-heading"><div><h2>Simulador de metas e cenários</h2><p>Ajuste as premissas apenas para apresentação; não modifica a DRE nem os valores da loja</p></div></div>
+            <div class="pe-block-content">
+              <div class="pe-scenario-fields">
+                <label class="field">Margem de contribuição simulada (%)<input id="peMarginInput" type="number" min="0.01" max="100" step="0.1" inputmode="decimal" placeholder="Ex.: 46,4"></label>
+                <label class="field">Ajuste nas despesas fixas (R$)<input id="peFixedAdjustment" type="number" step="0.01" inputmode="decimal" value="0" title="Use valor positivo para acrescentar despesa não registrada ou negativo para excluir custo indevido"></label>
+                <label class="field">Lucro operacional desejado (R$)<input id="peProfitGoal" type="number" min="0" step="100" inputmode="decimal" value="5000"></label>
+              </div>
+              <p class="pe-scenario-tip">Exemplos: adicione despesas fixas ainda não registradas; ou retire temporariamente um lançamento em revisão usando sinal negativo. Nenhuma alteração será salva. O lucro-alvo aqui é antes das demais receitas/despesas financeiras e não equivale ao lucro líquido contábil.</p>
+              <div class="pe-scenario-results">
+                <article><span>Equilíbrio no cenário</span><strong id="peScenarioBreakEven">—</strong></article>
+                <article><span>Faturamento para o lucro-alvo</span><strong id="peScenarioTarget">—</strong></article>
+                <article><span>Contribuição operacional simulada</span><strong id="peScenarioResult">—</strong><small>Contribuição sobre a receita atual menos despesas fixas ajustadas</small></article>
+              </div>
+              <p class="pe-scenario-warning" id="peScenarioWarning" role="status"></p>
+            </div>
+          </section>
+          <section class="surface pe-method">
+            <div class="surface-heading"><div><h2>Limites e verificações</h2><p>O que o relatório considera e o que ainda não foi auditado</p></div></div>
+            <div class="pe-block-content">
+              <div id="peMethodAlerts" class="pe-method-alerts">Aguardando conferência dos indicadores.</div>
+              <p class="pe-footnote">Fórmula: despesas operacionais fixas ÷ índice ponderado de margem de contribuição. O indicador reflete a estrutura e o mix observados no período; não projeta automaticamente serviços, despesas financeiras diversas ou tributos sobre o lucro. O uso gerencial depende da confiabilidade do CMV, das taxas, dos impostos e da classificação de despesas.</p>
             </div>
           </section>
         </section>
@@ -1588,10 +1666,11 @@
   </script>
   <script src="caixa.js?v=24"></script>
   <script src="impostos.js?v=14"></script>
-  <script src="dre.js?v=11"></script>
+  <script src="dre.js?v=117"></script>
   <script src="fluxo.js?v=2"></script>
   <script src="dashboard.js?v=3"></script>
   <script src="contribuicao.js?v=116"></script>
+  <script src="equilibrio.js?v=117"></script>
   <script src="backup_seguro.js?v=3"></script>
   <script>
     // Diagnóstico visual quando o arquivo novo não existe na pasta do programa.
