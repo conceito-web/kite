@@ -506,7 +506,7 @@
           <section class="surface form-surface" id="dreCorrigirNov" style="margin-bottom:14px">
             <div class="surface-heading"><div><h2>Auditoria da competência salarial — novembro/2026</h2><p>Conferência pontual dos pagamentos históricos feitos em novembro e referentes à folha anterior.</p></div></div>
             <div style="padding:14px 18px">
-              <p class="fin-meta-text"><b>Atenção:</b> os salários de R$ 3.000 (Carlos), R$ 3.000 (Célia) e R$ 1.000 (Raphael), com competência em novembro e vencimento em 05/12, <b>não serão alterados</b>. Esta ação só ajusta a competência de pagamentos antigos. O Caixa e as datas de quitação permanecem iguais. Confirme que os gastos pessoais marcados foram, de fato, abatidos do salário anterior.</p>
+              <p class="fin-meta-text"><b>Atenção:</b> os salários de R$ 3.000 (Carlos), R$ 3.000 (Célia) e R$ 1.000 (Raphael), com competência em novembro e vencimento em 05/12, <b>não serão alterados</b>. Esta ação só ajusta a competência de pagamentos antigos. O Caixa e as datas de quitação permanecem iguais. As contas pessoais adicionais permanecem sujeitas à classificação contábil definitiva; alterar a competência não muda sua natureza.</p>
               <div id="dreNovResumo" class="fin-meta-text">Examinando pagamentos anteriores...</div>
               <div id="dreNovLista"></div>
               <div class="form-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">
@@ -705,7 +705,7 @@
             <section class="surface backup-card"><div class="backup-icon blue-bg">↓</div><p class="eyebrow">ETAPA 01</p><h2>Exportar backup</h2><p>ZIP completo: registros financeiros, fotos dos produtos e XML originais das compras. O programa verifica o conteúdo antes de disponibilizar o arquivo.</p><button id="fazerBackup" class="button button-primary full-button" type="button">Baixar backup completo (.zip)</button><button id="backupJsonLegado" class="button button-light full-button" type="button" style="margin-top:8px">Backup só dos dados (.json, sem XML)</button><p id="backupStatus" class="payment-notice" role="status" aria-live="polite"></p></section>
             <section class="surface backup-card" id="cardRestaurar"><div class="backup-icon violet-bg">↑</div><p class="eyebrow">ETAPA 02</p><h2>Restaurar backup</h2><p>O arquivo é validado primeiro e uma cópia preventiva será exigida. <b>Os dados atuais deste navegador serão substituídos somente após sua confirmação.</b></p><label class="field file-field">Escolher arquivo de backup (.zip, .json ou .txt)<input id="arquivoBackup" type="file" accept=".zip,.json,.txt,application/zip,application/json,text/plain"></label><label class="field file-field">Ou cole o texto do backup<textarea id="textoBackup" rows="2" placeholder="CKR1:..." style="width:100%;box-sizing:border-box;border:1px solid #e0e6ef;border-radius:8px;padding:8px;font:500 11px 'DM Sans'"></textarea></label><button id="verificarBackup" class="button button-light full-button" type="button" style="margin-bottom:8px">Verificar arquivo (sem restaurar)</button><button id="restaurarBackup" class="button button-light full-button" type="button">Restaurar dados</button><p id="restoreStatus" class="payment-notice" role="status" aria-live="polite"></p></section>
           </div>
-          <section class="surface" id="recuperarXml" style="margin-top:16px;padding:24px"><h2>Recuperar XML de uma nota já importada</h2><p>Use somente quando o backup informar que o documento original de uma nota existente está ausente. Este recurso <b>não importa produtos, não altera o estoque e não cria compras ou pagamentos.</b></p><label class="field file-field">Selecionar XML original (.xml)<input id="reporArquivoXML" type="file" accept=".xml,text/xml,application/xml"></label><button id="reporBotaoXML" type="button" class="button button-light">Repor XML original</button><p class="payment-notice">O Conceito confere chave, número, série, valor e autorização antes de vincular o arquivo à importação existente.</p></section>
+          <section class="surface" id="recuperarXml" hidden aria-hidden="true" style="display:none;margin-top:16px;padding:24px"><h2>Recuperar XML de uma nota já importada</h2><p>Use somente quando o backup informar que o documento original de uma nota existente está ausente. Este recurso <b>não importa produtos, não altera o estoque e não cria compras ou pagamentos.</b></p><label class="field file-field">Selecionar XML original (.xml)<input id="reporArquivoXML" type="file" accept=".xml,text/xml,application/xml"></label><button id="reporBotaoXML" type="button" class="button button-light">Repor XML original</button><p class="payment-notice">O Conceito confere chave, número, série, valor e autorização antes de vincular o arquivo à importação existente.</p></section>
           <section class="surface danger-zone" id="zonaApagar"><div><h2>Apagar dados locais</h2><p>Remove todos os produtos, entradas e vendas deste navegador. Esta ação não pode ser desfeita sem backup.</p></div><button id="apagarTudo" class="button button-danger-light" type="button">Apagar todos os dados</button></section>
           <div class="notice warning-notice" id="avisoRestaurar"><span class="notice-icon">!</span><p><b>Importante:</b> o computador e o celular têm dados separados. Restaurar um backup substitui os dados do destino; não combina automaticamente duas bases. Faça backup antes de importar.</p></div>
         </section>
@@ -1042,7 +1042,9 @@
  function banner(){
   if(!$('planejResumo'))return;
   const rows=future(),groups=getGroups(),p=rows.filter(e=>personal.has(norm(e.description)));
-  if(!rows.length&&isReviewed())$('planejResumo').textContent=`Revisão concluída. ${data.expenseTemplates.length} sugestões mensais disponíveis. Nenhuma despesa é criada automaticamente.`;
+  const revButton=$('planejRevisao');
+  if(revButton){const done=!rows.length&&isReviewed();revButton.hidden=done;revButton.style.display=done?'none':'';}
+  if(!rows.length&&isReviewed())$('planejResumo').textContent=`Planejamento mensal ativo. ${data.expenseTemplates.length} sugestões disponíveis; nenhuma despesa é criada automaticamente.`;
   else $('planejResumo').textContent=`Revisão seletiva: ${rows.length} projeções pendentes (${format(totals(rows))}) em ${groups.length} grupos; ${p.length} são domésticas (${format(totals(p))}). ${isReviewed()?'Há grupos que ainda podem ser revisados.':'Nenhuma alteração foi realizada.'}`;
  }
  let groupShown=[];
@@ -1134,13 +1136,14 @@
  // Correção 11: atualização OPT-IN dos modelos persistidos (não altera lançamentos nem previsões salvas).
  function refreshSalaryTemplateButton(){
   const btn=$('planejAtualizarSalarios');if(!btn)return;
-  btn.hidden=!isReviewed();
-  if(!isReviewed())return;
+  if(!isReviewed()){btn.hidden=true;btn.style.display='none';return;}
   const templates=data.expenseTemplates;
   const carlos=templates.find(x=>x.id==='sal_carlos'),celia=templates.find(x=>x.id==='sal_celia');
   const ready=carlos&&celia&&Number(carlos.amount)===3000&&Number(celia.amount)===3000;
+  btn.hidden=!!ready;
+  btn.style.display=ready?'none':'';
   btn.disabled=!!ready;
-  btn.textContent=ready?'Modelos salariais atualizados (R$ 3.000)':'Atualizar modelos salariais para R$ 3.000';
+  btn.textContent='Atualizar modelos salariais para R$ 3.000';
  }
  function updateSalaryTemplates(){
   if(!canWrite())return toast('Sem permissão para atualizar modelos.',true);
@@ -1269,17 +1272,18 @@
    return amounts.length===3&&amounts.join(',')==='1000,3000,3000';
  }
  function render(){
-   const area=$('dreNovLista'),info=$('dreNovResumo'),btn=$('dreNovAplicar');if(!area)return;
+   const area=$('dreNovLista'),info=$('dreNovResumo'),btn=$('dreNovAplicar'),auditSection=$('dreCorrigirNov');if(!area)return;
    const missing=rows.filter(o=>!valid(actual(o),o));
+   if(auditSection)auditSection.style.display=missing.length?'none':'';
    if(missing.length){
      info.textContent='Revisão bloqueada: um ou mais lançamentos históricos não coincidem com o backup analisado. Nenhum dado foi alterado.';
      area.textContent='Registros não localizados ou alterados: '+missing.map(o=>o.desc).join('; ');btn.disabled=true;return;
    }
    const pendingRows=rows.filter(pending);
-   if(!pendingRows.length){info.textContent='Competência de outubro já atribuída aos cinco lançamentos. Nenhum ajuste pendente.';area.innerHTML='';btn.disabled=true;return;}
+   if(!pendingRows.length){if(auditSection)auditSection.style.display='none';info.textContent='Competência de outubro já atribuída aos cinco lançamentos. Nenhum ajuste pendente.';area.innerHTML='';btn.disabled=true;return;}
    info.innerHTML=`<b>${pendingRows.length} lançamento(s)</b> de pagamentos antigos aguardam revisão. Se os cinco forem ajustados, a linha de salários na DRE de novembro diminuirá <b>${fmt(pendingRows.reduce((a,o)=>a+o.amount,0))}</b>, sem alterar a receita de vendas.`;
-   area.innerHTML=`<div class="table-wrap"><table><thead><tr><th>AJUSTAR</th><th>LANÇAMENTO HISTÓRICO</th><th>PAGAMENTO</th><th>VALOR</th><th>COMPETÊNCIA PROPOSTA</th></tr></thead><tbody>${rows.map(o=>{let x=actual(o);return `<tr><td>${pending(o)?`<input type="checkbox" data-dre-nov="${o.id}" ${o.kind==='salario'?'checked':''} aria-label="Corrigir competência de ${safe(o.desc)}">`:'—'}</td><td>${safe(o.desc)}${o.kind==='abatimento'?'<small class="fin-sub">Marque somente se este valor foi abatido da remuneração anterior.</small>':''}</td><td>${safe(x.paidDate)}</td><td>${fmt(o.amount)}</td><td>${pending(o)?'10/2026':'10/2026 (já ajustado)'}</td></tr>`}).join('')}</tbody></table></div>
-   <p class="fin-meta-text" style="margin-top:8px">Os dois salários antigos são pré-selecionados. Os três gastos pessoais precisam de confirmação específica porque seu tratamento como abatimento salarial depende da documentação da folha.</p>`;
+   area.innerHTML=`<div class="table-wrap"><table><thead><tr><th>AJUSTAR</th><th>LANÇAMENTO HISTÓRICO</th><th>PAGAMENTO</th><th>VALOR</th><th>COMPETÊNCIA PROPOSTA</th></tr></thead><tbody>${rows.map(o=>{let x=actual(o);return `<tr><td>${pending(o)?`<input type="checkbox" data-dre-nov="${o.id}" ${o.kind==='salario'?'checked':''} aria-label="Corrigir competência de ${safe(o.desc)}">`:'—'}</td><td>${safe(o.desc)}${o.kind==='abatimento'?'<small class="fin-sub">Marque somente se o pagamento adicional pertencer à competência outubro/2026.</small>':''}</td><td>${safe(x.paidDate)}</td><td>${fmt(o.amount)}</td><td>${pending(o)?'10/2026':'10/2026 (já ajustado)'}</td></tr>`}).join('')}</tbody></table></div>
+   <p class="fin-meta-text" style="margin-top:8px">Os dois salários antigos são pré-selecionados. Os três gastos pessoais adicionais precisam de confirmação de competência e classificação contábil posterior.</p>`;
    area.querySelectorAll('input').forEach(el=>el.addEventListener('change',update));
    update();
  }
@@ -1309,11 +1313,11 @@
    const sel=chosen();if(!sel.length)return;
    if(sel.some(o=>!pending(o)))return alert('Os registros mudaram. Reabra a revisão.');
    const personal=sel.filter(o=>o.kind==='abatimento');
-   const msg=`Corrigir a competência de ${sel.length} pagamento(s) históricos, total ${fmt(sel.reduce((a,o)=>a+o.amount,0))}, de novembro para outubro de 2026?\n\nIsso NÃO altera o dinheiro pago em novembro, a data do pagamento ou as três novas obrigações.\n\n${personal.length?'Inclui '+personal.length+' conta(s) pessoais que você confirma terem sido abatidas do salário de outubro.\n\n':''}O backup de segurança deve estar salvo. Confirma?`;
+   const msg=`Corrigir a competência de ${sel.length} pagamento(s) históricos, total ${fmt(sel.reduce((a,o)=>a+o.amount,0))}, de novembro para outubro de 2026?\n\nIsso NÃO altera o dinheiro pago em novembro, a data do pagamento ou as três novas obrigações.\n\n${personal.length?'Inclui '+personal.length+' conta(s) pessoais adicionais cuja competência você confirma ser outubro (a classificação definitiva fica pendente).\n\n':''}O backup de segurança deve estar salvo. Confirma?`;
    if(!confirm(msg))return;
    const previous=sel.map(o=>{const x=actual(o);return {id:o.id,compMonth:x.compMonth,updatedAt:x.updatedAt};});
    const log=data.dreAuditCorrections||(data.dreAuditCorrections=[]);
-   const entry={type:'reclassificacao-competencia-pagamentos-2026-11',on:new Date().toISOString(),by:typeof currentUserName==='function'?currentUserName():'',from:'2026-11',to:'2026-10',reason:'Salários e abatimentos correspondentes à folha de outubro, pagos em novembro',previous:previous.map(x=>({id:x.id,compMonth:x.compMonth})),total:sel.reduce((n,o)=>n+o.amount,0)};
+   const entry={type:'reclassificacao-competencia-pagamentos-2026-11',on:new Date().toISOString(),by:typeof currentUserName==='function'?currentUserName():'',from:'2026-11',to:'2026-10',reason:'Ajuste de competência dos salários de outubro e despesas pessoais adicionais, pagos em novembro; classificação definitiva pendente',previous:previous.map(x=>({id:x.id,compMonth:x.compMonth})),total:sel.reduce((n,o)=>n+o.amount,0)};
    try{
      sel.forEach(o=>{const x=actual(o);x.compMonth='2026-10';x.updatedAt=new Date().toISOString();});
      log.push(entry);
