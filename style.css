@@ -1075,3 +1075,51 @@ select.dre-sel{max-width:100%;min-height:36px;margin:2px 6px 2px 0;border:1px so
 #panel-contribuicao .mc-reconcile{min-width:0}
 @media(max-width:950px){#panel-contribuicao .mc-quality{grid-template-columns:1fr}}
 @media(max-width:760px){#panel-contribuicao .mc-table-scroll-hint{display:block}#panel-contribuicao .mc-detail{margin:0 10px 12px;padding:13px}#panel-contribuicao .mc-detail table td{padding:8px 5px;white-space:normal}#panel-contribuicao .mc-reconcile{padding:14px}#sidebar .sidebar-bottom{padding-bottom:16px}}
+
+/* Conceito v117 — Ponto de equilíbrio operacional. Escopo integral #panel-equilibrio. */
+#panel-equilibrio .pe-header-surface{margin-bottom:18px}
+#panel-equilibrio .pe-period-row{padding:16px 22px 20px;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+#panel-equilibrio .pe-period-row>.field{width:235px;max-width:100%;margin:0}
+#panel-equilibrio .pe-period-row>.button{min-height:43px;white-space:nowrap}
+#panel-equilibrio .pe-tag{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:9px 13px;font-size:11px;font-weight:800;margin-left:auto;max-width:100%;text-align:center}
+#panel-equilibrio .pe-tag-warning{background:#fff2d9;color:#87540a}
+#panel-equilibrio .pe-tag-neutral{background:#edf3fd;color:#36517a}
+#panel-equilibrio .pe-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+#panel-equilibrio .pe-kpi{min-width:0;background:white;border:1px solid #dee7f4;border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:12px}
+#panel-equilibrio .pe-kpi>span{font-size:12px;color:#60728c;font-weight:800}
+#panel-equilibrio .pe-kpi strong{font:800 clamp(22px,2vw,30px) Manrope,'DM Sans',sans-serif;color:#213c61;letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+#panel-equilibrio .pe-main strong{color:#177958}
+#panel-equilibrio .pe-kpi strong.pe-neg{color:#b44745}
+#panel-equilibrio .pe-kpi small{font-size:11px;line-height:1.5;color:#7d8da4}
+#panel-equilibrio .pe-notice{border:1px solid #cfe0fb;background:#edf4ff;color:#31517e;border-radius:13px;padding:18px 21px;margin-bottom:18px}
+#panel-equilibrio .pe-notice strong{font-size:13px}
+#panel-equilibrio .pe-notice p{margin:8px 0 0;font-size:11px;line-height:1.6;color:#647d9e}
+#panel-equilibrio .pe-columns{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;align-items:start}
+#panel-equilibrio .pe-columns>*{min-width:0}
+#panel-equilibrio .pe-block-content{padding:18px 22px 22px}
+#panel-equilibrio .pe-table{width:100%;font-size:12px;min-width:0;white-space:normal}
+#panel-equilibrio .pe-table td{padding:11px 7px;border-bottom:1px solid #edf1f7;vertical-align:middle;color:#445774}
+#panel-equilibrio .pe-table td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:750;color:#263951;white-space:nowrap}
+#panel-equilibrio .pe-table .pe-result-line td{font-weight:900!important;color:#245184!important;border-top:2px solid #c7d8ee}
+#panel-equilibrio .pe-progress-label{display:flex;justify-content:space-between;gap:8px;margin:18px 0 8px;font-size:11px;color:#60728c;font-weight:750}
+#panel-equilibrio .pe-progress-label strong{color:#234a7e;font-weight:900}
+#panel-equilibrio .pe-progress{height:10px;border-radius:999px;background:#e8eef8;overflow:hidden}
+#panel-equilibrio .pe-progress>span{display:block;height:100%;width:0;background:#2a77d4;border-radius:inherit;transition:width .2s ease}
+#panel-equilibrio .pe-subline{font-size:11px;line-height:1.6;color:#69809d;margin:12px 0 0}
+#panel-equilibrio .pe-footnote{font-size:11px;line-height:1.7;color:#788ba3;margin:16px 0 0}
+#panel-equilibrio .pe-scenario{margin-bottom:18px}
+#panel-equilibrio .pe-scenario-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 8px}
+#panel-equilibrio .pe-scenario-fields>.field{min-width:0;margin:0}
+#panel-equilibrio .pe-scenario-fields input{width:100%;max-width:100%}
+#panel-equilibrio .pe-scenario-tip{font-size:11px;line-height:1.65;color:#7084a0;margin:12px 0 17px}
+#panel-equilibrio .pe-scenario-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#panel-equilibrio .pe-scenario-results>article{min-width:0;background:#f5f8fe;border:1px solid #e0e8f8;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px}
+#panel-equilibrio .pe-scenario-results span{color:#647892;font-size:11px;font-weight:750}
+#panel-equilibrio .pe-scenario-results strong{font:800 clamp(20px,1.8vw,25px) Manrope,'DM Sans',sans-serif;color:#234a77;font-variant-numeric:tabular-nums}
+#panel-equilibrio .pe-scenario-results small{font-size:10px;line-height:1.5;color:#8291a5}
+#panel-equilibrio .pe-scenario-warning{font-size:11px;line-height:1.6;color:#7e6435;margin:15px 0 0}
+#panel-equilibrio .pe-method-alerts p{font-size:12px;color:#536d8c;line-height:1.65;border-left:3px solid #d8a34c;padding:8px 12px;margin:0 0 10px;background:#fffaf2;border-radius:0 7px 7px 0}
+#panel-equilibrio .pe-empty{font-style:italic;color:#71819a!important}
+@media(max-width:1300px){#panel-equilibrio .pe-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#panel-equilibrio .pe-tag{margin-left:0}}
+@media(max-width:980px){#panel-equilibrio .pe-columns{grid-template-columns:1fr}#panel-equilibrio .pe-scenario-fields{grid-template-columns:1fr 1fr}#panel-equilibrio .pe-scenario-results{grid-template-columns:1fr 1fr}}
+@media(max-width:670px){#panel-equilibrio .pe-period-row{padding:14px;align-items:stretch;flex-direction:column}#panel-equilibrio .pe-period-row>.field{width:100%}#panel-equilibrio .pe-kpis{gap:9px}#panel-equilibrio .pe-kpi{padding:14px;gap:8px}#panel-equilibrio .pe-kpi strong{font-size:20px;white-space:normal}#panel-equilibrio .pe-block-content{padding:13px}#panel-equilibrio .pe-scenario-fields{grid-template-columns:1fr}#panel-equilibrio .pe-scenario-results{grid-template-columns:1fr}#panel-equilibrio .pe-scenario-results strong{font-size:20px}}
