@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=43">
+  <link rel="stylesheet" href="style.css?v=44">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -703,11 +703,13 @@
             <div class="surface-heading"><div><h2 id="cxFormTitulo">Movimentar caixa</h2><p>Transfira entre as contas, lance entradas e saídas ou corrija o saldo de uma conta.</p></div><span class="form-badge">CAIXA</span></div>
             <form id="cxForm" autocomplete="off">
               <div class="form-grid">
+                <div class="ui-form-section ui-form-first field-wide" role="heading" aria-level="3"><span>01</span><strong>Dados da movimentação</strong></div>
                 <label class="field">Operação<select id="cxOp"><option value="transf">Transferir entre contas</option><option value="entrada">Entrada manual</option><option value="saida">Saída manual</option><option value="ajuste">Editar saldo da conta</option></select></label>
                 <label class="field" id="cxDeBox"><span id="cxDeLbl">De</span><select id="cxDe"></select></label>
                 <label class="field" id="cxParaBox"><span id="cxParaLbl">Para</span><select id="cxPara"></select></label>
                 <label class="field"><span id="cxValorLbl">Valor (R$)</span><input id="cxValor" type="text" inputmode="numeric" placeholder="0,00"></label>
                 <label class="field">Data<input id="cxData" type="date"></label>
+                <div class="ui-form-section field-wide" role="heading" aria-level="3"><span>02</span><strong>Complemento</strong></div>
                 <label class="field field-wide">Descrição (opcional)<input id="cxDesc" maxlength="120" placeholder="Ex.: transferência semanal, saldo inicial..."></label>
                 <p class="fin-hint field-wide" id="cxHint"></p>
                 <div class="form-actions field-wide"><button class="button button-primary" type="submit">Salvar</button><button class="button button-light" id="cxCancelar" type="button">Fechar</button></div>
@@ -725,6 +727,7 @@
             <div class="surface-heading"><div><h2 id="finFormTitulo">Nova despesa</h2><p>Registre qualquer gasto da loja. Despesas recorrentes serão sugeridas mensalmente, mediante sua confirmação.</p></div><span class="form-badge" id="finFormBadge">LANÇAMENTO</span></div>
             <form id="finForm" autocomplete="off">
               <div class="form-grid">
+                <div class="ui-form-section ui-form-first field-wide" role="heading" aria-level="3"><span>01</span><strong>Identificação e classificação</strong></div>
                 <label class="field">Data da despesa<input id="finData" type="date" required></label>
                 <label class="field">Categoria<div class="cep-row"><select id="finCat"></select><button class="button button-light" id="finNovaCat" type="button" title="Criar nova categoria">＋ Nova</button></div></label>
                 <label class="field field-wide">Descrição (item do catálogo)<div class="cep-row"><select id="finItem"></select><button class="button button-light" id="finNovoItem" type="button" title="Criar um item novo no catálogo">＋ Novo item</button><button class="button button-light" id="finGerItens" type="button" title="Renomear, trocar a linha da DRE ou desativar itens">Itens</button></div><input id="finDesc" type="hidden"><small class="imp-hint" id="finFornecedorAviso" hidden>Quitação de mercadoria para revenda: para parcelas já cadastradas, use o botão Pagar na lista abaixo; o Conceito atualizará diretamente o Pedido à Fábrica, sem criar uma segunda despesa. O CMV permanece vinculado à venda. Para dívidas não cadastradas, use o pagamento avulso com cautela.</small></label>
@@ -739,6 +742,7 @@
                     <span><b>Pagamento avulso não cadastrado em Pedidos à Fábrica.</b> Se esta dívida não estiver na lista, marque esta opção antes de usar o formulário abaixo. Não use para parcelas que já aparecem acima.</span>
                   </label>
                 </section>
+                <div class="ui-form-section field-wide" role="heading" aria-level="3"><span>02</span><strong>Valores e pagamento</strong></div>
                 <label class="field">Valor (R$)<input id="finValor" type="text" inputmode="numeric" placeholder="0,00"></label>
                 <div class="field field-wide fin-pag" id="finPagBox">
                   <span>Conta de origem</span>
@@ -752,9 +756,11 @@
                 <label class="field">Situação<select id="finStatus"><option value="pago">Pago</option><option value="pendente">Pendente</option></select></label>
                 <label class="field">Vencimento (opcional)<input id="finVenc" type="date"></label>
                 <label class="field" id="finPagoBox">Data do pagamento<input id="finPago" type="date"></label>
+                <div class="ui-form-section field-wide" role="heading" aria-level="3"><span>03</span><strong>Periodicidade e competência</strong></div>
                 <label class="field">Tipo<select id="finTipo"><option value="avulsa">Avulsa</option><option value="rec">Recorrente (todo mês)</option></select></label>
                 <label class="field" id="finRepeteBox" hidden>Repetir por mais (meses)<input id="finRepete" type="number" min="0" max="0" step="1" value="0"></label>
                 <label class="field">Mês de competência na DRE<input id="finComp" type="month"><small class="imp-hint" id="finCompHint"></small></label>
+                <div class="ui-form-section field-wide" role="heading" aria-level="3"><span>04</span><strong>Observações e conclusão</strong></div>
                 <label class="field field-wide">Observação (opcional)<input id="finObs" maxlength="180" placeholder="Ex.: contrato até dez/2026"></label>
                 <div class="form-actions field-wide"><button class="button button-primary" id="finSalvar" type="submit">Salvar despesa</button><button class="button button-light" id="finCancelar" type="button">Fechar</button></div>
               </div>
@@ -1678,5 +1684,20 @@
 })();
 </script>
 
+
+<script id="conceito-ui-refinements-v113">
+(function(){
+  'use strict';
+  const notification=document.getElementById('toast');
+  if(!notification)return;
+  function syncAccessibility(){
+    const error=notification.classList.contains('error');
+    notification.setAttribute('role',error?'alert':'status');
+    notification.setAttribute('aria-live',error?'assertive':'polite');
+  }
+  new MutationObserver(syncAccessibility).observe(notification,{attributes:true,attributeFilter:['class']});
+  syncAccessibility();
+})();
+</script>
 </body>
 </html>
