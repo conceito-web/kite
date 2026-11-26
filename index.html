@@ -602,8 +602,18 @@
               <div class="form-grid">
                 <label class="field">Data da despesa<input id="finData" type="date" required></label>
                 <label class="field">Categoria<div class="cep-row"><select id="finCat"></select><button class="button button-light" id="finNovaCat" type="button" title="Criar nova categoria">＋ Nova</button></div></label>
-                <label class="field field-wide">Descrição (item do catálogo)<div class="cep-row"><select id="finItem"></select><button class="button button-light" id="finNovoItem" type="button" title="Criar um item novo no catálogo">＋ Novo item</button><button class="button button-light" id="finGerItens" type="button" title="Renomear, trocar a linha da DRE ou desativar itens">Itens</button></div><input id="finDesc" type="hidden"><small class="imp-hint" id="finFornecedorAviso" hidden>Quitação de mercadoria para revenda: sai do Caixa quando paga, mas não é despesa adicional da DRE; o custo será considerado como CMV na venda. Se esta parcela já está registrada em Pedidos à fábrica, marque o pagamento somente naquele módulo para não duplicar a saída do Caixa. Não use para fretes, juros ou serviços.</small></label>
+                <label class="field field-wide">Descrição (item do catálogo)<div class="cep-row"><select id="finItem"></select><button class="button button-light" id="finNovoItem" type="button" title="Criar um item novo no catálogo">＋ Novo item</button><button class="button button-light" id="finGerItens" type="button" title="Renomear, trocar a linha da DRE ou desativar itens">Itens</button></div><input id="finDesc" type="hidden"><small class="imp-hint" id="finFornecedorAviso" hidden>Quitação de mercadoria para revenda: para parcelas já cadastradas, use o botão Pagar na lista abaixo; o Conceito atualizará diretamente o Pedido à Fábrica, sem criar uma segunda despesa. O CMV permanece vinculado à venda. Para dívidas não cadastradas, use o pagamento avulso com cautela.</small></label>
                 <p class="fin-hint field-wide" id="finCatHint"></p>
+                <section id="finFornecedorParcelas" class="field-wide" hidden style="padding:16px;border:1px solid #d9e5f6;border-radius:12px;background:#f8fbff" aria-label="Parcelas de pedidos à fábrica">
+                  <h3 style="margin:0 0 5px;font-size:17px">Parcelas dos Pedidos à Fábrica</h3>
+                  <p style="margin:0 0 12px;color:#55667f;font-size:13px">Estas parcelas já existem no Contas a Pagar. Use <b>Pagar</b> para quitá-las no pedido original, sem criar uma segunda despesa.</p>
+                  <div id="finFornecedorResumo" style="margin:0 0 10px;font-weight:600"></div>
+                  <div id="finFornecedorLista" class="table-wrap" aria-live="polite"></div>
+                  <label style="display:flex;gap:9px;align-items:flex-start;margin-top:13px;font-size:13px;line-height:1.5;color:#3d506a">
+                    <input id="finFornecedorAvulsa" type="checkbox" style="width:17px;height:17px;min-height:0;flex:0 0 17px;margin-top:2px">
+                    <span><b>Pagamento avulso não cadastrado em Pedidos à Fábrica.</b> Se esta dívida não estiver na lista, marque esta opção antes de usar o formulário abaixo. Não use para parcelas que já aparecem acima.</span>
+                  </label>
+                </section>
                 <label class="field">Valor (R$)<input id="finValor" type="text" inputmode="numeric" placeholder="0,00"></label>
                 <div class="field field-wide fin-pag" id="finPagBox">
                   <span>Conta de origem</span>
@@ -983,7 +993,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=44"></script>
-  <script src="modulos.js?v=37"></script>
+  <script src="modulos.js?v=38"></script>
   <script src="encomendas.js?v=6"></script>
   <script>
   window.ckrDespesasModuloEstado={carregado:false,inicializado:false,erro:''};
@@ -995,7 +1005,7 @@
    ['finDesp','finPagas','finPend','finVenc2'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent='Indisponível';});
   });
 </script>
-<script src="despesas.js?v=21"></script>
+<script src="despesas.js?v=22"></script>
   <script>
 'use strict';
 // Conceito · Correção 10: folha de novembro, vencimento em dezembro, revisão atômica das recorrências.
