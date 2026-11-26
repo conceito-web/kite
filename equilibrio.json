@@ -1,5 +1,5 @@
 'use strict';
-/* Conceito v117 — Ponto de equilíbrio operacional (consulta e simulação, sem gravação).
+/* Conceito v117.1 — Ponto de equilíbrio operacional (consulta e simulação, sem gravação).
    Usa exclusivamente os indicadores do módulo de Margem de Contribuição e as
    despesas fixas por competência da própria DRE. Não cria lançamentos. */
 (function () {
@@ -106,12 +106,30 @@
     $('peMarginInput').addEventListener('input',()=>{marginTouched=true;renderScenario();});
     ['peFixedAdjustment','peProfitGoal'].forEach(id=>$(id).addEventListener('input',renderScenario));
     $('peGoMargin').addEventListener('click',()=>{const month=$('peMonth').value;const source=$('mcMonth');if(source){source.value=month;source.dispatchEvent(new Event('change',{bubbles:true}));}const nav=document.querySelector('.nav-link[data-panel="contribuicao"]');if(nav)nav.click();});
-    const prev=window.goTo;
-    if(typeof prev==='function')window.goTo=function(name){const result=prev.apply(this,arguments);if(name==='equilibrio'&&panel.classList.contains('active'))render();return result;};
-    const nav=document.querySelector('.nav-link[data-panel="equilibrio"]');if(nav)nav.addEventListener('click',()=>{if(panel.classList.contains('active'))render();});
-    const prevAll=window.renderAll;
-    if(typeof prevAll==='function')window.renderAll=function(){const result=prevAll.apply(this,arguments);if(panel.classList.contains('active'))render();return result;};
-    window.ckrPontoEquilibrioCalcular=calculate; // API de leitura para testes de consistência.
+    // A troca de telas do Conceito é gerenciada por app.js. Em versões recentes,
+    // o menu lateral também possui agrupamentos e observadores. Assim, não
+    // substituímos goTo/renderAll: observamos a ativação real deste painel.
+    let pending=false;
+    function scheduleRender(){
+      if(pending)return;
+      pending=true;
+      Promise.resolve().then(()=>{
+        pending=false;
+        if(panel.classList.contains('active'))render();
+      });
+    }
+    const nav=document.querySelector('.nav-link[data-panel="equilibrio"]');
+    if(nav)nav.addEventListener('click',scheduleRender);
+    if(typeof MutationObserver==='function'){
+      new MutationObserver(changes=>{
+        if(changes.some(x=>x.attributeName==='class'))scheduleRender();
+      }).observe(panel,{attributes:true,attributeFilter:['class']});
+    }
+    // Funciona também se o painel for aberto por atalho, restauração de sessão
+    // ou se o usuário já estiver na aba quando o script terminar de carregar.
+    scheduleRender();
+    window.addEventListener('pageshow',scheduleRender);
+    window.ckrPontoEquilibrioCalcular=calculate; // API somente leitura.
   }
   try{init();}catch(e){console.error('Ponto de equilíbrio: inicialização',e);show('peStatus','Não foi possível inicializar o painel.');show('peStatusDetail',String(e?.message||e));}
 })();
