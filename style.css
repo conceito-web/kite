@@ -925,3 +925,62 @@ select.dre-sel{max-width:100%;min-height:36px;margin:2px 6px 2px 0;border:1px so
 @media(prefers-reduced-motion:reduce){
   .panel .button,#toast.toast{transition:none!important;}
 }
+
+
+/* === CONCEITO v114: usabilidade / nenhum dado é alterado === */
+/* 1. Estados vazios: reaproveita os elementos já mantidos por cada módulo. */
+.panel .empty-state{
+  max-width:100%;border:1px dashed #d5e0f0;border-radius:14px;
+  padding:32px 22px;margin:14px 0 3px;background:#fafcff;
+  text-align:center;color:#6b7e98;
+}
+.panel .empty-state .empty-symbol{
+  width:46px;height:46px;border-radius:14px;
+  background:#eaf1ff;color:#456cb8;font-size:21px;
+}
+.panel .empty-state b{margin-top:13px;color:#2c405d;font-size:13px;line-height:1.45;}
+.panel .empty-state p{margin:6px auto 0;color:#72829c;max-width:440px;font-size:11px;line-height:1.6;}
+
+/* 2. Indicador visual discreto para processos que já existem no programa. */
+.ui-process{display:inline-flex;align-items:center;gap:8px;
+  margin:8px 0 3px;padding:7px 11px;border:1px solid #dae5f9;
+  border-radius:9px;background:#f4f8ff;color:#45638e;
+  font:700 11px/1.4 'DM Sans',Arial,sans-serif;vertical-align:middle;
+}
+.ui-process::before{content:'';display:block;flex:none;width:13px;height:13px;
+  border:2px solid #c5d7fd;border-top-color:#3468f5;border-radius:50%;
+  animation:ui-v114-spin .8s linear infinite;
+}
+@keyframes ui-v114-spin{to{transform:rotate(360deg)}}
+.ui-is-busy{cursor:progress!important;}
+
+/* 3. Melhores alvos de toque, rolagem e diálogos em telas estreitas. */
+.panel .table-wrap{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;}
+.users-modal .users-card{overscroll-behavior:contain;}
+.panel .ui-field-invalid, .users-card .ui-field-invalid{
+  border-color:#c74755!important;box-shadow:0 0 0 3px #c747551c!important;
+}
+.panel .ui-field-error, .users-card .ui-field-error{
+  display:block;margin-top:5px;color:#aa3442;font-size:11px;font-weight:700;line-height:1.4;
+}
+@media(max-width:760px){
+  .panel .empty-state{padding:25px 15px;margin-top:10px;}
+  .panel .table-wrap{position:relative;}
+  .panel .table-wrap table{min-width:600px;}
+  .panel .form-grid{grid-template-columns:minmax(0,1fr);}
+  .panel .form-grid .field-wide,.panel .ui-form-section{grid-column:1/-1;}
+  .panel :is(input:not([type=checkbox]):not([type=radio]),select,textarea),
+  .users-card :is(input,select,textarea){font-size:16px;}
+  .panel .button, .users-modal .button{min-height:44px;white-space:normal;text-align:center;}
+  .users-modal{padding:12px;align-items:flex-start;}
+  .users-modal .users-card{max-height:calc(100dvh - 24px);max-width:100%;overflow-y:auto;}
+  .users-modal .users-card :is(button,input,select){max-width:100%;}
+  #finForm .cep-row{flex-wrap:wrap;}
+  #finForm .cep-row>select{min-width:160px;flex:1 1 160px;}
+}
+@media(max-width:420px){
+  .users-card{padding:17px 14px;}
+  .users-modal .full-button{width:100%;}
+  .panel .form-actions{flex-wrap:wrap;}
+}
+@media(prefers-reduced-motion:reduce){.ui-process::before{animation:none;border-color:#3468f5;}}
