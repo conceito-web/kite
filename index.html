@@ -529,6 +529,7 @@
             </div>
           </section>
           <section class="surface form-surface">
+            <p id="finCarregamentoAviso" class="notice" role="alert" hidden style="display:none;margin:0 16px 14px;padding:12px 14px;color:#9a3412"></p>
             <div class="surface-heading"><div><h2>Período da análise</h2><p id="finPeriodoDesc"></p></div></div>
             <div class="report-filters fin-filters">
               <label class="field">Período<select id="finPreset"><option value="mes" selected>Este mês</option><option value="anterior">Mês anterior</option><option value="3m">Últimos 3 meses</option><option value="ano">Este ano</option><option value="tudo">Tudo</option><option value="custom">Personalizado</option></select></label>
@@ -981,10 +982,20 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=43"></script>
+  <script src="app.js?v=44"></script>
   <script src="modulos.js?v=37"></script>
   <script src="encomendas.js?v=6"></script>
-  <script src="despesas.js?v=19"></script>
+  <script>
+  window.ckrDespesasModuloEstado={carregado:false,inicializado:false,erro:''};
+  window.addEventListener('load',function(){
+   var d=window.ckrDespesasModuloEstado||{}, a=document.getElementById('finDe'),b=document.getElementById('finAte');
+   if(d.carregado && d.inicializado && a&&a.value && b&&b.value && !d.erro)return;
+   var aviso=document.getElementById('finCarregamentoAviso');
+   if(aviso){aviso.hidden=false;aviso.style.display='block';aviso.textContent='O painel de despesas não carregou corretamente. Confirme que despesas.js foi atualizado junto dos demais arquivos e recarregue com Ctrl+F5. Não registre pagamentos até que os indicadores apareçam.'+(d.erro?' Erro: '+d.erro:'');}
+   ['finDesp','finPagas','finPend','finVenc2'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent='Indisponível';});
+  });
+</script>
+<script src="despesas.js?v=20"></script>
   <script>
 'use strict';
 // Conceito · Correção 10: folha de novembro, vencimento em dezembro, revisão atômica das recorrências.
