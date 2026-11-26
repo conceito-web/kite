@@ -659,3 +659,43 @@ select.dre-sel{max-width:100%;min-height:36px;margin:2px 6px 2px 0;border:1px so
 @media(max-width:1000px){#panel-dashboard .exec-toolbar-title{flex-basis:260px}#panel-dashboard .exec-period-control{max-width:none;flex-basis:270px}}
 @media(max-width:760px){#panel-dashboard .exec-toolbar{padding:16px;gap:13px}#panel-dashboard .exec-period-control{flex:1 1 100%;min-width:0}#panel-dashboard .exec-kpi{padding:15px 14px;min-height:145px}#panel-dashboard .exec-mini{min-height:auto}#panel-dashboard .notice-local p{font-size:10px}}
 @media(max-width:420px){.topbar{gap:8px}.topbar .sidebar-toggle-button{width:36px;height:36px}}
+
+/* ============================================================
+   CONCEITO v112.1 — Pendências e alertas: cartões compactos
+   Somente apresentação: não altera o conteúdo das pendências,
+   status, links, IDs ou lógica do módulo dashboard.js.
+   ============================================================ */
+#panel-dashboard .exec-alert-card{padding:22px 23px 24px;overflow:hidden}
+#panel-dashboard .exec-alert-card>.exec-heading{margin-bottom:17px;align-items:flex-start}
+#panel-dashboard .exec-alert-card>.exec-heading>div{min-width:0}
+#panel-dashboard .exec-alert-card .exec-alert-badge{flex:none;align-self:center;white-space:normal;text-align:center;padding:8px 13px;border-radius:9px;font-size:11px}
+#panel-dashboard #execAlertRows{display:block;min-width:0;color:#67768d;font-size:12px}
+#panel-dashboard #execAlertRows>p{margin:0;padding:20px 15px;text-align:center;color:#8896aa;background:#f8faff;border:1px solid #e9eef6;border-radius:12px}
+/* O módulo de indicadores pode entregar a coleção como UL ou OL. */
+#panel-dashboard #execAlertRows :is(ul,ol){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0;padding:0;list-style:none}
+#panel-dashboard #execAlertRows :is(ul,ol)>li,
+#panel-dashboard #execAlertRows>li{display:flex;flex-wrap:wrap;align-items:center;gap:8px 13px;min-width:0;min-height:98px;margin:0;padding:16px 17px;border:1px solid #e5ebf5;border-radius:12px;background:#f8faff;list-style:none;color:#5d6e88;line-height:1.5}
+#panel-dashboard #execAlertRows :is(ul,ol)>li::marker,#panel-dashboard #execAlertRows>li::marker{content:''}
+#panel-dashboard #execAlertRows :is(ul,ol)>li>div,
+#panel-dashboard #execAlertRows>li>div{flex:1 1 190px;min-width:0;display:flex;flex-direction:column;gap:4px}
+#panel-dashboard #execAlertRows :is(ul,ol)>li :is(strong,b),
+#panel-dashboard #execAlertRows>li :is(strong,b){display:block;font-size:12.5px;font-weight:800;line-height:1.4;color:#2a3b57}
+#panel-dashboard #execAlertRows :is(ul,ol)>li :is(small,p),
+#panel-dashboard #execAlertRows>li :is(small,p){display:block;margin:0;color:#8694a7;font-size:11px;line-height:1.45}
+#panel-dashboard #execAlertRows :is(ul,ol)>li :is(button,a),
+#panel-dashboard #execAlertRows>li :is(button,a){flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:58px;min-height:35px;padding:7px 11px;border:1px solid #d9e4f9;border-radius:9px;background:#ebf2ff;color:#315cc0;text-decoration:none;font:800 12px/1.2 'DM Sans',Arial,sans-serif;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+#panel-dashboard #execAlertRows :is(ul,ol)>li :is(button,a):hover,
+#panel-dashboard #execAlertRows>li :is(button,a):hover{background:#dce8ff;border-color:#bdd0f7}
+#panel-dashboard #execAlertRows :is(ul,ol)>li :is(button,a):focus-visible,
+#panel-dashboard #execAlertRows>li :is(button,a):focus-visible{outline:3px solid #a8bfff;outline-offset:2px}
+@media(max-width:850px){
+ #panel-dashboard #execAlertRows :is(ul,ol){grid-template-columns:1fr}
+ #panel-dashboard #execAlertRows :is(ul,ol)>li{min-height:80px}
+}
+@media(max-width:550px){
+ #panel-dashboard .exec-alert-card{padding:16px}
+ #panel-dashboard .exec-alert-card>.exec-heading{flex-wrap:wrap;gap:10px}
+ #panel-dashboard .exec-alert-card .exec-alert-badge{align-self:flex-start}
+ #panel-dashboard #execAlertRows :is(ul,ol)>li{padding:13px;min-height:76px}
+ #panel-dashboard #execAlertRows :is(ul,ol)>li>div{flex-basis:calc(100% - 85px)}
+}
