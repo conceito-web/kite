@@ -80,16 +80,6 @@ function totals(){
  const total=r2((sub-dc)*(1-dp/100)),paid=r2(pays.reduce((a,p)=>a+p.amount,0));
  return {sub,dc,dp,total,paid,rest:r2(total-paid),change:r2(paid-total)};
 }
-// Pagamentos para a prévia do lucro (?): os já adicionados + o que está sendo montado (forma, valor e parcelas ainda não adicionados).
-function pdvProfitPays(){
- const m=$("pdvPagMetodo").value;if(!m)return pays;
- const amt=r2(parseMoneyInput($("pdvPagValor").value)||Math.max(0,totals().rest));
- if(!(amt>0))return pays;
- return pays.concat([readPayExtra($("pdvPagExtra"),m,amt)]);
-}
-function pdvProfitRefresh(){
- try{const t=totals();showProfitPct("pdvLucroPct",saleProfitPct(cart.map(i=>({productId:i.productId,quantity:i.quantity,price:i.price})),t.total,pdvProfitPays()));}catch(_){}
-}
 function render(){
  const s=openSession();
  try{stripPaint('pdv');}catch(_){}
@@ -102,7 +92,7 @@ function render(){
  $('pdvLinhas').innerHTML=cart.length?cart.map((it,i)=>`<tr><td>${esc(it.name)}</td><td><span class="pdv-qty"><button type="button" data-q="${i}" data-d="-1" aria-label="Diminuir">−</button>${it.quantity}<button type="button" data-q="${i}" data-d="1" aria-label="Aumentar">+</button></span></td><td>${money(it.price)}</td><td>${money(it.quantity*it.price)}</td><td><button type="button" class="cart-remove" data-x="${i}" aria-label="Remover ${esc(it.name)}">×</button></td></tr>`).join(''):'<tr><td colspan="5" class="cart-empty">Bipe ou busque um produto para começar.</td></tr>';
  const t=totals();
  $('pdvSub').textContent=money(t.sub);$('pdvTotal').textContent=money(t.total);
- pdvProfitRefresh();
+ try{showProfitPct('pdvLucroPct',saleProfitPct(cart.map(i=>({productId:i.productId,quantity:i.quantity,price:i.price})),t.total,pays));}catch(_){}
  $('pdvChips').innerHTML=pays.map((p,i)=>`<span class="pdv-chip">${esc(p.method)}${p.installments>1?' '+p.installments+'x':''}${p.responsible==='fabrica'?' (fábrica)':''} ${money(p.amount)}<button type="button" data-px="${i}" aria-label="Remover pagamento">×</button></span>`).join('');
  $('pdvRestoLabel').textContent=t.change>0.009?'Troco':'Falta receber';
  $('pdvResto').textContent=money(t.change>0.009?t.change:Math.max(0,t.rest));
@@ -218,7 +208,7 @@ $('pdvLinhas').addEventListener('click',e=>{
  else if(x){cart.splice(+x.dataset.x,1);render();}
 });
 $('pdvChips').addEventListener('click',e=>{const b=e.target.closest('[data-px]');if(b){pays.splice(+b.dataset.px,1);render();}});
-function pdvSync(){const t=totals();syncPayExtra($('pdvPagExtra'),$('pdvPagMetodo').value,r2(parseMoneyInput($('pdvPagValor').value)||Math.max(0,t.rest)));pdvProfitRefresh();}
+function pdvSync(){const t=totals();syncPayExtra($('pdvPagExtra'),$('pdvPagMetodo').value,r2(parseMoneyInput($('pdvPagValor').value)||Math.max(0,t.rest)));}
 $('pdvPagExtra').innerHTML=payExtraHtml();
 ['pagamentoBandeira','pagamentoResponsavel','pagamentoVencimento','pagamentoExtendido'].forEach(c=>$('pdvPagExtra').querySelector('.'+c).addEventListener('change',pdvSync));
 $('pdvPagExtra').querySelector('.pagamentoParcelas').addEventListener('input',pdvSync);
@@ -246,23 +236,6 @@ window.ckrBackupLerXML=async()=>{
   q.onerror=()=>no(q.error||Error('Falha ao ler XML'));
   t.oncomplete=()=>ok(out);
   t.onerror=()=>no(t.error||Error('Falha ao ler XML'));
- });
-};
-// Recuperação documental pontual: grava apenas o XML de uma nota já importada.
-// NÃO cria movimentações, não importa produtos e não altera o objeto financeiro `data`.
-window.ckrBackupReporXML=async (key,xml)=>{
- if(!/^\d{44}$/.test(String(key))||typeof xml!=='string'||!xml.trim().startsWith('<'))throw Error('Chave ou XML inválido');
- const db=await idb();
- return new Promise((ok,no)=>{
-  const tx=db.transaction('xml','readwrite'),store=tx.objectStore('xml');
-  const get=store.get(key);
-  get.onsuccess=()=>{
-   if(typeof get.result==='string'&&get.result.trim())return; // não sobrescreve um original existente
-   store.put(xml,key);
-  };
-  get.onerror=()=>tx.abort();
-  tx.oncomplete=()=>ok();tx.onerror=()=>no(tx.error||Error('Não foi possível registrar o XML'));
-  tx.onabort=()=>no(tx.error||Error('A transação do XML foi cancelada'));
  });
 };
 window.ckrBackupSubstituirXML=async entries=>{
@@ -1027,6 +1000,17 @@ function pedAskPayment(o,inst){
  });
  ov.querySelector('.pedPagData').focus();
 }
+// O formulário Gestão de Despesas abre EXATAMENTE o mesmo pagamento do Pedido à Fábrica.
+// Este acesso não cria um segundo registro de despesa nem duplica a saída do caixa.
+window.ckrPagarParcelaFabrica=function(orderId,installmentN){
+ if(typeof hasFullAccess==='function'&&!hasFullAccess()){toast('Você não tem permissão para pagar parcelas da fábrica.',true);return false;}
+ const o=orders().find(x=>String(x.id)===String(orderId));
+ const p=o&&(o.installments||[]).find(x=>String(x.n)===String(installmentN));
+ if(!p){toast('Esta parcela não existe mais no pedido. Atualize a tela.',true);return false;}
+ if(p.paid){toast('Esta parcela já está paga no Pedido à Fábrica.',true);return false;}
+ pedAskPayment(o,p);
+ return true;
+};
 function pedTogglePay(btn){
  const [oid,n]=btn.dataset.pedPay.split('|'),o=orders().find(x=>x.id===oid),inst=o&&o.installments.find(x=>String(x.n)===n);if(!inst)return;
  if(!inst.paid){pedAskPayment(o,inst);return;}
