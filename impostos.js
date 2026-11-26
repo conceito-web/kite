@@ -8,6 +8,8 @@
 (function(){
 const $=x=>document.getElementById(x);
 const notes=()=>data.taxNotes||(data.taxNotes=[]);
+const fiscalVigente=n=>n&&n.fiscalStatus!=='cancelada';
+const notasVigentes=()=>notes().filter(fiscalVigente);
 const ORIGENS={venda:'Registrar venda',pdv:'PDV',painel:'Painel Impostos'};
 const dateBR=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?`${m[3]}/${m[2]}/${m[1]}`:'—';};
 let origem='painel';        // de onde o formulário foi aberto
@@ -64,6 +66,22 @@ function salvar(e){
   if(saveData()){fechar();toast(old?'Informações de imposto atualizadas.':pend?`Nota salva e vinculada à venda ${pend}.`:'Informações de imposto salvas no painel Impostos.');}
 }
 
+// Confirmação explícita da situação da nota quando a venda é cancelada.
+// true=cancelada na SEFAZ; false=continua vigente; null=abortar a operação.
+let resolverSituacaoFiscal=null;
+window.ckrPerguntarCancelamentoFiscal=function(n){
+ const box=$('fiscalCancelModal');
+ if(!box||resolverSituacaoFiscal)return Promise.resolve(null);
+ $('fiscalCancelVenda').textContent=`Venda ${n.saleId} · NF ${n.number} · ${dateBR(n.date)} · ${money(n.value)}`;
+ box.hidden=false;
+ return new Promise(resolve=>{resolverSituacaoFiscal=resolve;});
+};
+function fecharSituacaoFiscal(v){
+ if(!resolverSituacaoFiscal)return;
+ const done=resolverSituacaoFiscal;resolverSituacaoFiscal=null;
+ $('fiscalCancelModal').hidden=true;
+ done(v);
+}
 // ===== Vincular nota a uma venda já existente (Movimentações) =====
 function ligar(saleId,noteId){
   data.movements.forEach(m=>{if(m.type==='venda'&&(m.saleId||m.id)===saleId){if(noteId)m.taxNoteId=noteId;else delete m.taxNoteId;}});
@@ -72,10 +90,10 @@ let vincVenda=null;
 function abrirVinculo(saleId){
   const s=getSales().find(x=>x.id===saleId);if(!s||s.canceled)return;
   vincVenda=saleId;
-  // notas que já estão ligadas a OUTRA venda ativa não aparecem
+  // Notas ligadas a outra venda, inclusive comercialmente cancelada, preservam seu histórico e não podem ser reutilizadas.
   const usadas=new Set();
-  data.movements.forEach(m=>{if(m.type==='venda'&&!m.canceled&&m.taxNoteId&&(m.saleId||m.id)!==saleId)usadas.add(m.taxNoteId);});
-  const livres=notes().filter(n=>!usadas.has(n.id)).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt).localeCompare(String(a.createdAt)));
+  data.movements.forEach(m=>{if(m.type==='venda'&&m.taxNoteId&&(m.saleId||m.id)!==saleId)usadas.add(m.taxNoteId);});
+  const livres=notes().filter(n=>fiscalVigente(n)&&!usadas.has(n.id)).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt).localeCompare(String(a.createdAt)));
   $('vincVenda').textContent=`Venda ${s.id}${s.client?' — '+s.client:''} · ${money(s.total)}`;
   $('vincSelect').innerHTML='<option value="">— Escolha uma nota já registrada —</option>'+livres.map(n=>`<option value="${esc(n.id)}"${n.id===s.taxNoteId?' selected':''}>Nota ${esc(n.number)} · ${esc(dateBR(n.date))} · ${esc(money(n.value))}</option>`).join('');
   $('vincRemover').hidden=!s.taxNote;
@@ -117,7 +135,7 @@ function calcular(list){
     const s=t-12,e=t-1;
     const ini=iso(Math.floor(s/12),s%12+1,1);
     const fim=iso(Math.floor(e/12),e%12+1,new Date(Math.floor(e/12),e%12+1,0).getDate());
-    rbtAuto=round2(notes().filter(n=>n.date>=ini&&n.date<=fim).reduce((x,n)=>x+Number(n.value||0),0));
+    rbtAuto=round2(notasVigentes().filter(n=>n.date>=ini&&n.date<=fim).reduce((x,n)=>x+Number(n.value||0),0));
     $('impMesInfo').textContent=`RBT12: ${dateBR(ini)} a ${dateBR(fim)}`;
     $('impRbtInfo').textContent=`Notas de ${dateBR(ini)} a ${dateBR(fim)}`;
   }else{$('impMesInfo').textContent='';$('impRbtInfo').textContent='Escolha o mês.';}
@@ -171,8 +189,9 @@ function render(){
   if(cfg&&$('impAnexo').value!==cfg)$('impAnexo').value=cfg;
   const all=notes().slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt).localeCompare(String(a.createdAt)));
   const list=all.filter(n=>!mes||String(n.date).startsWith(mes));
-  $('impQtd').textContent=list.length;
-  $('impTotal').textContent=money(list.reduce((t,n)=>t+Number(n.value||0),0));
+  const ativas=list.filter(fiscalVigente);
+  $('impQtd').textContent=ativas.length;
+  $('impTotal').textContent=money(ativas.reduce((t,n)=>t+Number(n.value||0),0));
   $('menuImpostos').textContent=all.length;
   const termo=(($('impBusca')||{}).value||'').trim().toLowerCase(),tdig=termo.replace(/\D/g,'');
   const vis=!termo?list:list.filter(n=>{
@@ -180,10 +199,11 @@ function render(){
     const hay=[dateBR(n.date),String(n.date||''),String(n.number||'').toLowerCase(),valTxt,valRaw,money(val).toLowerCase()].join(' ');
     return hay.includes(termo)||(tdig.length>=2&&(valDig.includes(tdig)||String(n.number||'').replace(/\D/g,'').includes(tdig)||String(n.date||'').replace(/\D/g,'').includes(tdig)||dateBR(n.date).replace(/\D/g,'').includes(tdig)));
   });
-  $('impLista').innerHTML=vis.map(n=>`<tr><td>${esc(dateBR(n.date))}</td><td>${esc(n.number)}</td><td>${money(n.value)}</td><td>${esc(ORIGENS[n.origin]||'—')}</td><td><button class="button button-light button-small" type="button" data-imp-edit="${esc(n.id)}">Modificar</button> <button class="button button-danger-light button-small" type="button" data-imp-del="${esc(n.id)}">Excluir</button></td></tr>`).join('')
+  $('impLista').innerHTML=vis.map(n=>`<tr><td>${esc(dateBR(n.date))}</td><td>${esc(n.number)}<small class="fin-sub">${n.fiscalStatus==='cancelada'?'Fiscal cancelada · fora do Simples':n.fiscalStatusSaleId?'Fiscal vigente · venda cancelada':'Fiscal vigente'}</small></td><td>${money(n.value)}</td><td>${esc(ORIGENS[n.origin]||'—')}</td><td><button class="button button-light button-small" type="button" data-imp-edit="${esc(n.id)}">Modificar</button> <button class="button button-light button-small" type="button" data-imp-status="${esc(n.id)}">Situação fiscal</button> <button class="button button-danger-light button-small" type="button" data-imp-del="${esc(n.id)}">Excluir</button></td></tr>`).join('')
     ||`<tr><td colspan="5" class="cart-empty">${termo?'Nenhuma nota encontrada para essa busca.':'Nenhuma nota registrada neste período.'}</td></tr>`;
-  $('impListaTotal').innerHTML=vis.length?`<tr class="imp-total-row"><td colspan="2"><b>${termo?'TOTAL DA BUSCA':mes?'TOTAL DO MÊS':'TOTAL'} · ${vis.length} ${vis.length===1?'nota':'notas'}</b></td><td><b>${money(vis.reduce((t,n)=>t+Number(n.value||0),0))}</b></td><td colspan="2"></td></tr>`:'';
-  calcular(list);
+  const visAtivas=vis.filter(fiscalVigente);
+  $('impListaTotal').innerHTML=vis.length?`<tr class="imp-total-row"><td colspan="2"><b>${termo?'TOTAL FISCAL DA BUSCA':mes?'TOTAL FISCAL DO MÊS':'TOTAL FISCAL'} · ${visAtivas.length} vigente(s), ${vis.length-visAtivas.length} cancelada(s)</b></td><td><b>${money(visAtivas.reduce((t,n)=>t+Number(n.value||0),0))}</b></td><td colspan="2"></td></tr>`:'';
+  calcular(ativas);
 }
 
 // Salva (ou apaga) o valor ajustado do imposto para o período atual.
@@ -214,6 +234,11 @@ function init(){
   $('impostoModal').addEventListener('click',e=>{if(e.target===$('impostoModal'))fechar();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('impostoModal').hidden)fechar();});
   $('impostoForm').addEventListener('submit',salvar);
+  $('fiscalCancelSim').addEventListener('click',()=>fecharSituacaoFiscal(true));
+  $('fiscalCancelNao').addEventListener('click',()=>fecharSituacaoFiscal(false));
+  $('fiscalCancelVoltar').addEventListener('click',()=>fecharSituacaoFiscal(null));
+  $('fiscalCancelModal').addEventListener('click',e=>{if(e.target===$('fiscalCancelModal'))fecharSituacaoFiscal(null);});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('fiscalCancelModal').hidden)fecharSituacaoFiscal(null);});
   $('vincFechar').addEventListener('click',fecharVinculo);
   $('vincNotaModal').addEventListener('click',e=>{if(e.target===$('vincNotaModal'))fecharVinculo();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('vincNotaModal').hidden)fecharVinculo();});
@@ -243,10 +268,27 @@ function init(){
   $('impVenc').addEventListener('change',()=>{man.venc=!!$('impVenc').value;render();});
   $('impRecalc').addEventListener('click',restaurarAuto);
   $('impLista').addEventListener('click',e=>{
+  const status=e.target.closest('[data-imp-status]');
+  if(status){
+    if(typeof hasFullAccess==='function'&&!hasFullAccess())return toast('Sem permissão para alterar situação fiscal.',true);
+    const n=notes().find(x=>x.id===status.dataset.impStatus);if(!n)return;
+    const vigente=fiscalVigente(n);
+    const msg=vigente
+      ?`NF ${n.number} permanece vigente na apuração.\n\nEla foi REALMENTE cancelada na SEFAZ? A confirmação retirará seu valor das bases do Simples e do RBT12. Não confunda venda comercial cancelada com documento fiscal cancelado.`
+      :`NF ${n.number} está marcada como cancelada fiscalmente.\n\nVocê confirmou que a nota continua VIGENTE na SEFAZ? Ela voltará a integrar a apuração e o RBT12.`;
+    if(!confirm(msg))return;
+    const old={fiscalStatus:n.fiscalStatus,fiscalStatusCheckedAt:n.fiscalStatusCheckedAt,fiscalStatusCheckedBy:n.fiscalStatusCheckedBy,events:Array.isArray(n.fiscalStatusEvents)?n.fiscalStatusEvents.slice():undefined};
+    const when=new Date().toISOString(),by=typeof currentUserName==='function'?currentUserName():'';
+    n.fiscalStatus=vigente?'cancelada':'vigente';n.fiscalStatusCheckedAt=when;n.fiscalStatusCheckedBy=by;
+    (n.fiscalStatusEvents||(n.fiscalStatusEvents=[])).push({at:when,by,status:n.fiscalStatus,reason:'Situação fiscal conferida manualmente no painel Impostos'});
+    if(saveData()!==true){for(const f of ['fiscalStatus','fiscalStatusCheckedAt','fiscalStatusCheckedBy']){if(old[f]===undefined)delete n[f];else n[f]=old[f];}if(old.events===undefined)delete n.fiscalStatusEvents;else n.fiscalStatusEvents=old.events;return;}
+    render();toast(`Situação da NF ${n.number} atualizada. Confira a apuração do Simples e o RBT12.`);return;
+  }
     const ed=e.target.closest('[data-imp-edit]');
     if(ed){const n=notes().find(x=>x.id===ed.dataset.impEdit);if(n&&confirmarModificar(n))abrir(n.origin||'painel',n.id);return;}
     const b=e.target.closest('[data-imp-del]');if(!b)return;
     const n=notes().find(x=>x.id===b.dataset.impDel);if(!n)return;
+    if(data.movements.some(m=>m.type==='venda'&&m.taxNoteId===n.id)){toast('Esta nota está vinculada ao histórico de uma venda. Não é possível excluí-la; use Situação fiscal para registrar cancelamento confirmado pela SEFAZ.',true);return;}
     if(confirm(`Excluir a nota ${n.number}?`)){
       data.taxNotes=notes().filter(x=>x.id!==n.id);
       ['venda','pdv'].forEach(o=>{if(atual[o]===n.id)atual[o]=null;});
@@ -279,7 +321,7 @@ function aeDoMes(mes){
   const s=t-12,e=t-1;
   const ini=iso(Math.floor(s/12),s%12+1,1);
   const fim=iso(Math.floor(e/12),e%12+1,new Date(Math.floor(e/12),e%12+1,0).getDate());
-  const rbt=notes().filter(n=>n.date>=ini&&n.date<=fim).reduce((x,n)=>x+Number(n.value||0),0);
+  const rbt=notasVigentes().filter(n=>n.date>=ini&&n.date<=fim).reduce((x,n)=>x+Number(n.value||0),0);
   let aliq,pd;
   if((data.taxCfg&&data.taxCfg.anexo)==='m'){aliq=parseMoneyInput($('impAliq').value);pd=parseMoneyInput($('impPd').value);}
   else{const f=faixa(rbt);aliq=f[1];pd=f[2];}
@@ -290,7 +332,7 @@ function aeDoMes(mes){
 // Se o mês tem um valor ajustado (painel Impostos), usa o ajuste. Se o período pega só parte do mês, conta só as notas do período
 // (e o ajuste na mesma proporção), marcando o mês como "parcial". Retorna {total, meses:[{mes:'AAAA-MM', valor, parcial, ajustado}]}.
 window.ckrSimplesPeriodo=function(s,e){
-  const all=notes(),meses={};
+  const all=notasVigentes(),meses={};
   all.forEach(n=>{
     const d=String(n.date||'');
     if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||(s&&d<s)||(e&&d>e))return;
@@ -340,18 +382,14 @@ function montarAjuda(id){
   const d=detalhe[id];
   if(!d){fecharAjuda();return;}
   const imposto=round2(d.total*d.ae/100);
-  const taxa=round2(d.fee||0);                      // taxa da maquininha: muda sozinha com parcelas/bandeira (aba Taxas e crédito)
-  const apos=round2(d.profit-imposto);              // (=) Lucro, já com a taxa descontada
-  const antes=round2(apos+taxa);                    // lucro antes da taxa do cartão
+  const lucro=round2(d.profit-imposto);
   pop.innerHTML=`<h4>De onde vem o lucro</h4>`
     +`<div class="r"><span>Total da venda</span><span>${money(d.total)} · 100,0%</span></div>`
     +linha('(−) Custo dos produtos (CMV)',d.cost,d.total)
     +linha(`(−) Imposto (alíq. efetiva ${d.ae.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})}%)`,imposto,d.total)
-    +linha('Lucro antes da taxa',antes,d.total)
-    +linha('(−) Taxa do cartão',taxa,d.total)
-    +linha('(=) Lucro após a taxa',apos,d.total,'t')
-    +`<div class="r"><span>Margem líquida sobre a venda</span><span>${pct1(d.total>0?apos/d.total*100:0)}</span></div>`
-    +`<small>A porcentagem de cada linha é sobre o total da venda (já com desconto). A taxa do cartão segue as parcelas e a bandeira escolhidas e os percentuais de Taxas e crédito.</small>`;
+    +(d.fee>0.004?linha('(−) Taxa da maquininha',d.fee,d.total):'')
+    +linha('(=) Lucro',lucro,d.total,'t')
+    +`<small>A porcentagem de cada linha é sobre o total da venda (já com desconto).</small>`;
 }
 function abrirAjuda(id){
   if(somenteVer()){fecharAjuda();return;}   // usuário comum não abre o detalhe do lucro
