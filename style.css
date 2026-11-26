@@ -1123,3 +1123,47 @@ select.dre-sel{max-width:100%;min-height:36px;margin:2px 6px 2px 0;border:1px so
 @media(max-width:1300px){#panel-equilibrio .pe-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#panel-equilibrio .pe-tag{margin-left:0}}
 @media(max-width:980px){#panel-equilibrio .pe-columns{grid-template-columns:1fr}#panel-equilibrio .pe-scenario-fields{grid-template-columns:1fr 1fr}#panel-equilibrio .pe-scenario-results{grid-template-columns:1fr 1fr}}
 @media(max-width:670px){#panel-equilibrio .pe-period-row{padding:14px;align-items:stretch;flex-direction:column}#panel-equilibrio .pe-period-row>.field{width:100%}#panel-equilibrio .pe-kpis{gap:9px}#panel-equilibrio .pe-kpi{padding:14px;gap:8px}#panel-equilibrio .pe-kpi strong{font-size:20px;white-space:normal}#panel-equilibrio .pe-block-content{padding:13px}#panel-equilibrio .pe-scenario-fields{grid-template-columns:1fr}#panel-equilibrio .pe-scenario-results{grid-template-columns:1fr}#panel-equilibrio .pe-scenario-results strong{font-size:20px}}
+
+/* Conceito v118 — Controladoria: Rentabilidade por produto (escopo limitado). */
+#panel-rentabilidade .rp-period-surface{padding:20px 22px;margin-bottom:17px}
+#panel-rentabilidade .rp-filters{display:grid;grid-template-columns:minmax(190px,240px) minmax(200px,1fr) minmax(180px,260px) auto;gap:12px;align-items:end}
+#panel-rentabilidade .rp-filters .field{margin:0}
+#panel-rentabilidade .rp-filters .button{min-height:44px;white-space:nowrap}
+#panel-rentabilidade .rp-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:18px}
+#panel-rentabilidade .rp-kpi{min-width:0;display:flex;flex-direction:column;gap:11px;background:#fff;border:1px solid #dce6f3;border-radius:15px;padding:20px 19px}
+#panel-rentabilidade .rp-kpi>span{color:#5c6f87;font-size:12px;font-weight:800}
+#panel-rentabilidade .rp-kpi strong{font:800 clamp(20px,2vw,29px) Manrope,'DM Sans',sans-serif;color:#213c61;letter-spacing:-.04em;overflow-wrap:anywhere}
+#panel-rentabilidade .rp-primary strong{color:#147954}
+#panel-rentabilidade .rp-kpi #rpBest{font-size:clamp(15px,1.3vw,20px);letter-spacing:-.02em;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#panel-rentabilidade .rp-kpi small{font-size:11px;line-height:1.55;color:#77889c}
+#panel-rentabilidade .rp-advice{border:1px solid #d3e3fc;background:#eef5ff;border-radius:13px;padding:17px 21px;margin-bottom:18px}
+#panel-rentabilidade .rp-advice strong{color:#275183;font-size:13px}
+#panel-rentabilidade .rp-advice p{color:#657e9c;line-height:1.65;font-size:11px;margin:7px 0 0}
+#panel-rentabilidade .rp-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-bottom:18px;align-items:start}
+#panel-rentabilidade .rp-detail-grid>.surface{padding:20px 22px;min-width:0}
+#panel-rentabilidade .rp-small-table{min-width:0;width:100%}
+#panel-rentabilidade .rp-small-table td{font-size:11px;padding:11px 8px;color:#576a84}
+#panel-rentabilidade .rp-small-table td:last-child{font-weight:750;color:#274568;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#panel-rentabilidade .rp-strong-row td{font-weight:900!important;color:#245184!important;border-top:2px solid #c7d8ee}
+#panel-rentabilidade .rp-negative{color:#b54147!important}
+#panel-rentabilidade .rp-footnote{font-size:11px;line-height:1.7;color:#73859a;margin:12px 0 0}
+#panel-rentabilidade .rp-leaders-list{display:grid;gap:9px}
+#panel-rentabilidade .rp-leader{display:flex;gap:10px;align-items:center;padding:12px 11px;border:1px solid #e9eef7;background:#f9fbff;border-radius:10px}
+#panel-rentabilidade .rp-leader-index{width:27px;height:27px;border-radius:9px;display:grid;place-items:center;background:#eaf1ff;color:#3665b5;font-weight:800;flex-shrink:0}
+#panel-rentabilidade .rp-leader-desc{flex:1;min-width:0}
+#panel-rentabilidade .rp-leader-desc strong{display:block;color:#2d4664;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-rentabilidade .rp-leader-desc small{display:block;color:#8291a4;font-size:10px;margin-top:5px}
+#panel-rentabilidade .rp-leader>b{font-size:12px;color:#187858;white-space:nowrap;font-variant-numeric:tabular-nums}
+#panel-rentabilidade .rp-table-block{padding:20px 22px;margin-bottom:18px}
+#panel-rentabilidade .rp-table{min-width:1030px}
+#panel-rentabilidade .rp-table th{font-size:10px}
+#panel-rentabilidade .rp-table td{font-size:11px}
+#panel-rentabilidade .rp-table td:first-child{max-width:300px;white-space:normal}
+#panel-rentabilidade .rp-table td:nth-child(n+2):nth-child(-n+8){font-variant-numeric:tabular-nums;white-space:nowrap}
+#panel-rentabilidade .rp-table .rp-number-strong{font-weight:900;color:#187858}
+#panel-rentabilidade .rp-product-status{display:inline-block;border-radius:999px;padding:5px 8px;background:#eaf2ff;color:#315f9a;white-space:nowrap;font-size:10px;font-weight:750}
+#panel-rentabilidade .rp-product-status.rp-review{background:#fff1d8;color:#91611b}
+#panel-rentabilidade .rp-empty{text-align:center;padding:28px;color:#7b8ca2}
+@media(max-width:1400px){#panel-rentabilidade .rp-filters{grid-template-columns:repeat(2,minmax(0,1fr))}#panel-rentabilidade .rp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:980px){#panel-rentabilidade .rp-detail-grid{grid-template-columns:1fr}}
+@media(max-width:640px){#panel-rentabilidade .rp-period-surface,#panel-rentabilidade .rp-detail-grid>.surface,#panel-rentabilidade .rp-table-block{padding:15px}#panel-rentabilidade .rp-filters{grid-template-columns:1fr}#panel-rentabilidade .rp-kpis{gap:9px}#panel-rentabilidade .rp-kpi{padding:14px;gap:8px}#panel-rentabilidade .rp-kpi strong{font-size:20px}#panel-rentabilidade .rp-advice{padding:14px}}
