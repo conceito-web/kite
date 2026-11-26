@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=118">
+  <link rel="stylesheet" href="style.css?v=119">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -330,6 +330,7 @@
             <button type="button" class="nav-link" data-panel="contribuicao"><span class="nav-icon" aria-hidden="true">◈</span> Margem de contribuição</button>
             <button type="button" class="nav-link" data-panel="equilibrio"><span class="nav-icon" aria-hidden="true">◎</span> Ponto de equilíbrio</button>
             <button type="button" class="nav-link" data-panel="rentabilidade"><span class="nav-icon" aria-hidden="true">▥</span> Rentabilidade por produto</button>
+            <button type="button" class="nav-link" data-panel="orcado"><span class="nav-icon" aria-hidden="true">▤</span> Planejado × realizado</button>
           </div>
         </section>
         <section class="nav-group" data-nav-group="4" aria-label="Administração">
@@ -914,6 +915,64 @@
             <div class="surface-heading responsive-heading"><div><h2>Rentabilidade por produto</h2><p id="rpCount">—</p></div><button type="button" id="rpExport" class="button button-light button-small">Exportar CSV</button></div>
             <div class="table-wrap"><table class="rp-table"><thead><tr><th>PRODUTO</th><th>UNIDADES</th><th>VENDAS</th><th>RECEITA</th><th>CMV</th><th>VARIÁVEIS EST.</th><th>CONTRIBUIÇÃO</th><th>MC %</th><th>CONFERÊNCIA</th></tr></thead><tbody id="rpRows"><tr><td colspan="9">Abra o relatório para calcular.</td></tr></tbody></table></div>
             <p class="rp-footnote">Dados agrupados por identificador do produto, quando disponível. A análise exclui vendas incompletas ou impossíveis de ratear por item. Serviços e vendas canceladas não entram no ranking.</p>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-orcado" aria-labelledby="or-title">
+          <div class="page-heading"><div>
+            <p class="eyebrow">CONTROLADORIA · PLANEJAMENTO DE DESPESAS</p>
+            <h1 id="or-title">Planejado × realizado</h1>
+            <p class="subtitle">Compare previsões mensais, obrigações constituídas e pagamentos. Consulta gerencial sem modificar registros.</p>
+          </div></div>
+          <section class="surface or-filter-card">
+            <div class="surface-heading"><div><h2>Período e origem dos valores</h2><p>Comparação por mês de vencimento, não por competência da DRE</p></div></div>
+            <div class="or-filters">
+              <label class="field">Mês de referência<input id="orMonth" type="month" aria-label="Mês da comparação de despesas"></label>
+              <button type="button" class="button button-light" id="orRefresh">Atualizar análise</button>
+              <button type="button" class="button button-light" id="orGoExpenses">Abrir Gestão de Despesas</button>
+              <span class="or-chip" id="orSource">Aguardando dados</span>
+            </div>
+          </section>
+          <div class="or-cards" aria-label="Indicadores da comparação de despesas">
+            <article class="or-card"><span id="orBudgetLabel">Previsão do mês</span><strong id="orBudget">—</strong><small id="orBudgetNote">Verificando plano salvo</small></article>
+            <article class="or-card"><span>Obrigações relacionadas aos modelos</span><strong id="orPosted">—</strong><small>Valor total registrado, pago ou pendente</small></article>
+            <article class="or-card"><span>Obrigações já pagas</span><strong id="orPaid">—</strong><small>Apenas registros integralmente marcados como pagos</small></article>
+            <article class="or-card"><span>Diferença frente ao plano salvo</span><strong id="orDelta">—</strong><small id="orDeltaNote">Só existe se houver planejamento salvo</small></article>
+          </div>
+          <section class="or-notice" role="status" aria-live="polite">
+            <strong id="orStatus">Aguardando atualização.</strong>
+            <p id="orExplanation">O Conceito distingue sugestões, previsão salva, obrigações e pagamentos.</p>
+          </section>
+          <div class="or-detail-grid">
+            <section class="surface or-note-card">
+              <div class="surface-heading"><div><h2>Conciliação por tipo de informação</h2><p>Evita tratar uma sugestão como orçamento aprovado</p></div></div>
+              <table class="or-totals"><tbody>
+                <tr><td>Modelos considerados</td><td id="orModels">—</td></tr>
+                <tr><td>Planejado / referência com valor conhecido</td><td id="orPlannedTotal">—</td></tr>
+                <tr><td>Registrado para esses modelos</td><td id="orMatchedTotal">—</td></tr>
+                <tr><td>Já pago nesses modelos</td><td id="orMatchedPaid">—</td></tr>
+                <tr><td>Demais despesas lançadas no mês*</td><td id="orOutsideTotal">—</td></tr>
+              </tbody></table>
+              <p class="or-foot">*Inclui despesas fora dos modelos; exclui quitações de mercadorias e itens marcados como fora da DRE. Estes valores não são somados ao desvio do plano.</p>
+            </section>
+            <section class="surface or-note-card">
+              <div class="surface-heading"><div><h2>Como interpretar</h2><p>Três etapas que não devem ser confundidas</p></div></div>
+              <div class="or-steps">
+                <div><b>01 · Previsão</b><span>Valor planejado ou sugerido; não cria dívida nem sai do Caixa</span></div>
+                <div><b>02 · Obrigação</b><span>Conta registrada; pode afetar a DRE pela competência informada</span></div>
+                <div><b>03 · Pagamento</b><span>Saída efetiva, registrada na conta financeira escolhida</span></div>
+              </div>
+              <p class="or-foot">Uma obrigação com vencimento em dezembro pode pertencer à competência de novembro. Por isso, este relatório não substitui a DRE.</p>
+            </section>
+          </div>
+          <section class="surface or-table-card">
+            <div class="surface-heading responsive-heading"><div><h2>Conferência por despesa recorrente</h2><p id="orCount">—</p></div><button type="button" id="orExport" class="button button-light button-small">Exportar CSV</button></div>
+            <div class="table-wrap"><table class="or-table"><thead><tr><th>DESPESA</th><th>FONTE</th><th>PREVISTO</th><th>REGISTRADO</th><th>PAGO</th><th>DIFERENÇA</th><th>CONFERÊNCIA</th></tr></thead><tbody id="orRows"><tr><td colspan="7">Abra a Controladoria para calcular.</td></tr></tbody></table></div>
+            <p class="or-foot">Quando o planejamento não foi salvo, os valores dos modelos são apenas referências atuais. Não calculamos desvio oficial contra sugestões não aprovadas; modelos sem valor confirmado são indicados como “A rever”.</p>
+          </section>
+          <section class="surface or-extras-card">
+            <div class="surface-heading"><div><h2>Lançamentos fora dos modelos mensais</h2><p>Despesas registradas que não correspondem aos itens da previsão mensal selecionada</p></div></div>
+            <div id="orExtras">Aguardando mês.</div>
           </section>
         </section>
 
@@ -2022,7 +2081,129 @@
 })();
 
   </script>
-  <script src="backup_seguro.js?v=3"></script>
+    <script>
+'use strict';
+/* Conceito v119 — Controladoria / Planejado × realizado — somente leitura.
+   Compara mês de VENCIMENTO das despesas. Não altera a DRE nem salva dados.
+   Sem plano salvo, os modelos são referência NÃO aprovada; nunca emite "desvio".
+*/
+(function(){
+  const $=id=>document.getElementById(id);
+  const r2=v=>Math.round((Number(v)||0)*100)/100;
+  const fmt=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const norm=v=>String(v??'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ');
+  const monthOK=v=>/^\d{4}-(0[1-9]|1[0-2])$/.test(v);
+  const dueMonth=e=>String(e?.dueDate||e?.date||'').slice(0,7);
+  const sum=(a,fn)=>r2(a.reduce((n,x)=>n+Number(fn(x)||0),0));
+  const isPaid=e=>e.status==='pago';
+  const otherLines=new Set(['ignorar']);
+  const ignored=e=>{
+    const cat=String(e.category||'').toLowerCase();
+    const item=String(e.itemId||'');
+    const catalog=(Array.isArray(data.expenseCatalog)?data.expenseCatalog:[]).find(c=>String(c.id)===item);
+    return e.canceled===true||e.status==='cancelado'||e.archived===true||e.dre==='ignorar'||otherLines.has(String(catalog?.line||''))||item==='it_quitacao_mercadorias'||cat.includes('fornecedor')||cat.includes('pagamentos à fábrica')||cat.includes('pagamentos a fabrica');
+  };
+  const values=s=>({money:fmt(s),number:r2(s)});
+  function calculate(month,db){
+    if(!monthOK(month))throw Error('Selecione um mês válido.');
+    const d=db||data;
+    const saved=d.expenseMonthlyPlans?.[month];
+    const approved=Boolean(saved&&Array.isArray(saved.items));
+    const templates=Array.isArray(d.expenseTemplates)?d.expenseTemplates:[];
+    const plan=approved?saved.items:templates;
+    const all=Array.isArray(d.expenses)?d.expenses:[];
+    const catalog=Array.isArray(d.expenseCatalog)?d.expenseCatalog:[];
+    const isExcluded=e=>{
+      const cat=String(e.category||'').toLowerCase();const it=String(e.itemId||'');
+      const catalogItem=catalog.find(c=>String(c.id)===it);
+      return e.canceled===true||e.status==='cancelado'||e.archived===true||e.dre==='ignorar'||catalogItem?.line==='ignorar'||it==='it_quitacao_mercadorias'||cat.includes('fornecedor')||cat.includes('pagamentos à fábrica')||cat.includes('pagamentos a fabrica');
+    };
+    const eligible=all.filter(e=>e&&dueMonth(e)===month&&!isExcluded(e)&&Number.isFinite(Number(e.amount))&&Number(e.amount)>=0);
+    const used=new Set();
+    const rows=plan.map(p=>{
+      const id=String(p.id||'');const name=String(p.name||p.description||'').trim();
+      const model=templates.find(x=>String(x.id||'')===id);
+      const isReevaluate=!approved&&model?.kind==='reavaliar'&&month!==model.firstMonth;
+      const raw=isReevaluate?NaN:Number(p.amount);
+      const hasAmount=Number.isFinite(raw)&&raw>0;
+      const match=eligible.filter((e,i)=>!used.has(i)&&((id&&String(e.planningModelId||'')===id)||(name&&norm(e.description)===norm(name))));
+      match.forEach(e=>used.add(eligible.indexOf(e)));
+      const posted=sum(match,e=>e.amount),paid=sum(match.filter(isPaid),e=>e.amount),planned=hasAmount?r2(raw):null;
+      return {id,name,kind:model?.kind||p.kind||'',planned,posted,paid,count:match.length,
+         delta:approved&&planned!==null?r2(posted-planned):null,
+         note:!hasAmount?'Valor a reavaliar':!approved?'Referência não aprovada':match.length?'Obrigação localizada':'Sem obrigação registrada'};
+    });
+    const outside=eligible.filter((e,i)=>!used.has(i));
+    return {month,approved,hasPlanRows:plan.length>0,rows,outside,planned:sum(rows.filter(r=>r.planned!==null),r=>r.planned),
+      posted:sum(rows,r=>r.posted),paid:sum(rows,r=>r.paid),outsideAmount:sum(outside,e=>e.amount),
+      unknown:rows.filter(r=>r.planned===null).length,
+      delta:approved&&rows.every(r=>r.planned!==null)?r2(sum(rows,r=>r.posted)-sum(rows,r=>r.planned)):null};
+  }
+  function render(){
+    const month=$('orMonth')?.value;
+    if(!monthOK(month))return;
+    try{
+      const a=calculate(month);
+      window.__ckrOrAnalise=a;
+      $('orSource').textContent=a.approved?'Previsão salva':'Referência não aprovada';
+      $('orSource').classList.toggle('or-chip-unapproved',!a.approved);
+      $('orBudgetLabel').textContent=a.approved?'Planejamento salvo':'Modelos mensais (referência)';
+      $('orBudget').textContent=a.hasPlanRows?fmt(a.planned):'—';
+      $('orBudgetNote').textContent=a.unknown?`${a.unknown} valor(es) a reavaliar`:a.approved?'Plano armazenado no Conceito':'Sugestões atuais; não são orçamento aprovado';
+      $('orPosted').textContent=fmt(a.posted);
+      $('orPaid').textContent=fmt(a.paid);
+      $('orDelta').textContent=a.delta===null?'—':(a.delta>0?'+':'')+fmt(a.delta);
+      $('orDelta').classList.toggle('or-over',a.delta!==null&&a.delta>0);
+      $('orDeltaNote').textContent=a.delta===null?'Sem plano salvo e completo; não há desvio válido':a.delta>0?'Acima do planejamento salvo':a.delta<0?'Abaixo do planejamento salvo':'Igual ao planejamento salvo';
+      $('orModels').textContent=String(a.rows.length);
+      $('orPlannedTotal').textContent=a.hasPlanRows?fmt(a.planned):'—';
+      $('orMatchedTotal').textContent=fmt(a.posted);
+      $('orMatchedPaid').textContent=fmt(a.paid);
+      $('orOutsideTotal').textContent=fmt(a.outsideAmount);
+      $('orStatus').textContent=a.approved?'Comparação com a previsão salva do mês.':a.hasPlanRows?'Visão de referência — ainda não existe plano mensal salvo.':'Nenhum modelo ou previsão disponível neste mês.';
+      $('orExplanation').textContent=a.approved?'O desvio compara obrigações registradas com os valores do planejamento salvo. Pagamentos são mostrados separadamente; despesas podem pertencer a outra competência.':
+        'Os modelos mensais são sugestões atuais. O painel mostra obrigações vinculadas, mas não as chama de “realizado versus orçamento” enquanto não houver previsão salva. Nenhuma despesa é criada.';
+      $('orCount').textContent=`${a.rows.length} item(ns) · ${a.unknown} sem valor confirmado · ${a.outside.length} fora dos modelos`;
+      $('orRows').innerHTML=a.rows.length?a.rows.map(r=>`<tr><td><b>${esc(r.name)}</b><small>${esc(r.note)}</small></td><td>${a.approved?'Salvo':'Modelo'}</td><td class="or-number">${r.planned===null?'A rever':fmt(r.planned)}</td><td class="or-number">${fmt(r.posted)}</td><td class="or-number">${fmt(r.paid)}</td><td class="or-number ${r.delta!==null&&r.delta>0?'or-over':''}">${r.delta===null?'—':(r.delta>0?'+':'')+fmt(r.delta)}</td><td><span class="or-label ${r.count?'or-label-active':'or-label-neutral'}">${r.count?`${r.count} lançamento(s)`:'Não registrada'}</span></td></tr>`).join(''):
+        '<tr><td colspan="7">Nenhuma previsão salva ou modelo disponível para o período.</td></tr>';
+      $('orExtras').innerHTML=a.outside.length?`<div class="table-wrap"><table class="or-table"><thead><tr><th>DESPESA</th><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th></tr></thead><tbody>${a.outside.map(e=>`<tr><td>${esc(e.description||'Sem descrição')}</td><td>${esc(e.dueDate||e.date||'—')}</td><td>${isPaid(e)?'Paga':'Não paga'}</td><td class="or-number">${fmt(e.amount)}</td></tr>`).join('')}</tbody></table></div>`:
+        '<p class="or-foot">Nenhum lançamento fora dos modelos neste período.</p>';
+    }catch(err){
+      console.error('Controladoria: planejamento x realizado',err);
+      $('orStatus').textContent='Não foi possível atualizar a comparação.';
+      $('orExplanation').textContent=String(err?.message||err);
+    }
+  }
+  function exportCSV(){
+    const a=window.__ckrOrAnalise;if(!a)return;
+    const cell=v=>{let s=String(v??'');if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';};
+    const head=['DESPESA','FONTE','PREVISTO','REGISTRADO','PAGO','DESVIO','NÚMERO DE LANÇAMENTOS'];
+    const lines=[head,...a.rows.map(r=>[r.name,a.approved?'Salvo':'Modelo',r.planned===null?'A rever':r.planned.toFixed(2),r.posted.toFixed(2),r.paid.toFixed(2),r.delta===null?'Sem desvio válido':r.delta.toFixed(2),r.count])];
+    const csv='\uFEFF'+lines.map(line=>line.map(cell).join(';')).join('\r\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a');link.href=url;link.download='conceito-planejado-realizado-'+a.month+'.csv';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function init(){
+    const panel=$('panel-orcado');if(!panel)return;
+    const now=new Date();const current=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    // A primeira previsão efetivamente disponível na nova rotina da CKR é dezembro/2026.
+    $('orMonth').value=current<'2026-12'?'2026-12':current;
+    $('orMonth').addEventListener('change',render);
+    $('orRefresh').addEventListener('click',render);
+    $('orExport').addEventListener('click',exportCSV);
+    $('orGoExpenses').addEventListener('click',()=>document.querySelector('.nav-link[data-panel="financeiro"]')?.click());
+    let scheduled=false;
+    const schedule=()=>{if(scheduled)return;scheduled=true;Promise.resolve().then(()=>{scheduled=false;render();});};
+    new MutationObserver(changes=>{if(changes.some(x=>x.attributeName==='class'))schedule();}).observe(panel,{attributes:true,attributeFilter:['class']});
+    if(panel.classList.contains('active'))render();
+    window.ckrOrcadoRealizadoCalcular=calculate;
+  }
+  try{init();}catch(err){console.error('Controladoria: inicialização do planejamento',err);if($('orStatus'))$('orStatus').textContent='Erro ao iniciar a comparação: '+String(err?.message||err);}
+})();
+  </script>
+
+<script src="backup_seguro.js?v=3"></script>
   <script>
     // Diagnóstico visual quando o arquivo novo não existe na pasta do programa.
     window.addEventListener('load',function(){
