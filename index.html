@@ -961,8 +961,8 @@
   <script src="despesas.js?v=18"></script>
   <script>
 'use strict';
-// Conceito · Correção 09: revisão seletiva de projeções futuras e planejamento mensal.
-// NÃO altera Caixa, DRE, XML nem estoque; despesa só nasce com a ação explícita "Registrar obrigação".
+// Conceito · Correção 10: folha de novembro, vencimento em dezembro, revisão atômica das recorrências.
+// Não altera Caixa, XML nem estoque; salários reais surgem apenas após autorização explícita e afetam a DRE pela competência.
 (function(){
  const $=id=>document.getElementById(id);
  const r2=n=>Math.round((Number(n)||0)*100)/100;
@@ -992,11 +992,12 @@
   if(/\bfgts\b|\bgps\b/.test(name))return ['Confirme se existe guia real em aberto antes de retirar','Encargos'];
   return ['Despesa operacional; substituir pela sugestão mensal','Operacional'];
  };
- const defaultAction=g=>/\b(fgts|gps)\b/.test(norm(g.first.description))?'skip':'archive';
+ // GPS e FGTS eram estimativas automáticas ainda não apuradas; não manter 11 meses como dívidas.
+ const defaultAction=g=>'archive';
  const curated=()=>[
-  {id:'sal_carlos',name:'Salário Carlos',amount:2500,day:6,category:'Pessoal',itemId:'',kind:'mensal'},
-  {id:'sal_celia',name:'Salário Célia',amount:2500,day:6,category:'Pessoal',itemId:'',kind:'mensal'},
-  {id:'sal_raphael',name:'Salário Raphael',amount:1000,day:6,category:'Pessoal',itemId:'',kind:'reavaliar',firstMonth:'2026-12'},
+  {id:'sal_carlos',name:'Salário Carlos',amount:2500,day:5,category:'Pessoal',itemId:'',kind:'mensal',compRule:'mes_anterior'},
+  {id:'sal_celia',name:'Salário Célia',amount:2500,day:5,category:'Pessoal',itemId:'',kind:'mensal',compRule:'mes_anterior'},
+  {id:'sal_raphael',name:'Salário Raphael',amount:1000,day:5,category:'Pessoal',itemId:'',kind:'reavaliar',firstMonth:'2026-12',compRule:'mes_anterior'},
   {id:'contabilidade',name:'Serviços contábeis',amount:450,day:10,category:'Fixas',itemId:'it_contab',kind:'mensal'},
   {id:'fgts',name:'FGTS',amount:272.16,day:20,category:'Impostos',itemId:'it_fgts_f',kind:'estimativa'},
   {id:'gps',name:'GPS loja',amount:477.54,day:20,category:'Impostos',itemId:'it_gps',kind:'estimativa'},
@@ -1006,6 +1007,18 @@
   {id:'cagece',name:'Cagece loja',amount:85.68,day:23,category:'Consumo',itemId:'it_agua',kind:'estimativa'},
  ];
  const canWrite=()=>typeof hasFullAccess==='function'&&hasFullAccess();
+ const prevMonth=m=>{const [y,mo]=m.split('-').map(Number);return mo===1?`${y-1}-12`:`${y}-${String(mo-1).padStart(2,'0')}`;};
+ const salaryOld=e=>/\bsalario\b/.test(norm(e.description))&&ddate(e).slice(0,7)==='2026-12'&&isProjected(e);
+ const payrollTargets=[['carlos','Salário Carlos',2500],['celia','Salário Célia',2500],['raphael','Salário Raphael',1000]];
+ const readPayroll=()=>{const box=$('planejRevisaoArea');const rows=[];
+  for(const [key,name] of payrollTargets){const input=box&&box.querySelector(`[data-folha-valor="${key}"]`);const amount=Number(input&&input.value);
+   if(!Number.isFinite(amount)||amount<=0||amount>100000)throw Error(`Confira o salário de ${name}.`);
+   rows.push({key,name,amount:r2(amount)});
+  }return rows;
+ };
+ const salaryExistsFor=e=>{const n=norm(e.description);return /\bsalario\b/.test(n)&&ddate(e).slice(0,7)==='2026-12'&&!e.canceled;};
+ const employeeInName=(description,employee)=>norm(description).includes(employee);
+
  function saveCopy(){
   const json=JSON.stringify({...data,exportedAt:new Date().toISOString()},null,2);
   const url=URL.createObjectURL(new Blob([json],{type:'application/json'}));
@@ -1028,15 +1041,24 @@
   area.innerHTML=`<div style="border:1px solid #dce4ee;border-radius:12px;padding:15px;margin:12px 0;">
     <h3 style="margin:0 0 8px">Revisão seletiva dos lançamentos futuros</h3>
     <p class="fin-meta-text">${counts} projeções em ${groupShown.length} grupos. <b>Arquivar projeção</b> retira somente lançamentos futuros ainda não pagos do Contas a Pagar e os guarda para auditoria. <b>Não alterar</b> preserva todos os lançamentos do grupo. Em “Examinar parcelas”, marque as obrigações reais que devem permanecer.</p>
-    <p class="fin-meta-text"><b>Atenção:</b> GPS e FGTS estão inicialmente como “Não alterar”, pois uma guia já constituída pode ser dívida efetiva. Contratos e despesas não recorrentes ficam intocados.</p>
+    <p class="fin-meta-text"><b>Atenção:</b> GPS e FGTS ainda não apurados foram marcados para arquivar suas estimativas automáticas, mas as obrigações trabalhistas continuam sujeitas à apuração do contador. Contratos e despesas não recorrentes ficam intocados.</p>
+    <fieldset style="border:1px solid #cbd8ec;border-radius:10px;padding:14px;margin:12px 0;background:#f7faff">
+      <legend style="font-weight:800">Folha referente a novembro/2026</legend>
+      <p class="fin-meta-text">Há <b>${future().filter(salaryOld).length} projeções salariais antigas</b> com vencimento em dezembro. Ao autorizar a substituição, o sistema arquivará as quatro antigas e registrará as três obrigações corretas, <b>vencimento 05/12/2026 e competência da DRE 11/2026</b>. Não registra pagamento nem altera o Caixa.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin:10px 0">
+        ${payrollTargets.map(([key,name,value])=>`<label style="display:grid;gap:4px;font-weight:700">${esc(name)}<input data-folha-valor="${key}" type="number" min="0.01" max="100000" step="0.01" value="${value}" style="width:145px"></label>`).join('')}
+      </div>
+      <label style="display:flex;gap:8px;align-items:start;line-height:1.5"><input id="planejAutorizarFolha" type="checkbox" style="margin-top:5px"><span><b>Autorizo substituir as projeções salariais antigas de 05/12</b> pelas três obrigações acima, vinculadas a novembro/2026. Conferi os valores e reconheço que elas ficarão a pagar, não pagas.</span></label>
+      <p class="fin-meta-text">Se houver outra obrigação salarial de dezembro já registrada, a confirmação será bloqueada para evitar duplicidade. Pagamentos realizados anteriormente não são alterados.</p>
+    </fieldset>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:710px"><thead><tr><th>Descrição / recomendação</th><th>Parcelas</th><th>Primeiro vencimento</th><th>Total</th><th>Decisão</th></tr></thead><tbody>
     ${groupShown.map((g,i)=>{const [hint,kind]=labelFor(g.first);const action=defaultAction(g);return `<tr style="border-top:1px solid #e5e9ef"><td><b>${esc(g.first.description)}</b><br><small>${esc(kind)} · ${esc(hint)}</small><br><details style="margin:4px 0"><summary style="cursor:pointer">Examinar ${g.rows.length} parcelas / preservar dívidas reais</summary><div style="max-height:170px;overflow:auto;padding:6px 8px">${g.rows.map(e=>`<label style="display:flex;gap:8px;align-items:center;margin:5px 0"><input type="checkbox" data-preservar="${esc(e.id)}"/><span><b>Preservar</b> ${esc(ddate(e))} · ${format(e.amount)} · ID ${esc(String(e.id).slice(0,8))}</span></label>`).join('')}</div></details></td>
     <td>${g.rows.length}</td><td>${esc(ddate(g.rows[0]))}</td><td>${format(g.amount)}</td><td><select data-decisao="${i}" style="min-width:152px"><option value="skip" ${action==='skip'?'selected':''}>Não alterar</option><option value="archive" ${action==='archive'?'selected':''}>Arquivar projeções</option></select></td></tr>`;}).join('')}
     </tbody></table></div><p id="planejDecisaoResumo" class="fin-meta-text" style="margin-top:10px"></p>
     <div class="form-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"><button id="planejAplicarRevisao" class="button button-primary" type="button">Confirmar seleção e modelos mensais</button><button id="planejCancelarRevisao" class="button button-light" type="button">Fechar sem alterar</button></div>
-    <p class="fin-meta-text">Os modelos sugerirão salários Carlos/Célia de R$ 2.500 cada, Raphael R$ 1.000 apenas em dezembro, contabilidade R$ 450, FGTS R$ 272,16, GPS R$ 477,54, Certili R$ 99,90, Enel R$ 116,11, internet R$ 100 e Cagece R$ 85,68. <b>Simples não será lançado aqui:</b> permanece no cálculo da aba Impostos. Valores de encargos/consumo são referências, não apurações.</p>
+    <p class="fin-meta-text">Os modelos sugerirão salários Carlos/Célia de R$ 2.500 cada, Raphael R$ 1.000 apenas no primeiro pagamento em dezembro (reavaliar depois), com vencimento dia 5 e competência do mês anterior; contabilidade R$ 450, FGTS R$ 272,16, GPS R$ 477,54, Certili R$ 99,90, Enel R$ 116,11, internet R$ 100 e Cagece R$ 85,68. <b>Simples não será lançado aqui:</b> permanece no cálculo da aba Impostos. Valores de encargos/consumo são referências, não apurações.</p>
    </div>`;
-  area.querySelectorAll('[data-decisao], [data-preservar]').forEach(el=>el.addEventListener('change',reviewTotals));
+  area.querySelectorAll('[data-decisao], [data-preservar], [data-folha-valor], #planejAutorizarFolha').forEach(el=>el.addEventListener('change',reviewTotals));
   $('planejAplicarRevisao').addEventListener('click',applyReview);
   $('planejCancelarRevisao').addEventListener('click',()=>{area.hidden=true;area.innerHTML='';});reviewTotals();
  }
@@ -1049,13 +1071,23 @@
  function reviewTotals(){
   const area=$('planejRevisaoArea');if(!area||area.hidden)return;
   const {removed,preserved}=selectedForArchive();
-  $('planejDecisaoResumo').textContent=`Selecionadas para arquivamento: ${removed.length} projeções (${format(totals(removed))}). Preservadas individualmente: ${preserved.length}. Os demais grupos ficarão intactos.`;
+  const opt=$('planejAutorizarFolha');const newPayroll=opt&&opt.checked;
+  let total=0;try{total=totals(readPayroll())}catch(_){}
+  $('planejDecisaoResumo').textContent=`Arquivar: ${removed.length} projeções (${format(totals(removed))}). Preservadas individualmente: ${preserved.length}. ${newPayroll?'Substituição salarial autorizada: 3 obrigações de '+format(total)+' (competência novembro, vencimento dezembro).':'Substituição salarial NÃO autorizada; confirme-a para concluir a revisão dos salários.'}`;
  }
  function applyReview(){
   if(!canWrite())return toast('Sem permissão para revisar.',true);
   const {removed,preserved}=selectedForArchive(),rows=curated();
   const p=removed.filter(e=>personal.has(norm(e.description)));
-  const msg=`REVISÃO SELETIVA DE DESPESAS\n\nArquivar: ${removed.length} lançamentos futuros (${format(totals(removed))}).\nDesses, ${p.length} são contas domésticas (${format(totals(p))}).\nPreservados individualmente como obrigações reais: ${preserved.length}.\nGrupos não selecionados: inalterados.\n\nSerão criados ${rows.length} modelos de planejamento, não despesas reais.\nOs salários de Carlos/Célia serão de R$ 2.500; Raphael terá R$ 1.000 como sugestão exclusiva do primeiro mês. O Simples fica na aba Impostos.\n\nNENHUM pagamento, Caixa, XML, estoque ou obrigação não recorrente será alterado. Deseja continuar?`;
+  // Reposição e arquivamento dos salários devem ocorrer na mesma transação para não apagar dívida efetiva.
+  const oldDec=future().filter(salaryOld), idsToArchive=new Set(removed.map(e=>String(e.id)));
+  if(oldDec.length!==4){alert(`Esperávamos encontrar quatro projeções salariais antigas para dezembro; encontramos ${oldDec.length}. Nenhuma alteração foi feita. Examine os salários antes de continuar.`);return;}
+  if(oldDec.some(e=>!idsToArchive.has(String(e.id)))){alert('Selecione Arquivar projeções nas quatro recorrências de salário e não preserve individualmente a parcela de dezembro. A troca será feita atomicamente por três salários corretos. Nenhum dado alterado.');return;}
+  if(!$('planejAutorizarFolha')?.checked){alert('Para não perder a obrigação salarial de novembro, marque a autorização explícita de substituição das quatro projeções antigas pelos três salários corretos. Nenhum dado alterado.');return;}
+  let pay;try{pay=readPayroll();}catch(err){alert(err.message);return;}
+  const duplicates=(data.expenses||[]).filter(e=>salaryExistsFor(e)&&!idsToArchive.has(String(e.id)));
+  if(duplicates.length){alert(`Encontradas ${duplicates.length} outras despesas salariais de dezembro não incluídas na substituição. Confira-as antes de criar outras obrigações. Nenhum dado alterado.`);return;}
+  const msg=`REVISÃO SELETIVA DE DESPESAS\n\nArquivar: ${removed.length} projeções (${format(totals(removed))}), incluindo as 4 duplicações salariais com vencimento em dezembro.\nCriar 3 obrigações salariais REAIS de novembro: ${pay.map(x=>x.name+' '+format(x.amount)).join('; ')}.\nTotal da nova folha: ${format(totals(pay))}.\nVencimento: 05/12/2026. Competência DRE: novembro/2026.\n\nNenhum salário será marcado como pago nem afetará o Caixa antes da quitação.\nSerá arquivado apenas o que está selecionado; pagamentos passados ficam intactos.\n\nContinuar?`;
   if(!confirm(msg))return;
   try{saveCopy();}catch(err){alert('Falha ao preparar a cópia de segurança. Nenhum dado foi alterado: '+err.message);return;}
   if(!confirm('Confira o download da cópia ANTERIOR à revisão em seus arquivos. Já guardou esse backup e autoriza a alteração dos lançamentos selecionados?'))return;
@@ -1066,15 +1098,20 @@
    const seen=new Set(oldArchived.map(e=>String(e.id)));
    data.expensePlanningArchive=oldArchived.concat(removed.filter(e=>!seen.has(String(e.id))).map(e=>({...e,archivedForPlanningAt:stamp,reason:personal.has(norm(e.description))?'Projeção doméstica retirada após autorização':'Projeção futura retirada após revisão seletiva'})));
    data.expenses=(data.expenses||[]).filter(e=>!ids.has(String(e.id)));
+   // Competência do salário é novembro, embora sua obrigação e vencimento apareçam em dezembro.
+   // Este registro PENDENTE entra na DRE de novembro, mas não reduz o Caixa antes do pagamento.
+   for(const x of pay){
+    data.expenses.push({id:typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function'?crypto.randomUUID():'folha-'+Date.now()+'-'+x.key+'-'+Math.random().toString(36).slice(2),date:'2026-12-05',category:'Pessoal',description:x.name,itemId:'',compMonth:'2026-11',amount:x.amount,method:'Não informada',account:'',payments:[],status:'pendente',dueDate:'2026-12-05',paidDate:'',recurring:false,group:'',note:'Salário da competência novembro/2026, vencimento em 05/12/2026; obrigação não paga. Substitui projeções antigas.',planningSource:'replacement-payroll-2026-11',createdAt:stamp});
+   }
    data.expenseTemplates=rows;
    data.expensePlanningReviewed=true;
    if(!Array.isArray(data.expensePlanningAuditHistory))data.expensePlanningAuditHistory=[];
    if(data.expensePlanningAudit&&!data.expensePlanningAuditHistory.length)data.expensePlanningAuditHistory.push(data.expensePlanningAudit);
-   const entry={at:stamp,removedCount:removed.length,removedValue:totals(removed),removedPersonal:p.length,removedPersonalValue:totals(p),preservedExplicit:preserved.length,reviewedBy:typeof currentUserName==='function'?currentUserName():'Usuário autorizado',revision:'seletiva-v101'};
+   const entry={at:stamp,removedCount:removed.length,removedValue:totals(removed),removedPersonal:p.length,removedPersonalValue:totals(p),preservedExplicit:preserved.length,reviewedBy:typeof currentUserName==='function'?currentUserName():'Usuário autorizado',revision:'folha-competencia-v102',payrollCompetence:'2026-11',payrollDueDate:'2026-12-05',payrollAmounts:pay.map(x=>({name:x.name,amount:x.amount}))};
    data.expensePlanningAudit=entry;data.expensePlanningAuditHistory.push(entry);
    if(saveData()!==true)throw Error('Não foi possível salvar a revisão.');
    $('planejRevisaoArea').hidden=true;$('planejRevisaoArea').innerHTML='';banner();showMonth();
-   toast(`Revisão concluída: ${removed.length} projeções arquivadas; pagamentos preservados.`);
+   toast(`Revisão concluída: ${removed.length} projeções arquivadas e 3 salários de novembro criados como pendentes para 05/12. Caixa preservado.`);
   }catch(err){
    try{data=JSON.parse(previous);saveData();}catch(_){}
    alert('A revisão não foi concluída. Os dados anteriores foram recuperados em memória. Verifique o backup antes de tentar novamente. '+err.message);
@@ -1084,7 +1121,7 @@
  function monthExpenseExists(month,m){return (data.expenses||[]).some(e=>ddate(e).slice(0,7)===month&&(norm(e.description)===norm(m.name)||Boolean(m.itemId&&e.itemId===m.itemId&&norm(e.description)===norm(m.name))));}
  function getPlanRows(month){const models=Array.isArray(data.expenseTemplates)?data.expenseTemplates:[];
   const last=data.expenseMonthlyPlans&&data.expenseMonthlyPlans[month];const saved=(last&&Array.isArray(last.items)?last.items:[]);
-  return models.map((m,i)=>{const s=saved.find(x=>x.id===m.id);return {m,i,selected:!!s,value:s?Number(s.amount).toFixed(2):planMonthValue(m,month),due:s?s.dueDate:monthEnd(month,m.day||10),comp:s?s.compMonth||'':'',existing:monthExpenseExists(month,m)};});
+  return models.map((m,i)=>{const s=saved.find(x=>x.id===m.id);return {m,i,selected:!!s,value:s?Number(s.amount).toFixed(2):planMonthValue(m,month),due:s?s.dueDate:monthEnd(month,m.day||10),comp:s?s.compMonth||'':(m.compRule==='mes_anterior'?prevMonth(month):''),existing:monthExpenseExists(month,m)};});
  }
  function showMonth(){
   const panel=$('planejLista');if(!panel)return;
@@ -1153,7 +1190,7 @@
   if(!$('planejMes')||!$('planejLista'))return;
   if(!$('planejRevisaoArea')){$('planejRevisaoArea')?.remove();const area=document.createElement('div');area.id='planejRevisaoArea';area.hidden=true;$('planejLista').parentNode.insertBefore(area,$('planejLista'));}
   $('planejMes').value=currentMonth()<'2026-12'?'2026-12':currentMonth();
-  const rev=$('planejRevisao');rev.textContent='Revisar recorrências futuras (seletivo)';rev.addEventListener('click',renderReview);
+  const rev=$('planejRevisao');rev.textContent='Revisar recorrências futuras e salários';rev.addEventListener('click',renderReview);
   $('planejAbrir').addEventListener('click',showMonth);banner();window.ckrPlanejamentoCarregado=true;
  }
  try{init();}catch(err){console.error('Conceito: erro ao iniciar revisão seletiva',err);const el=$('planejResumo');if(el)el.textContent='Erro ao iniciar planejamento: '+(err&&err.message||err)+'. Nenhum dado alterado.';}
