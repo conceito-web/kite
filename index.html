@@ -601,7 +601,7 @@
               <div class="form-grid">
                 <label class="field">Data da despesa<input id="finData" type="date" required></label>
                 <label class="field">Categoria<div class="cep-row"><select id="finCat"></select><button class="button button-light" id="finNovaCat" type="button" title="Criar nova categoria">＋ Nova</button></div></label>
-                <label class="field field-wide">Descrição (item do catálogo)<div class="cep-row"><select id="finItem"></select><button class="button button-light" id="finNovoItem" type="button" title="Criar um item novo no catálogo">＋ Novo item</button><button class="button button-light" id="finGerItens" type="button" title="Renomear, trocar a linha da DRE ou desativar itens">Itens</button></div><input id="finDesc" type="hidden"></label>
+                <label class="field field-wide">Descrição (item do catálogo)<div class="cep-row"><select id="finItem"></select><button class="button button-light" id="finNovoItem" type="button" title="Criar um item novo no catálogo">＋ Novo item</button><button class="button button-light" id="finGerItens" type="button" title="Renomear, trocar a linha da DRE ou desativar itens">Itens</button></div><input id="finDesc" type="hidden"><small class="imp-hint" id="finFornecedorAviso" hidden>Quitação de mercadoria para revenda: sai do Caixa quando paga, mas não é despesa adicional da DRE; o custo será considerado como CMV na venda. Se esta parcela já está registrada em Pedidos à fábrica, marque o pagamento somente naquele módulo para não duplicar a saída do Caixa. Não use para fretes, juros ou serviços.</small></label>
                 <p class="fin-hint field-wide" id="finCatHint"></p>
                 <label class="field">Valor (R$)<input id="finValor" type="text" inputmode="numeric" placeholder="0,00"></label>
                 <div class="field field-wide fin-pag" id="finPagBox">
@@ -984,7 +984,7 @@
   <script src="app.js?v=42"></script>
   <script src="modulos.js?v=37"></script>
   <script src="encomendas.js?v=6"></script>
-  <script src="despesas.js?v=18"></script>
+  <script src="despesas.js?v=19"></script>
   <script>
 'use strict';
 // Conceito · Correção 10: folha de novembro, vencimento em dezembro, revisão atômica das recorrências.
