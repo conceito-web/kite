@@ -498,8 +498,22 @@
             <div class="surface-heading"><div><h2>Planejamento mensal de despesas</h2><p>Previsões não são dívidas; confirme apenas os gastos que serão lançados neste mês.</p></div></div>
             <div style="padding:14px 18px">
               <p id="planejResumo" class="fin-meta-text">Verificando despesas antigas…</p>
-              <div class="form-actions" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="button button-light" type="button" id="planejRevisao">Revisar recorrências futuras</button><label class="field">Mês das sugestões <input type="month" id="planejMes"></label><button class="button button-light" type="button" id="planejAbrir">Ver sugestões do mês</button></div>
+              <div class="form-actions" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="button button-light" type="button" id="planejRevisao">Revisar recorrências futuras</button><label class="field">Mês das sugestões <input type="month" id="planejMes"></label><button class="button button-light" type="button" id="planejAbrir">Ver sugestões do mês</button><button class="button button-light" type="button" id="planejAtualizarSalarios" hidden>Atualizar modelos salariais para R$ 3.000</button></div>
               <div id="planejLista" hidden></div>
+            </div>
+          </section>
+
+          <section class="surface form-surface" id="dreCorrigirNov" style="margin-bottom:14px">
+            <div class="surface-heading"><div><h2>Auditoria da competência salarial — novembro/2026</h2><p>Conferência pontual dos pagamentos históricos feitos em novembro e referentes à folha anterior.</p></div></div>
+            <div style="padding:14px 18px">
+              <p class="fin-meta-text"><b>Atenção:</b> os salários de R$ 3.000 (Carlos), R$ 3.000 (Célia) e R$ 1.000 (Raphael), com competência em novembro e vencimento em 05/12, <b>não serão alterados</b>. Esta ação só ajusta a competência de pagamentos antigos. O Caixa e as datas de quitação permanecem iguais. Confirme que os gastos pessoais marcados foram, de fato, abatidos do salário anterior.</p>
+              <div id="dreNovResumo" class="fin-meta-text">Examinando pagamentos anteriores...</div>
+              <div id="dreNovLista"></div>
+              <div class="form-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">
+                <button class="button button-light" id="dreNovBackup" type="button">Baixar cópia preventiva dos dados (.json)</button>
+                <button class="button button-primary" id="dreNovAplicar" type="button" disabled>Confirmar ajuste de competência</button>
+              </div>
+              <p id="dreNovAviso" class="fin-meta-text" role="status"></p>
             </div>
           </section>
           <section class="surface form-surface">
@@ -995,8 +1009,8 @@
  // GPS e FGTS eram estimativas automáticas ainda não apuradas; não manter 11 meses como dívidas.
  const defaultAction=g=>'archive';
  const curated=()=>[
-  {id:'sal_carlos',name:'Salário Carlos',amount:2500,day:5,category:'Pessoal',itemId:'',kind:'mensal',compRule:'mes_anterior'},
-  {id:'sal_celia',name:'Salário Célia',amount:2500,day:5,category:'Pessoal',itemId:'',kind:'mensal',compRule:'mes_anterior'},
+  {id:'sal_carlos',name:'Salário Carlos',amount:3000,day:5,category:'Pessoal',itemId:'',kind:'mensal',compRule:'mes_anterior'},
+  {id:'sal_celia',name:'Salário Célia',amount:3000,day:5,category:'Pessoal',itemId:'',kind:'mensal',compRule:'mes_anterior'},
   {id:'sal_raphael',name:'Salário Raphael',amount:1000,day:5,category:'Pessoal',itemId:'',kind:'reavaliar',firstMonth:'2026-12',compRule:'mes_anterior'},
   {id:'contabilidade',name:'Serviços contábeis',amount:450,day:10,category:'Fixas',itemId:'it_contab',kind:'mensal'},
   {id:'fgts',name:'FGTS',amount:272.16,day:20,category:'Impostos',itemId:'it_fgts_f',kind:'estimativa'},
@@ -1009,7 +1023,7 @@
  const canWrite=()=>typeof hasFullAccess==='function'&&hasFullAccess();
  const prevMonth=m=>{const [y,mo]=m.split('-').map(Number);return mo===1?`${y-1}-12`:`${y}-${String(mo-1).padStart(2,'0')}`;};
  const salaryOld=e=>/\bsalario\b/.test(norm(e.description))&&ddate(e).slice(0,7)==='2026-12'&&isProjected(e);
- const payrollTargets=[['carlos','Salário Carlos',2500],['celia','Salário Célia',2500],['raphael','Salário Raphael',1000]];
+ const payrollTargets=[['carlos','Salário Carlos',3000],['celia','Salário Célia',3000],['raphael','Salário Raphael',1000]];
  const readPayroll=()=>{const box=$('planejRevisaoArea');const rows=[];
   for(const [key,name] of payrollTargets){const input=box&&box.querySelector(`[data-folha-valor="${key}"]`);const amount=Number(input&&input.value);
    if(!Number.isFinite(amount)||amount<=0||amount>100000)throw Error(`Confira o salário de ${name}.`);
@@ -1056,7 +1070,7 @@
     <td>${g.rows.length}</td><td>${esc(ddate(g.rows[0]))}</td><td>${format(g.amount)}</td><td><select data-decisao="${i}" style="min-width:152px"><option value="skip" ${action==='skip'?'selected':''}>Não alterar</option><option value="archive" ${action==='archive'?'selected':''}>Arquivar projeções</option></select></td></tr>`;}).join('')}
     </tbody></table></div><p id="planejDecisaoResumo" class="fin-meta-text" style="margin-top:10px"></p>
     <div class="form-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"><button id="planejAplicarRevisao" class="button button-primary" type="button">Confirmar seleção e modelos mensais</button><button id="planejCancelarRevisao" class="button button-light" type="button">Fechar sem alterar</button></div>
-    <p class="fin-meta-text">Os modelos sugerirão salários Carlos/Célia de R$ 2.500 cada, Raphael R$ 1.000 apenas no primeiro pagamento em dezembro (reavaliar depois), com vencimento dia 5 e competência do mês anterior; contabilidade R$ 450, FGTS R$ 272,16, GPS R$ 477,54, Certili R$ 99,90, Enel R$ 116,11, internet R$ 100 e Cagece R$ 85,68. <b>Simples não será lançado aqui:</b> permanece no cálculo da aba Impostos. Valores de encargos/consumo são referências, não apurações.</p>
+    <p class="fin-meta-text">Os modelos sugerirão salários Carlos/Célia de R$ 3.000 cada, Raphael R$ 1.000 apenas no primeiro pagamento em dezembro (reavaliar depois), com vencimento dia 5 e competência do mês anterior; contabilidade R$ 450, FGTS R$ 272,16, GPS R$ 477,54, Certili R$ 99,90, Enel R$ 116,11, internet R$ 100 e Cagece R$ 85,68. <b>Simples não será lançado aqui:</b> permanece no cálculo da aba Impostos. Valores de encargos/consumo são referências, não apurações.</p>
    </div>`;
   area.querySelectorAll('[data-decisao], [data-preservar], [data-folha-valor], #planejAutorizarFolha').forEach(el=>el.addEventListener('change',reviewTotals));
   $('planejAplicarRevisao').addEventListener('click',applyReview);
@@ -1115,6 +1129,38 @@
   }catch(err){
    try{data=JSON.parse(previous);saveData();}catch(_){}
    alert('A revisão não foi concluída. Os dados anteriores foram recuperados em memória. Verifique o backup antes de tentar novamente. '+err.message);
+  }
+ }
+ // Correção 11: atualização OPT-IN dos modelos persistidos (não altera lançamentos nem previsões salvas).
+ function refreshSalaryTemplateButton(){
+  const btn=$('planejAtualizarSalarios');if(!btn)return;
+  btn.hidden=!isReviewed();
+  if(!isReviewed())return;
+  const templates=data.expenseTemplates;
+  const carlos=templates.find(x=>x.id==='sal_carlos'),celia=templates.find(x=>x.id==='sal_celia');
+  const ready=carlos&&celia&&Number(carlos.amount)===3000&&Number(celia.amount)===3000;
+  btn.disabled=!!ready;
+  btn.textContent=ready?'Modelos salariais atualizados (R$ 3.000)':'Atualizar modelos salariais para R$ 3.000';
+ }
+ function updateSalaryTemplates(){
+  if(!canWrite())return toast('Sem permissão para atualizar modelos.',true);
+  if(!isReviewed())return alert('Conclua a revisão das recorrências antes de atualizar modelos. Nenhum dado foi alterado.');
+  const models=data.expenseTemplates;
+  const ids=['sal_carlos','sal_celia'];
+  if(ids.some(id=>models.filter(x=>x&&x.id===id).length!==1))return alert('Modelos salariais ausentes ou duplicados. Nenhum dado foi alterado.');
+  const a=models.find(m=>m.id==='sal_carlos'),b=models.find(m=>m.id==='sal_celia');
+  if(Number(a.amount)===3000&&Number(b.amount)===3000){refreshSalaryTemplateButton();return toast('Modelos já estão atualizados.');}
+  if(!confirm(`ATUALIZAR SOMENTE MODELOS FUTUROS\n\nCarlos: ${format(a.amount)} → R$ 3.000,00\nCélia: ${format(b.amount)} → R$ 3.000,00\n\nNão serão modificados os salários já lançados, a previsão salva de dezembro, o Caixa, a DRE ou o estoque. Continuar?`))return;
+  const original=models;
+  data.expenseTemplates=models.map(m=>ids.includes(m.id)?{...m,amount:3000}:m);
+  try{
+   if(saveData()!==true)throw Error('Não foi possível gravar os modelos.');
+   refreshSalaryTemplateButton();
+   if($('planejLista')&&!$('planejLista').hidden)showMonth();
+   toast('Modelos salariais atualizados: Carlos e Célia R$ 3.000 cada. Nenhuma despesa foi criada.');
+  }catch(err){
+   data.expenseTemplates=original;
+   alert('Não foi possível salvar a alteração. Os modelos anteriores foram mantidos. '+err.message);
   }
  }
  function planMonthValue(m,month){return m.kind==='reavaliar'&&month!==m.firstMonth?'':Number(m.amount).toFixed(2);}
@@ -1191,11 +1237,99 @@
   if(!$('planejRevisaoArea')){$('planejRevisaoArea')?.remove();const area=document.createElement('div');area.id='planejRevisaoArea';area.hidden=true;$('planejLista').parentNode.insertBefore(area,$('planejLista'));}
   $('planejMes').value=currentMonth()<'2026-12'?'2026-12':currentMonth();
   const rev=$('planejRevisao');rev.textContent='Revisar recorrências futuras e salários';rev.addEventListener('click',renderReview);
-  $('planejAbrir').addEventListener('click',showMonth);banner();window.ckrPlanejamentoCarregado=true;
+  $('planejAbrir').addEventListener('click',showMonth);$('planejAtualizarSalarios').addEventListener('click',updateSalaryTemplates);refreshSalaryTemplateButton();banner();window.ckrPlanejamentoCarregado=true;
  }
  try{init();}catch(err){console.error('Conceito: erro ao iniciar revisão seletiva',err);const el=$('planejResumo');if(el)el.textContent='Erro ao iniciar planejamento: '+(err&&err.message||err)+'. Nenhum dado alterado.';}
 })();
 </script>
+
+  <script>
+'use strict';
+// Conceito v103.1 — ajuste auditável de competência de cinco pagamentos históricos.
+// Reclassifica APENAS competência (compMonth): NÃO altera data, pagamento, Caixa, valor ou descrições.
+(function(){
+ const $=id=>document.getElementById(id);
+ const fmt=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+ const safe=v=>String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const rows=[
+   {id:'d44d5929-b612-44e3-a540-4177295aa335',desc:'Salário Carlos — pago em novembro',amount:2000,kind:'salario'},
+   {id:'1a605a86-fdd6-44e3-b910-2a9ec474041d',desc:'Salário Célia — pago em novembro',amount:2000,kind:'salario'},
+   {id:'fa96aa39-b5af-4ab4-9cc6-83e5de07d313',desc:'Enel residencial abatida do salário Carlos',amount:188.33,kind:'abatimento'},
+   {id:'3e1e7b78-1545-4ca2-aaca-8c8f32d02045',desc:'Cagece residencial abatida do salário Carlos',amount:102.82,kind:'abatimento'},
+   {id:'0d9e5460-8785-490a-b5ad-7bb7c1fc74f8',desc:'FIES informado como abatimento do salário Carlos',amount:386.72,kind:'abatimento'}
+ ];
+ let backupDone=false, backupFingerprint='';
+ function actual(o){return Array.isArray(data.expenses)?data.expenses.find(e=>e.id===o.id):null;}
+ function valid(e,o){return e&&e.status==='pago'&&String(e.paidDate||'').slice(0,7)==='2026-11'&&Math.abs(Number(e.amount||0)-o.amount)<0.005;}
+ function pending(o){let x=actual(o);return valid(x,o)&&(x.compMonth||'')!=='2026-10';}
+ function signature(){return JSON.stringify(rows.map(o=>{const x=actual(o);return [o.id,x?.amount,x?.paidDate,x?.compMonth,x?.dre];}));}
+ function newWagesOk(){
+   const wages=(data.expenses||[]).filter(x=>x.planningSource==='replacement-payroll-2026-11'&&x.compMonth==='2026-11'&&x.status==='pendente'&&x.dueDate==='2026-12-05');
+   const amounts=wages.map(x=>Number(x.amount||0)).sort((a,b)=>a-b);
+   return amounts.length===3&&amounts.join(',')==='1000,3000,3000';
+ }
+ function render(){
+   const area=$('dreNovLista'),info=$('dreNovResumo'),btn=$('dreNovAplicar');if(!area)return;
+   const missing=rows.filter(o=>!valid(actual(o),o));
+   if(missing.length){
+     info.textContent='Revisão bloqueada: um ou mais lançamentos históricos não coincidem com o backup analisado. Nenhum dado foi alterado.';
+     area.textContent='Registros não localizados ou alterados: '+missing.map(o=>o.desc).join('; ');btn.disabled=true;return;
+   }
+   const pendingRows=rows.filter(pending);
+   if(!pendingRows.length){info.textContent='Competência de outubro já atribuída aos cinco lançamentos. Nenhum ajuste pendente.';area.innerHTML='';btn.disabled=true;return;}
+   info.innerHTML=`<b>${pendingRows.length} lançamento(s)</b> de pagamentos antigos aguardam revisão. Se os cinco forem ajustados, a linha de salários na DRE de novembro diminuirá <b>${fmt(pendingRows.reduce((a,o)=>a+o.amount,0))}</b>, sem alterar a receita de vendas.`;
+   area.innerHTML=`<div class="table-wrap"><table><thead><tr><th>AJUSTAR</th><th>LANÇAMENTO HISTÓRICO</th><th>PAGAMENTO</th><th>VALOR</th><th>COMPETÊNCIA PROPOSTA</th></tr></thead><tbody>${rows.map(o=>{let x=actual(o);return `<tr><td>${pending(o)?`<input type="checkbox" data-dre-nov="${o.id}" ${o.kind==='salario'?'checked':''} aria-label="Corrigir competência de ${safe(o.desc)}">`:'—'}</td><td>${safe(o.desc)}${o.kind==='abatimento'?'<small class="fin-sub">Marque somente se este valor foi abatido da remuneração anterior.</small>':''}</td><td>${safe(x.paidDate)}</td><td>${fmt(o.amount)}</td><td>${pending(o)?'10/2026':'10/2026 (já ajustado)'}</td></tr>`}).join('')}</tbody></table></div>
+   <p class="fin-meta-text" style="margin-top:8px">Os dois salários antigos são pré-selecionados. Os três gastos pessoais precisam de confirmação específica porque seu tratamento como abatimento salarial depende da documentação da folha.</p>`;
+   area.querySelectorAll('input').forEach(el=>el.addEventListener('change',update));
+   update();
+ }
+ function chosen(){return [...$('dreNovLista').querySelectorAll('input[data-dre-nov]:checked')].map(el=>rows.find(o=>o.id===el.dataset.dreNov)).filter(Boolean);}
+ function update(){
+   const ch=chosen(),sum=ch.reduce((n,o)=>n+o.amount,0);
+   const block=!!(typeof isAdminRole==='function'&&!isAdminRole())||!newWagesOk();
+   $('dreNovAplicar').disabled=!backupDone||block||ch.length===0;
+   $('dreNovAviso').textContent=block?'Revisão bloqueada: entre como administrador e confira se as três obrigações de R$ 3.000, R$ 3.000 e R$ 1.000 já existem em dezembro.':`Seleção: ${ch.length} lançamento(s), ${fmt(sum)}. ${backupDone?'Cópia preventiva solicitada.':'Baixe a cópia preventiva antes de confirmar.'}`;
+ }
+ async function backup(){
+   if(typeof isAdminRole==='function'&&!isAdminRole())return alert('Somente administrador pode ajustar competências.');
+   if(!newWagesOk())return alert('Primeiro confira as três obrigações salariais pendentes de 05/12/2026.');
+   const name='conceito-antes-revisao-competencia-2026-11-'+new Date().toISOString().slice(0,10)+'.json';
+   const contents=JSON.stringify({...data,exportedAt:new Date().toISOString()},null,2);
+   try{
+     const out=await ckrSaveFile(name,contents,'application/json');
+     if(/cancel/i.test(String(out||'')))return;
+     backupFingerprint=signature();backupDone=true;update();
+     alert('Cópia preventiva solicitada. Confirme que o arquivo foi salvo no dispositivo antes de aplicar a mudança. Este JSON não inclui os XML originais: mantenha também o backup completo ZIP.');
+   }catch(err){backupDone=false;update();alert('Não foi possível salvar a cópia preventiva: '+(err.message||err));}
+ }
+ function apply(){
+   if(!backupDone||backupFingerprint!==signature()){backupDone=false;render();return alert('Os registros mudaram após a cópia preventiva. Gere outra cópia e revise novamente.');}
+   if(typeof isAdminRole==='function'&&!isAdminRole())return alert('Apenas administrador pode aplicar a mudança.');
+   if(!newWagesOk())return alert('As três obrigações salariais corretas não foram encontradas. Nenhum dado foi alterado.');
+   const sel=chosen();if(!sel.length)return;
+   if(sel.some(o=>!pending(o)))return alert('Os registros mudaram. Reabra a revisão.');
+   const personal=sel.filter(o=>o.kind==='abatimento');
+   const msg=`Corrigir a competência de ${sel.length} pagamento(s) históricos, total ${fmt(sel.reduce((a,o)=>a+o.amount,0))}, de novembro para outubro de 2026?\n\nIsso NÃO altera o dinheiro pago em novembro, a data do pagamento ou as três novas obrigações.\n\n${personal.length?'Inclui '+personal.length+' conta(s) pessoais que você confirma terem sido abatidas do salário de outubro.\n\n':''}O backup de segurança deve estar salvo. Confirma?`;
+   if(!confirm(msg))return;
+   const previous=sel.map(o=>{const x=actual(o);return {id:o.id,compMonth:x.compMonth,updatedAt:x.updatedAt};});
+   const log=data.dreAuditCorrections||(data.dreAuditCorrections=[]);
+   const entry={type:'reclassificacao-competencia-pagamentos-2026-11',on:new Date().toISOString(),by:typeof currentUserName==='function'?currentUserName():'',from:'2026-11',to:'2026-10',reason:'Salários e abatimentos correspondentes à folha de outubro, pagos em novembro',previous:previous.map(x=>({id:x.id,compMonth:x.compMonth})),total:sel.reduce((n,o)=>n+o.amount,0)};
+   try{
+     sel.forEach(o=>{const x=actual(o);x.compMonth='2026-10';x.updatedAt=new Date().toISOString();});
+     log.push(entry);
+     if(saveData()!==true)throw Error('Falha ao salvar');
+     backupDone=false;backupFingerprint='';render();
+     alert('Competências atualizadas. Valores, datas de pagamento e Caixa preservados. Reabra a DRE de novembro para conferir.');
+   }catch(err){
+     previous.forEach(p=>{const x=actual(p);if(x){if(p.compMonth===undefined)delete x.compMonth;else x.compMonth=p.compMonth;if(p.updatedAt===undefined)delete x.updatedAt;else x.updatedAt=p.updatedAt;}});
+     const at=log.indexOf(entry);if(at>=0)log.splice(at,1);saveData();
+     alert('Não foi possível concluir a revisão: '+(err.message||err));
+   }
+ }
+ function init(){if(!$('dreNovAplicar'))return;$('dreNovBackup').addEventListener('click',backup);$('dreNovAplicar').addEventListener('click',apply);render();}
+ try{init()}catch(err){const el=$('dreNovResumo');if(el)el.textContent='Revisão de competência indisponível: '+(err.message||err);console.error(err);}
+})();
+  </script>
   <script>
     // Diagnóstico de carregamento: nenhuma operação financeira é executada aqui.
     window.addEventListener('load',function(){
@@ -1207,7 +1341,7 @@
   </script>
   <script src="caixa.js?v=24"></script>
   <script src="impostos.js?v=13"></script>
-  <script src="dre.js?v=9"></script>
+  <script src="dre.js?v=11"></script>
   <script src="fluxo.js?v=2"></script>
   <script src="dashboard.js?v=3"></script>
   <script src="backup_seguro.js?v=3"></script>
