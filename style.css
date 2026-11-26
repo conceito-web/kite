@@ -800,3 +800,128 @@ select.dre-sel{max-width:100%;min-height:36px;margin:2px 6px 2px 0;border:1px so
   #panel-dashboard #execAlertRows .exec-alert-ui-entry {gap:6px 9px !important;padding:13px 12px !important;}
   #panel-dashboard #execAlertRows .exec-alert-ui-entry :is(button,a) {min-width:54px;padding:7px 9px !important;}
 }
+
+
+/* ======================================================================
+   Conceito v113 — refinamento de uso diário. Estilos apenas, sem lógica.
+   1. Tabelas: leitura e números tabulares.
+   ====================================================================== */
+.panel .table-wrap{
+  border:1px solid #e6ebf3; border-radius:12px; background:#fff;
+  scrollbar-color:#cad6e8 transparent; scrollbar-width:thin;
+}
+.panel .table-wrap table{margin:0; border-collapse:separate; border-spacing:0;}
+.panel .table-wrap thead th{
+  background:#f5f8fd; color:#60728c; font-size:10px; font-weight:800;
+  letter-spacing:.065em; text-transform:uppercase; padding:13px 13px;
+  border-bottom:1px solid #e5ecf5; white-space:nowrap;
+}
+.panel .table-wrap tbody td{
+  padding:13px 13px; color:#445670; font-size:12px; line-height:1.55;
+  font-variant-numeric:tabular-nums; border-bottom:1px solid #edf1f7;
+}
+.panel .table-wrap tbody tr:nth-child(even):not(.row-canceled):not(.ped-sub):not(.nota-sub){background:#fbfcff;}
+.panel .table-wrap tbody tr:hover:not(.row-canceled){background:#f2f6ff;}
+.panel .table-wrap tbody tr:last-child td{border-bottom:0;}
+/* Financial columns: align known amounts, never the final Actions column. */
+#panel-financeiro #finLista td:nth-last-child(2),
+#panel-promissorias #promRows td:nth-child(5),
+#panel-pedidos #pedAgenda td:nth-child(3),
+#panel-movimentacoes #listaVendasBusca td:nth-child(4),
+#panel-movimentacoes #listaVendasBusca td:nth-child(5){
+  text-align:right; font-weight:750; color:#243854; white-space:nowrap;
+}
+/* Editable tables retain compact inputs and their original column widths. */
+.panel .table-wrap table:is(.ped-table,.lote-table,.rate-table) tbody td{padding:8px 10px;}
+
+/* 2. Status language — uniform color, contrast and proportions. */
+.panel .pill, .panel .nota-badge{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:25px; border-radius:999px; padding:5px 10px;
+  font:700 10px/1.2 'DM Sans',Arial,sans-serif; letter-spacing:.01em;
+  white-space:nowrap;
+}
+.panel .pill:is(.pago,.recebida,.ativa,.concluida,.entregue){background:#e9f8f1;color:#137b52;}
+.panel .pill:is(.pendente,.avencer,.aguardando,.aberta){background:#fff4e5;color:#97601e;}
+.panel .pill:is(.vencida,.atrasada){background:#fdebed;color:#ac313f;}
+.panel .pill:is(.cancelada,.cancelado){background:#eef1f5;color:#59677a;}
+.panel .pill:is(.parcial,.em-andamento){background:#edf3ff;color:#2956b3;}
+.panel .pill:before{width:6px;height:6px;flex:none;}
+
+/* 3. Buttons: primary/secondary/destructive and accessible focus. */
+.panel .button{border-radius:10px; font-weight:700; min-height:38px;
+  transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+.panel .button-primary{background:#3468f5; color:white; box-shadow:0 4px 12px #3468f522;}
+.panel .button-light{background:#f3f6fb; color:#485f82; border:1px solid #e2e8f2;}
+.panel .button-light:hover{background:#eaf1fd;border-color:#cbd9ee;}
+.panel .button-danger-light,.panel .row-action.delete{
+  background:#fff1f2; color:#b43c46; border:1px solid #f3d5d8;
+}
+.panel .button-danger-light:hover,.panel .row-action.delete:hover{background:#ffe5e8;}
+.panel .row-action{border-radius:8px;min-height:30px;}
+.panel :is(.button,.row-action,button,select,input,textarea):focus-visible{
+  outline:2px solid #3468f5; outline-offset:3px;
+}
+.panel button:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+
+/* 4. Field groups, preserving form IDs, labels, and existing data bindings. */
+.ui-form-section{
+  grid-column:1/-1; display:flex; align-items:center; gap:10px;
+  padding:18px 0 8px; margin:5px 0 0; border-top:1px solid #e8edf5;
+  color:#293b56; font:800 13px/1.3 Manrope,'DM Sans',sans-serif;
+}
+.ui-form-section.ui-form-first{padding-top:3px;margin-top:0;border:0;}
+.ui-form-section span{
+  display:grid;place-items:center; flex:0 0 28px; width:28px;height:28px;
+  border-radius:9px; background:#eaf1ff; color:#3566d5; font:800 11px Manrope,sans-serif;
+}
+.panel .field{gap:8px; line-height:1.35;}
+.panel .field :is(input,select,textarea){border-color:#dce5f1;border-radius:9px;}
+.panel .field :is(input,select,textarea):focus{border-color:#7299f5;box-shadow:0 0 0 3px #3468f51c;}
+.panel .field :is(input,select,textarea)::placeholder{color:#9aa8bc;}
+.panel .form-actions{align-items:center;flex-wrap:wrap;padding-top:6px;}
+#finForm .form-actions{border-top:1px solid #e8edf5;margin-top:4px;padding-top:16px;}
+
+/* 5. Period and list filters: consistent control sizes and hierarchy. */
+.panel :is(.report-filters,.fin-list-filters,.sales-search-filters){
+  gap:12px; align-items:end;
+}
+.panel :is(.report-filters,.fin-list-filters,.sales-search-filters) .field{font-size:11px;color:#62718b;}
+.panel :is(.report-filters,.fin-list-filters,.sales-search-filters) :is(input,select),
+.panel .search-tools :is(input[type=date],input[type=search],select),
+.panel .history-controls select{
+  min-height:42px; height:42px; border:1px solid #dce5f1;
+  border-radius:9px; background:#fff; color:#243651;
+  font:600 12px 'DM Sans',sans-serif;
+}
+.panel .search-tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px;}
+.panel .date-range{display:inline-flex;align-items:center;gap:6px;
+  font-weight:700;font-size:11px;color:#61738c;}
+.panel .date-range input{width:auto;min-width:145px;padding:0 9px;}
+.panel .report-filters .button{min-height:42px;}
+
+/* 6. Non-blocking confirmations: readable and accessible (app owns text). */
+#toast.toast{
+  display:flex;align-items:flex-start;gap:11px;max-width:min(440px,calc(100vw - 32px));
+  padding:14px 17px; background:#163d36; color:#fff;
+  font:600 12px/1.6 'DM Sans',Arial,sans-serif;
+  border:1px solid #337567; border-radius:12px;
+  box-shadow:0 14px 35px #13233938; overflow-wrap:anywhere;
+}
+#toast.toast:before{content:'✓';display:grid;place-items:center;
+  width:22px;height:22px;flex:0 0 22px;border-radius:50%;
+  background:#ffffff24;font-weight:800;}
+#toast.toast.error{background:#8b2936;border-color:#b9505d;}
+#toast.toast.error:before{content:'!';}
+@media(max-width:760px){
+  .panel .table-wrap thead th{padding:12px 10px;font-size:9px;}
+  .panel .table-wrap tbody td{padding:11px 10px;font-size:11px;}
+  .panel .search-tools{align-items:stretch;}
+  .panel .search-tools .date-range{flex:1 1 170px;}
+  .panel .date-range input{width:100%;min-width:0;}
+  .panel .form-actions .button{flex:1 1 auto;}
+  #toast.toast{left:16px;right:16px;bottom:16px;max-width:none;}
+}
+@media(prefers-reduced-motion:reduce){
+  .panel .button,#toast.toast{transition:none!important;}
+}
