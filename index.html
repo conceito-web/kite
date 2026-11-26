@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=40">
+  <link rel="stylesheet" href="style.css?v=41">
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -183,16 +183,9 @@
         <div class="brand-mark">C</div>
         <div><strong>Conceito<span>.</span></strong><small>GESTÃO INTELIGENTE</small></div>
       </div>
-      <div class="nav-search">
-        <label for="navSearch">Localizar módulo</label>
-        <div class="nav-search-field"><span aria-hidden="true">⌕</span><input id="navSearch" type="search" placeholder="Buscar no Conceito" autocomplete="off" aria-label="Buscar módulo no menu"><kbd>Ctrl K</kbd></div>
-      </div>
       <nav class="navigation" aria-label="Menu principal">
-        <section class="nav-group" data-nav-group="0" aria-label="Início">
-          <button class="nav-group-toggle" type="button" aria-expanded="true" aria-controls="navGroupItems0"><span class="nav-group-emblem" aria-hidden="true">⌂</span><span class="nav-group-name">Início</span><span class="nav-group-chevron" aria-hidden="true">⌄</span></button>
-          <div class="nav-group-items" id="navGroupItems0" >
-            <button class="nav-link active" data-panel="dashboard"><span class="nav-icon">▦</span> Visão geral</button>
-          </div>
+        <section class="nav-group nav-home" data-nav-group="0" aria-label="Início">
+          <button type="button" class="nav-link nav-home-link active" data-panel="dashboard"><span class="nav-icon" aria-hidden="true">⌂</span><span>Início</span></button>
         </section>
         <section class="nav-group" data-nav-group="1" aria-label="Vendas e atendimento">
           <button class="nav-group-toggle" type="button" aria-expanded="false" aria-controls="navGroupItems1"><span class="nav-group-emblem" aria-hidden="true">▧</span><span class="nav-group-name">Vendas e atendimento</span><span class="nav-group-chevron" aria-hidden="true">⌄</span></button>
@@ -236,7 +229,6 @@
             <div id="ckrExpiryStatus" class="expiry-status" hidden aria-live="polite"></div>
           </div>
         </section>
-        <p class="nav-no-results" id="navNoResults" hidden>Nenhum módulo encontrado.</p>
       </nav>
       <div class="sidebar-bottom">
         <div class="local-status"><span class="status-dot"></span><div><b>Modo local</b><small>Dados deste dispositivo</small></div></div>
@@ -244,9 +236,10 @@
       </div>
     </aside>
 
+    <button type="button" id="sidebarScrim" class="sidebar-scrim" aria-label="Fechar menu" tabindex="-1"></button>
     <main class="main">
       <header class="topbar">
-        <button class="mobile-menu" id="mobileMenu" aria-label="Abrir menu">☰</button>
+        <button type="button" class="mobile-menu sidebar-toggle-button" id="mobileMenu" aria-controls="sidebar" aria-expanded="true" aria-label="Ocultar barra lateral" title="Ocultar barra lateral"><span aria-hidden="true" class="sidebar-toggle-icon">☰</span></button>
         <div class="breadcrumb"><span>Conceito</span><i>/</i><b id="pageBreadcrumb">Visão geral</b></div>
         <div class="topbar-right"><span class="today" id="todayLabel"></span><button type="button" id="ckrManageUsers" class="button button-light button-small" hidden>Gerenciar usuários</button><div class="avatar" id="ckrUserAvatar">AD</div><button type="button" id="ckrLogout" class="button button-secondary auth-logout">Sair</button></div>
       </header>
@@ -254,10 +247,10 @@
       <div class="content">
         <section class="panel active" id="panel-dashboard">
           <div class="welcome-row">
-            <div><p class="eyebrow">PAINEL DE CONTROLE</p><h1>Visão geral <span class="wave">✦</span></h1><p class="subtitle">Indicadores financeiros, desempenho comercial e operações em um só lugar.</p></div>
+            <div><p class="eyebrow">PAINEL DE CONTROLE</p><h1>Visão geral</h1><p class="subtitle">Indicadores financeiros, desempenho comercial e operações em um só lugar.</p></div>
             <button class="button button-primary" data-go="venda"><span>＋</span> Nova venda</button>
           </div>
-          <div class="notice"><span class="notice-icon">i</span><p><b>Seus dados ficam neste dispositivo.</b> Para transferir dados entre computador e celular, use <button class="text-button" data-go="backup">Backup e transferência</button>.</p><button class="notice-close" id="closeNotice" aria-label="Fechar aviso">×</button></div>
+          <div class="notice notice-local"><span class="notice-icon">i</span><p><b>Dados neste dispositivo.</b> Para transferir entre aparelhos, use <button class="text-button" data-go="backup">Backup e transferência</button>.</p><button class="notice-close" id="closeNotice" aria-label="Fechar aviso">×</button></div>
 
           <div id="executiveDashboard" class="exec-dashboard" aria-label="Painel executivo">
             <div class="exec-toolbar surface">
@@ -753,6 +746,7 @@
 
         <section class="panel" id="panel-backup">
           <div class="page-heading"><div><p class="eyebrow">SEGURANÇA DOS DADOS</p><h1>Backup e transferência</h1><p class="subtitle">Faça uma cópia e transfira seus dados manualmente entre dispositivos.</p></div></div>
+          <p class="backup-local-note"><span aria-hidden="true">ⓘ</span> Os dados ficam armazenados neste dispositivo. Para usar o Conceito em outro aparelho, exporte e restaure um backup completo.</p>
           <div class="backup-grid">
             <section class="surface backup-card"><div class="backup-icon blue-bg">↓</div><p class="eyebrow">ETAPA 01</p><h2>Exportar backup</h2><p>ZIP completo: registros financeiros, fotos dos produtos e XML originais das compras. O programa verifica o conteúdo antes de disponibilizar o arquivo.</p><button id="fazerBackup" class="button button-primary full-button" type="button">Baixar backup completo (.zip)</button><button id="backupJsonLegado" class="button button-light full-button" type="button" style="margin-top:8px">Backup só dos dados (.json, sem XML)</button><p id="backupStatus" class="payment-notice" role="status" aria-live="polite"></p></section>
             <section class="surface backup-card" id="cardRestaurar"><div class="backup-icon violet-bg">↑</div><p class="eyebrow">ETAPA 02</p><h2>Restaurar backup</h2><p>O arquivo é validado primeiro e uma cópia preventiva será exigida. <b>Os dados atuais deste navegador serão substituídos somente após sua confirmação.</b></p><label class="field file-field">Escolher arquivo de backup (.zip, .json ou .txt)<input id="arquivoBackup" type="file" accept=".zip,.json,.txt,application/zip,application/json,text/plain"></label><label class="field file-field">Ou cole o texto do backup<textarea id="textoBackup" rows="2" placeholder="CKR1:..." style="width:100%;box-sizing:border-box;border:1px solid #e0e6ef;border-radius:8px;padding:8px;font:500 11px 'DM Sans'"></textarea></label><button id="verificarBackup" class="button button-light full-button" type="button" style="margin-bottom:8px">Verificar arquivo (sem restaurar)</button><button id="restaurarBackup" class="button button-light full-button" type="button">Restaurar dados</button><p id="restoreStatus" class="payment-notice" role="status" aria-live="polite"></p></section>
@@ -1421,15 +1415,21 @@
     });
   </script>
   <script>
-  // Navegação visual v111: sem escrita ou leitura de lançamentos financeiros.
+  // Ajuste visual v112. Sem leitura/alteração de lançamentos do Conceito.
   (function () {
-    const nav = document.querySelector('.navigation');
-    const field = document.getElementById('navSearch');
-    const empty = document.getElementById('navNoResults');
-    if (!nav || !field || !empty) return;
-    const groups = Array.from(nav.querySelectorAll('.nav-group'));
-    const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-    let opened = groups[0] || null;
+    const shell = document.getElementById('ckrAppShell');
+    const sidebar = document.getElementById('sidebar');
+    const nav = sidebar?.querySelector('.navigation');
+    const menu = document.getElementById('mobileMenu');
+    const scrim = document.getElementById('sidebarScrim');
+    if (!shell || !sidebar || !nav || !menu) return;
+    const desktop = window.matchMedia('(min-width: 761px)');
+    const groups = Array.from(nav.querySelectorAll('.nav-group:not(.nav-home)'));
+    const home = nav.querySelector('.nav-home');
+    const activeSelector = '.nav-link[data-panel].active:not([hidden])';
+    const UI_KEY = 'conceito_ui_menu_oculto_v112';
+    const NOTICE_KEY = 'conceito_ui_aviso_local_fechado_v112';
+    let opened = null;
     function displayGroup(group, show) {
       const toggle = group.querySelector('.nav-group-toggle');
       const items = group.querySelector('.nav-group-items');
@@ -1441,81 +1441,101 @@
       opened = group || null;
       groups.forEach(g => displayGroup(g, g === opened));
     }
-    function allowedLinks(group) {
-      return Array.from(group.querySelectorAll('.nav-link')).filter(link => !link.hidden);
+    function syncAvailability() {
+      const homeLink = home?.querySelector('.nav-link');
+      if (homeLink) home.classList.toggle('nav-group-unavailable',homeLink.hidden);
+      groups.forEach(group => group.classList.toggle('nav-group-unavailable',
+        !Array.from(group.querySelectorAll('.nav-link')).some(link => !link.hidden)));
     }
-    function updatePermissions() {
-      groups.forEach(group => {
-        group.classList.toggle('nav-group-unavailable', allowedLinks(group).length === 0);
+    function syncActiveGroup() {
+      syncAvailability();
+      const active = nav.querySelector(activeSelector);
+      if (!active) return;
+      const group = active.closest('.nav-group');
+      if (group?.classList.contains('nav-home')) openOnly(null);
+      else if (group !== opened) openOnly(group);
+    }
+    groups.forEach(group => {
+      const toggle = group.querySelector('.nav-group-toggle');
+      if (!toggle) return;
+      toggle.addEventListener('click', () => {
+        openOnly(opened === group ? null : group);
       });
-      if (!field.value.trim()) {
-        const active = nav.querySelector('.nav-link.active:not([hidden])');
-        if (active && active.closest('.nav-group') !== opened) openOnly(active.closest('.nav-group'));
+    });
+    // Active links are controlled by the existing app.js routing/permissions.
+    const linkObserver = new MutationObserver(changes => {
+      if (changes.some(change => change.attributeName === 'class' || change.attributeName === 'hidden')) syncActiveGroup();
+    });
+    nav.querySelectorAll('.nav-link').forEach(link =>
+      linkObserver.observe(link,{attributes:true,attributeFilter:['class','hidden']}));
+    syncActiveGroup();
+
+    // Menu badges count: hide 0, automatically show positive counts on renderAll.
+    nav.querySelectorAll('.nav-count').forEach(badge => {
+      function renderBadge() {
+        const value = badge.textContent.trim();
+        badge.hidden = !value || /^0(?:[.,]0+)?$/.test(value);
       }
+      new MutationObserver(renderBadge).observe(badge,{childList:true,characterData:true,subtree:true});
+      renderBadge();
+    });
+
+    function storedHidden() {
+      try { return localStorage.getItem(UI_KEY)==='1'; } catch (_) { return false; }
     }
-    function filterMenu() {
-      const term = normalize(field.value);
-      let total = 0;
-      groups.forEach(group => {
-        const permitted = allowedLinks(group);
-        let matches = 0;
-        const groupLabel = normalize(group.querySelector('.nav-group-name')?.textContent);
-        permitted.forEach(link => {
-          const found = !term || normalize(link.textContent).includes(term) || (term.length > 1 && groupLabel.includes(term));
-          link.classList.toggle('nav-filter-hide', !found);
-          if (found) matches++;
-        });
-        group.classList.toggle('nav-filter-empty', Boolean(term) && matches === 0);
-        total += matches;
-        if (term) displayGroup(group, matches > 0);
+    function saveHidden(hidden) {
+      try { localStorage.setItem(UI_KEY,hidden?'1':'0'); } catch (_) { /* Visual only. */ }
+    }
+    function updateToggleLabel() {
+      const visible = desktop.matches ? !shell.classList.contains('sidebar-collapsed') : sidebar.classList.contains('open');
+      const label = visible ? 'Ocultar barra lateral' : 'Mostrar barra lateral';
+      menu.setAttribute('aria-label',label);
+      menu.setAttribute('title',label);
+      menu.setAttribute('aria-expanded',String(visible));
+    }
+    function syncViewport() {
+      if (desktop.matches) {
+        sidebar.classList.remove('open');
+        shell.classList.toggle('sidebar-collapsed',storedHidden());
+        sidebar.inert = shell.classList.contains('sidebar-collapsed');
+      } else {
+        shell.classList.remove('sidebar-collapsed');
+        sidebar.inert = false;
+      }
+      updateToggleLabel();
+    }
+    // app.js handles mobile button and closes mobile sidebar on navigation.
+    // On desktop the same button additionally toggles the width of the content.
+    menu.addEventListener('click', () => {
+      if (desktop.matches) {
+        const hidden = !shell.classList.contains('sidebar-collapsed');
+        shell.classList.toggle('sidebar-collapsed',hidden);
+        sidebar.classList.remove('open');
+        sidebar.inert = hidden;
+        saveHidden(hidden);
+      }
+      updateToggleLabel();
+    });
+    scrim?.addEventListener('click',()=>sidebar.classList.remove('open'));
+    document.addEventListener('keydown',event => {
+      if (event.key==='Escape' && !desktop.matches && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+        menu.focus();
+      }
+    });
+    new MutationObserver(updateToggleLabel).observe(sidebar,{attributes:true,attributeFilter:['class']});
+    desktop.addEventListener?.('change',syncViewport);
+    syncViewport();
+
+    // Dashboard notice only: remembering dismissal does not touch business data.
+    const notice = document.querySelector('#panel-dashboard .notice-local');
+    const close = document.getElementById('closeNotice');
+    if (notice && close) {
+      try { if (localStorage.getItem(NOTICE_KEY)==='1') notice.style.display='none'; } catch (_) {}
+      close.addEventListener('click',()=>{
+        try { localStorage.setItem(NOTICE_KEY,'1'); } catch (_) {}
       });
-      empty.hidden = !term || total !== 0;
-      if (!term) {
-        const active = nav.querySelector('.nav-link.active:not([hidden])');
-        openOnly(active ? active.closest('.nav-group') : opened);
-      }
     }
-    nav.addEventListener('click', event => {
-      const toggle = event.target.closest('.nav-group-toggle');
-      if (toggle) {
-        const group = toggle.closest('.nav-group');
-        if (field.value) { field.value=''; filterMenu(); }
-        openOnly(opened === group && toggle.getAttribute('aria-expanded') === 'true' ? null : group);
-        return;
-      }
-      const link = event.target.closest('.nav-link[data-panel]');
-      if (link) {
-        field.value='';
-        groups.forEach(group => group.classList.remove('nav-filter-empty'));
-        nav.querySelectorAll('.nav-filter-hide').forEach(el => el.classList.remove('nav-filter-hide'));
-        openOnly(link.closest('.nav-group'));
-      }
-    });
-    field.addEventListener('input', filterMenu);
-    document.addEventListener('keydown', event => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        document.getElementById('sidebar')?.classList.add('open');
-        field.focus();field.select();
-      } else if (event.key === 'Escape' && document.activeElement === field) {
-        field.value=''; filterMenu(); field.blur();
-      }
-    });
-    // Atalhos externos (cards e cabeçalhos) também abrem a categoria correta.
-    document.addEventListener('click', event => {
-      if (event.target.closest('[data-go]')) {
-        const selected = nav.querySelector('.nav-link.active:not([hidden])');
-        if (selected && !field.value) openOnly(selected.closest('.nav-group'));
-      }
-    });
-    const observer = new MutationObserver(records => {
-      if (records.some(record => record.attributeName === 'hidden' || (record.attributeName === 'class' && record.target.classList.contains('nav-link')))) {
-        updatePermissions();
-      }
-    });
-    nav.querySelectorAll('.nav-link').forEach(link => observer.observe(link,{attributes:true,attributeFilter:['class','hidden']}));
-    updatePermissions();
-    openOnly(nav.querySelector('.nav-link.active:not([hidden])')?.closest('.nav-group') || groups[0]);
   })();
   </script>
 </body>
