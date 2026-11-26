@@ -379,7 +379,7 @@ function render(){
  try{
   catalog();updateBadges();
   const panel=$('panel-financeiro');if(!panel||!panel.classList.contains('active'))return;
-  syncCats();renderSummary();renderYear();renderGoalAndCompare();renderList();
+  syncCats();renderSummary();renderYear();renderGoalAndCompare();renderList();renderSupplierInstallments();
   diag.erro='';const warn=$('finCarregamentoAviso');if(warn){warn.hidden=true;warn.style.display='none';}
  }catch(err){finError(err);}
 }
@@ -406,6 +406,27 @@ function supplierItemHint(){
  const hint=$('finFornecedorAviso');if(!hint)return;
  const it=selectedItem();hint.hidden=!(it&&it.id===FORNECEDOR_ITEM);
 }
+// As parcelas permanecem em data.factoryOrders: este painel apenas as consulta.
+// Pagar daqui abre a rotina oficial do Pedido à Fábrica, sem data.expenses.push().
+function renderSupplierInstallments(){
+ const panel=$('finFornecedorParcelas'),rows=$('finFornecedorLista'),summary=$('finFornecedorResumo');
+ if(!panel||!rows||!summary)return;
+ const show=$('finCat').value==='Fornecedores';panel.hidden=!show;
+ if(!show)return;
+ const open=[];
+ (data.factoryOrders||[]).forEach(o=>(o.installments||[]).forEach(p=>{
+  if(p&&!p.paid)open.push({o,p});
+ }));
+ open.sort((a,b)=>String(a.p.dueDate||'').localeCompare(String(b.p.dueDate||''))||Number(a.o.num||0)-Number(b.o.num||0)||Number(a.p.n||0)-Number(b.p.n||0));
+ const total=r2(open.reduce((sum,x)=>sum+Number(x.p.amount||0),0));
+ summary.textContent=open.length?`${open.length} parcela(s) em aberto · ${money(total)} pendentes na fábrica`:'Nenhuma parcela pendente nos pedidos à fábrica.';
+ rows.innerHTML=open.length?`<table style="width:100%"><thead><tr><th>PEDIDO</th><th>PARCELA / PRODUTOS</th><th>VENCIMENTO</th><th>VALOR</th><th>AÇÃO</th></tr></thead><tbody>${open.map(({o,p})=>{
+  const products=(o.items||[]).map(i=>i.name||'').filter(Boolean).slice(0,2).join(', ');
+  const extra=(o.items||[]).length>2?'…':'';
+  const overdue=p.dueDate&&p.dueDate<todayISO();
+  return `<tr><td><b>Nº ${esc(String(o.num||'?'))}</b>${o.invoiceNumber?`<small style="display:block">NF ${esc(String(o.invoiceNumber))}</small>`:''}</td><td>${esc(String(p.n||'?'))}/${esc(String(p.of||'?'))} · ${esc(String(p.method||o.payMethod||'Parcela'))}<small style="display:block;color:#64748b">${esc(products+extra)}</small></td><td>${p.dueDate?esc(dayText(p.dueDate)):'—'}${overdue?' <small style="color:#b45309">Vencida</small>':''}</td><td><b>${money(p.amount)}</b></td><td><button type="button" class="button button-primary button-small" data-fin-fab="${esc(String(o.id))}" data-fin-inst="${esc(String(p.n))}">Pagar</button></td></tr>`;
+ }).join('')}</tbody></table>`:'<p style="margin:0;color:#64748b">Os próximos pagamentos devem ser cadastrados em Pedidos à Fábrica, não duplicados aqui.</p>';
+}
 
 // Mês de competência padrão do item: mês anterior ao pagamento ('ant') ou o próprio mês do pagamento ('pag').
 function formBase(){return ($('finStatus').value==='pago'?($('finPago').value||$('finData').value):$('finData').value)||todayISO();}
@@ -420,11 +441,12 @@ function syncComp(){
 }
 function resetForm(){
  editId=null;$('finForm').reset();$('finData').value=todayISO();$('finPago').value='';
+ if($('finFornecedorAvulsa'))$('finFornecedorAvulsa').checked=false;
  $('finFormTitulo').textContent='Nova despesa';$('finSalvar').textContent='Salvar despesa';$('finFormBadge').textContent='LANÇAMENTO';
  legacyText='';compManual=false;$('finComp').value='';renderItems('');
  setPays(null);syncForm();catHint();
 }
-function openForm(){const c=$('finFormCard');c.style.display='';c.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('finItem').focus({preventScroll:true}),250);}
+function openForm(){const c=$('finFormCard');c.style.display='';renderSupplierInstallments();c.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('finItem').focus({preventScroll:true}),250);}
 function closeForm(){$('finFormCard').style.display='none';resetForm();}
 function fillForm(x){
  editId=x.id;syncCats();
@@ -443,6 +465,15 @@ function save(ev){
  ev.preventDefault();if(denied())return;
  const amount=r2(parseMoneyInput($('finValor').value));
  const it=selectedItem(),selV=$('finItem').value,desc=it?it.name:(selV==='__legacy'?legacyText:'');
+ if(it&&it.id===FORNECEDOR_ITEM&&!editId){
+  const checked=$('finFornecedorAvulsa')&&$('finFornecedorAvulsa').checked;
+  if(!checked){toast('Primeiro confira as parcelas listadas acima. Para dívida não cadastrada em Pedidos à Fábrica, marque “Pagamento avulso”.',true);return;}
+  const existing=(data.factoryOrders||[]).flatMap(o=>(o.installments||[]).filter(p=>Math.abs(Number(p.amount||0)-amount)<0.01).map(p=>({o,p})));
+  if(existing.length){
+   toast('Há parcela(s) de mesmo valor em Pedidos à Fábrica. Use a lista acima ou confira no pedido original; registro avulso bloqueado para evitar duplicidade.',true);return;
+  }
+  if(!confirm('CONFIRMAÇÃO DE PAGAMENTO AVULSO\n\nEsta quitação NÃO corresponde a nenhuma parcela já cadastrada em Pedidos à Fábrica?\n\nSe a dívida estiver em Pedidos à Fábrica, cancele e use Pagar na lista acima.'))return;
+ }
  if(!desc){toast('Escolha o item da despesa (use “＋ Novo item” se ele ainda não existe).',true);$('finItem').focus();return;}
  const compMonth=/^\d{4}-\d{2}$/.test($('finComp').value)?$('finComp').value:'';
  if(!(amount>0)){toast('Informe o valor da despesa.',true);$('finValor').focus();return;}
@@ -598,9 +629,15 @@ function init(){
  $('finCancelar').addEventListener('click',closeForm);
  $('finAddPag').addEventListener('click',onAddPay);$('finPagtos').addEventListener('click',onPagClick);$('finPagtos').addEventListener('input',paySum);$('finValor').addEventListener('input',paySum);
  $('finForm').addEventListener('submit',save);$('finNovaConta').style.display='none';
+ $('finFornecedorLista').addEventListener('click',e=>{
+  const b=e.target.closest('[data-fin-fab][data-fin-inst]');if(!b)return;
+  if(denied())return;
+  if(typeof window.ckrPagarParcelaFabrica!=='function'){toast('O módulo Pedidos à Fábrica não carregou. Atualize o programa antes de pagar.',true);return;}
+  window.ckrPagarParcelaFabrica(b.dataset.finFab,b.dataset.finInst);
+ });
  $('finStatus').addEventListener('change',syncForm);$('finTipo').addEventListener('change',syncForm);
  $('finData').addEventListener('change',syncForm);
- $('finCat').addEventListener('change',()=>{catHint();renderItems();compManual=false;syncComp();});
+ $('finCat').addEventListener('change',()=>{catHint();renderItems($('finCat').value==='Fornecedores'?FORNECEDOR_ITEM:undefined);compManual=false;syncComp();renderSupplierInstallments();if($('finFornecedorAvulsa'))$('finFornecedorAvulsa').checked=false;});
  $('finItem').addEventListener('change',()=>{compManual=false;syncComp();supplierItemHint();});
  $('finComp').addEventListener('input',()=>{compManual=true;syncComp();});
  $('finPago').addEventListener('change',syncComp);
