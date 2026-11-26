@@ -5,7 +5,110 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=42">
+  <link rel="stylesheet" href="style.css?v=43">
+<style id="conceito-alert-style-v112-2">
+
+/* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
+   Escopo somente #execAlertRows. Funciona com divs, cards, UL ou OL. */
+#panel-dashboard #execAlertRows {
+  display:grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap:12px !important;
+  align-items:stretch !important;
+  min-width:0 !important;
+  padding:0 !important;
+  margin:0 !important;
+  font-size:12px;
+}
+#panel-dashboard #execAlertRows > :is(ul,ol,.exec-alert-ui-wrapper) {
+  display:contents !important;
+  padding:0 !important;
+  margin:0 !important;
+}
+#panel-dashboard #execAlertRows :is(ul,ol,li) {
+  list-style:none !important;
+  margin-top:0;
+  margin-bottom:0;
+}
+#panel-dashboard #execAlertRows ::marker {content:'' !important;}
+#panel-dashboard #execAlertRows .exec-alert-ui-entry {
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto !important;
+  grid-auto-rows:min-content;
+  gap:5px 12px !important;
+  align-content:center !important;
+  align-items:center !important;
+  min-width:0 !important;
+  min-height:98px;
+  margin:0 !important;
+  padding:16px 18px !important;
+  border:1px solid #e2e9f4 !important;
+  border-radius:12px !important;
+  background:#f8faff !important;
+  box-shadow:none !important;
+  list-style:none !important;
+  color:#63738b;
+  font-size:11.5px;
+  line-height:1.45;
+}
+#panel-dashboard #execAlertRows .exec-alert-ui-entry > :is(div,section,main) {
+  grid-column:1;
+  min-width:0;
+}
+#panel-dashboard #execAlertRows .exec-alert-ui-entry > :is(button,a) {
+  grid-column:2;
+  grid-row:1 / span 3;
+  justify-self:end;
+  align-self:center;
+}
+#panel-dashboard #execAlertRows .exec-alert-ui-entry :is(strong,b) {
+  display:block !important;
+  font-family:Manrope,'DM Sans',sans-serif;
+  font-weight:800;
+  font-size:12.5px !important;
+  line-height:1.4;
+  color:#233650 !important;
+  margin:0 0 3px !important;
+}
+#panel-dashboard #execAlertRows .exec-alert-ui-entry :is(small,p,em) {
+  display:block !important;
+  margin:0 !important;
+  font-style:normal;
+  font-size:11px !important;
+  line-height:1.5;
+  color:#7788a0 !important;
+}
+#panel-dashboard #execAlertRows .exec-alert-ui-entry :is(button,a) {
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:7px;
+  min-width:60px;
+  min-height:37px;
+  padding:8px 12px !important;
+  border:1px solid #d7e4fa !important;
+  border-radius:9px !important;
+  background:#eaf1ff !important;
+  color:#2a58bc !important;
+  font:800 12px/1.2 'DM Sans',sans-serif !important;
+  text-decoration:none !important;
+  white-space:nowrap;
+  cursor:pointer;
+}
+#panel-dashboard #execAlertRows .exec-alert-ui-entry :is(button,a):hover {background:#dae6ff !important;border-color:#bed0f5 !important;}
+#panel-dashboard #execAlertRows .exec-alert-ui-entry :is(button,a):focus-visible {outline:3px solid #a8bfff;outline-offset:2px;}
+#panel-dashboard #execAlertRows .exec-alert-ui-dot {display:none !important;}
+#panel-dashboard #execAlertRows > p:not(.exec-alert-ui-entry) {grid-column:1/-1;}
+@media(max-width:900px) {
+  #panel-dashboard #execAlertRows {grid-template-columns:1fr !important;}
+  #panel-dashboard #execAlertRows .exec-alert-ui-entry {min-height:76px;padding:14px !important;}
+}
+@media(max-width:500px) {
+  #panel-dashboard #execAlertRows .exec-alert-ui-entry {gap:6px 9px !important;padding:13px 12px !important;}
+  #panel-dashboard #execAlertRows .exec-alert-ui-entry :is(button,a) {min-width:54px;padding:7px 9px !important;}
+}
+
+</style>
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -1538,5 +1641,42 @@
     }
   })();
   </script>
+
+<script id="conceito-alert-ui-normalizer-v112-2">
+(function () {
+  'use strict';
+  const root=document.getElementById('execAlertRows');
+  if(!root)return;
+  const simpleBullet=/^[•·●∙▪]$/;
+  function reconcileAlerts(){
+    let rows=Array.from(root.children).filter(el => /^(DIV|LI|ARTICLE)$/.test(el.tagName));
+    const nestedLists=Array.from(root.children).filter(el=>/^(UL|OL)$/.test(el.tagName));
+    for(const list of nestedLists){
+      list.classList.add('exec-alert-ui-wrapper');
+      rows.push(...Array.from(list.children).filter(el=>/^(LI|DIV|ARTICLE)$/.test(el.tagName)));
+    }
+    // Suporta eventual camada adicional envolvendo os quatro alertas.
+    if(rows.length===1){
+      const only=rows[0];
+      const grandchildren=Array.from(only.children).filter(el=>/^(LI|DIV|ARTICLE)$/.test(el.tagName));
+      if(grandchildren.length>=2 && grandchildren.length===only.childElementCount){
+        only.classList.add('exec-alert-ui-wrapper');
+        rows=grandchildren;
+      }
+    }
+    for(const row of rows){
+      row.classList.add('exec-alert-ui-entry');
+      for(const el of row.querySelectorAll('span,i,em,div')){
+        if(el.children.length===0 && simpleBullet.test((el.textContent||'').trim())){
+          el.classList.add('exec-alert-ui-dot');
+        }
+      }
+    }
+  }
+  reconcileAlerts();
+  new MutationObserver(reconcileAlerts).observe(root,{childList:true});
+})();
+</script>
+
 </body>
 </html>
