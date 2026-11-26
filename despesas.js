@@ -288,14 +288,18 @@ function renderSummary(){
  $('finPeriodoDesc').textContent=`${s?dayText(s):'Desde o início'} até ${e?dayText(e):'hoje'} · recebimentos e pagamentos efetivos dentro deste período.`;
  setMoney('finVendas',c.vendas);setMoney('finBruto',c.recebido);setMoney('finDesp',c.desp);setMoney('finLiquido',c.liquido,'sign');
  setMoney('finPagas',c.pagas);setMoney('finPend',c.pend);setMoney('finVenc2',c.venc);
- $('finVendasNota').textContent=`${c.vendasQtd} venda(s) registrada(s)`;
-$('finBrutoNota').textContent='Dinheiro, Pix e cartão já recebidos, conforme o Caixa (sem crédito com a fábrica)';
-$('finDespNota').textContent=`${c.qtd} pagamento(s) efetuado(s) · ${c.recebido>0?pct(c.desp/c.recebido*100)+' dos recebimentos':'sem recebimentos no período'}${c.fab>0?' · inclui '+money(c.fab)+' pagos à fábrica':''}`;
-$('finLiquidoNota').textContent='Total de Recebimentos − despesas pagas';
- const mg=$('finMargem');mg.textContent=c.margem==null?'—':pct(c.margem);mg.classList.remove('fin-pos','fin-neg');if(c.margem!=null&&c.margem!==0)mg.classList.add(c.margem>0?'fin-pos':'fin-neg');
- $('finVencNota').textContent=c.venc>0?'Pendentes com vencimento já passado':'Nenhuma conta vencida';
- // gráfico: resultado do período
- $('finChartResultado').innerHTML=barChart([
+ // Compatibilidade com o layout atual: alguns indicadores antigos foram removidos da interface.
+ // A ausência deles não pode interromper os cálculos dos indicadores que permanecem visíveis.
+ const optionalText=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
+ optionalText('finVendasNota',`${c.vendasQtd} venda(s) registrada(s)`);
+ optionalText('finBrutoNota','Dinheiro, Pix e cartão já recebidos, conforme o Caixa (sem crédito com a fábrica)');
+ optionalText('finDespNota',`${c.qtd} pagamento(s) efetuado(s) · ${c.recebido>0?pct(c.desp/c.recebido*100)+' dos recebimentos':'sem recebimentos no período'}${c.fab>0?' · inclui '+money(c.fab)+' pagos à fábrica':''}`);
+ optionalText('finLiquidoNota','Total de Recebimentos − despesas pagas');
+ const mg=$('finMargem');
+ if(mg){mg.textContent=c.margem==null?'—':pct(c.margem);mg.classList.remove('fin-pos','fin-neg');if(c.margem!=null&&c.margem!==0)mg.classList.add(c.margem>0?'fin-pos':'fin-neg');}
+ optionalText('finVencNota',c.venc>0?'Pendentes com vencimento já passado':'Nenhuma conta vencida');
+ const chartResultado=$('finChartResultado');
+ if(chartResultado)chartResultado.innerHTML=barChart([
   {label:'Vendas',value:c.vendas,color:'#3468f5'},
   {label:'Recebimentos',value:c.recebido,color:'#1b9b6b',negColor:'#d74b55'},
   {label:'Despesas',value:c.desp,color:'#e89b3b'},
