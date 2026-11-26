@@ -1,5 +1,5 @@
-const CACHE = 'conceito-v107-1-reparo-acesso';
-const CORE = ['./', 'index.html', 'app.js?v=43', 'modulos.js?v=37', 'encomendas.js?v=6', 'despesas.js?v=19', 'caixa.js?v=24', 'impostos.js?v=14', 'dre.js?v=11', 'fluxo.js?v=2', 'servicos.js?v=4', 'style.css?v=38', 'dashboard.js?v=3', 'backup_seguro.js?v=3', 'manifest.webmanifest',
+const CACHE = 'conceito-v107-2-indicadores';
+const CORE = ['./', 'index.html', 'app.js?v=44', 'modulos.js?v=37', 'encomendas.js?v=6', 'despesas.js?v=20', 'caixa.js?v=24', 'impostos.js?v=14', 'dre.js?v=11', 'fluxo.js?v=2', 'servicos.js?v=4', 'style.css?v=38', 'dashboard.js?v=3', 'backup_seguro.js?v=3', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
@@ -30,14 +30,20 @@ self.addEventListener('fetch', e => {
   e.respondWith((async () => {
     const c = await caches.open(CACHE);
     const cached = await c.match(req, { ignoreSearch: false }) || await c.match(req, { ignoreSearch: true });
-    const network = fetch(req).then(res => {
-      if (res && (res.ok || res.type === 'opaque')) c.put(req, res.clone());
+    const important = url.origin===location.origin && (req.mode==='navigate'||/\.(?:js|html)$/i.test(url.pathname));
+    const network = fetch(new Request(req,{cache:important?'no-store':'default'})).then(res => {
+      if (res && res.ok) c.put(req,res.clone()).catch(()=>{});
       return res;
     }).catch(() => null);
-    if (cached) { network; return cached; }           // abre rápido/offline, atualiza em segundo plano
-    const res = await network;
-    if (res) return res;
-    if (req.mode === 'navigate') return c.match('index.html');
-    return Response.error();
+    if(important){
+      const res=await network;
+      if(res&&res.ok)return res;
+      if(cached)return cached;
+      if(req.mode==='navigate')return c.match('index.html') || Response.error();
+      return res||Response.error();
+    }
+    if(cached){network;return cached;}
+    const res=await network;
+    return res||Response.error();
   })());
 });
