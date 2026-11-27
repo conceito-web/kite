@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=122">
+  <link rel="stylesheet" href="style.css?v=124">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -1029,7 +1029,7 @@
 <div class="mt-grid" id="metasCards"></div>
 <section class="surface mt-progress"><h2>Ritmo de vendas</h2><div class="mt-track"><div id="metasBar"></div><i id="metasMarker"></i></div><p id="metasProgress" class="mt-muted"></p><strong id="metasStatus" role="status"></strong><div class="mt-grid" id="metasPace"></div></section>
 <section class="surface mt-progress"><h2>Resultado e rentabilidade</h2><div class="mt-grid" id="metasResult"></div><p id="metasCoverage" class="mt-muted"></p></section>
-<section class="surface mt-progress"><h2>Evolução diária do faturamento</h2><p class="mt-muted">Realizado acumulado e meta linear por dias corridos. Valores comerciais líquidos de movimentos de devolução, sem serviços.</p><div id="metasChart"></div><details><summary>Conferir valores por dia</summary><div class="mt-table"><table><thead><tr><th>Dia</th><th>Realizado no dia</th><th>Acumulado</th><th>Meta acumulada</th></tr></thead><tbody id="metasDays"></tbody></table></div></details></section>
+<section class="surface mt-progress"><h2>Parecer da Controladoria</h2><div id="metasOpinion" class="mt-opinions"></div></section><section class="surface mt-progress"><h2>Evolução diária do faturamento</h2><p class="mt-muted">Realizado acumulado e meta ponderada pelas horas comerciais. Valores comerciais líquidos de movimentos de devolução, sem serviços.</p><div id="metasChart"></div><details><summary>Conferir valores por dia</summary><div class="mt-table"><table><thead><tr><th>Dia</th><th>Realizado no dia</th><th>Acumulado</th><th>Horas</th><th>Meta diária original</th><th>Meta acumulada</th><th>Meta restante redistribuída</th></tr></thead><tbody id="metasDays"></tbody></table></div></details></section><section class="surface mt-progress"><details><summary>Configurações administrativas · calendário comercial</summary><p class="mt-muted">Horas de loja aberta por dia. Segunda a sexta: 08h–18h (sem fechamento no almoço); sábado: 08h–14h; domingo fechado. Exceções por data substituem o horário regular. O dia atual é considerado integralmente; não há cálculo intradiário. Alterações do horário regular recalculam também meses históricos.</p><div id="metasWeek" class="mt-week"></div><button type="button" class="button button-light" id="metasSaveWeek">Salvar horário regular</button><h2 style="margin-top:20px">Feriados e expedientes excepcionais</h2><div class="mt-week"><label>Data<input type="date" id="metasExceptionDate"></label><label>Horas (0 = fechado)<input type="number" id="metasExceptionHours" min="0" max="24" step="0.5" value="0"></label><label>Observação<input type="text" id="metasExceptionNote" maxlength="120"></label></div><button type="button" class="button button-light" id="metasSaveException">Salvar exceção</button><div class="mt-table"><table><thead><tr><th>Data</th><th>Horas</th><th>Motivo</th><th>Ação</th></tr></thead><tbody id="metasExceptions"></tbody></table></div></details></section>
 <section class="surface mt-progress"><h2>Critérios e limitações</h2><p class="mt-muted">Metas compartilhadas com Política de preços e descontos, sem novos parâmetros ou lançamentos. Faturamento comercial: vendas de mercadorias não canceladas menos movimentos de devolução; não equivale necessariamente ao faturamento fiscal ou à DRE. Ritmo e projeção por dias corridos, incluindo fins de semana e o dia atual parcial. A margem vem do módulo de contribuição, somente vendas calculáveis, antes de eventuais devoluções não conciliadas. Resultado da DRE tem escopo próprio. Projeções não são garantias.</p></section></section>
         <section class="panel" id="panel-equilibrio" aria-labelledby="pe-title">
           <div class="page-heading">
@@ -2707,6 +2707,6 @@
 })();
 </script>
 <script src="precos.js?v=122"></script>
-<script src="metas.js?v=122"></script>
+<script src="metas.js?v=124"></script>
 </body>
 </html>
