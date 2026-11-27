@@ -109,6 +109,66 @@
 }
 
 </style>
+
+<style id="v127-compare-precos">
+.page-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+#panel-precos #pcPrivacy{display:inline-flex;align-items:center;gap:8px;}
+#panel-precos .pc-result{position:relative;overflow:hidden;}
+#panel-precos .pc-result[data-state="good"]{box-shadow:inset 0 0 0 1px rgba(21,128,61,.20);}
+#panel-precos .pc-result[data-state="warn"]{box-shadow:inset 0 0 0 1px rgba(202,138,4,.24);}
+#panel-precos .pc-result[data-state="bad"]{box-shadow:inset 0 0 0 1px rgba(220,38,38,.20);}
+#panel-precos .pc-result[data-state="neutral"]{box-shadow:inset 0 0 0 1px rgba(100,116,139,.18);}
+#panel-precos .pc-private-indicator{display:none;align-items:center;justify-items:center;gap:8px;border-radius:18px;padding:22px 16px;margin-top:14px;border:1px solid #d8e0ec;background:#f8fafc;text-align:center;}
+#panel-precos .pc-private-indicator strong{font-size:1.65rem;line-height:1.1;color:#0f172a;}
+#panel-precos .pc-private-indicator small{font-size:.95rem;color:#51607a;}
+#panel-precos .pc-private-indicator[data-state="good"]{background:#ecfdf3;border-color:#9addb8;}
+#panel-precos .pc-private-indicator[data-state="warn"]{background:#fff8e6;border-color:#f3d36d;}
+#panel-precos .pc-private-indicator[data-state="bad"]{background:#fef0f0;border-color:#f3b1b1;}
+#panel-precos .pc-private-indicator[data-state="neutral"]{background:#f8fafc;border-color:#d8e0ec;}
+#panel-precos.pc-private .pc-sensitive,#panel-precos.pc-private .pc-planning{display:none!important;}
+#panel-precos.pc-private .pc-private-indicator{display:grid;}
+#panel-precos.pc-private #pcStatus{margin-bottom:0;}
+#panel-precos.pc-private #pcStatus[data-state="good"]{color:#157f3d;}
+#panel-precos.pc-private #pcStatus[data-state="warn"]{color:#a16207;}
+#panel-precos.pc-private #pcStatus[data-state="bad"]{color:#b91c1c;}
+#panel-precos.pc-private #pcStatus[data-state="neutral"]{color:#334155;}
+#panel-comparativo .mt-controls{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;}
+#panel-comparativo .mt-controls label{display:grid;gap:6px;min-width:210px;color:#5b6880;font-size:.96rem;}
+#panel-comparativo #cmpPeriod{font-size:1rem;font-weight:600;color:#0f172a;margin:6px 0 0;}
+#panel-comparativo .cmp-warning{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;}
+#panel-comparativo .cmp-warning span{display:inline-flex;align-items:center;padding:8px 12px;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;color:#51607a;font-size:.88rem;}
+#panel-comparativo #cmpCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin:18px 0 20px;}
+#panel-comparativo .cmp-card{background:#fff;border:1px solid #e7edf6;border-radius:22px;padding:18px;box-shadow:0 10px 26px rgba(15,23,42,.04);display:grid;gap:10px;}
+#panel-comparativo .cmp-card__head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+#panel-comparativo .cmp-card__head span{display:block;font-size:.96rem;color:#607089;line-height:1.35;max-width:65%;}
+#panel-comparativo .cmp-card strong{font-size:2.05rem;line-height:1.05;color:#0f172a;letter-spacing:-.03em;}
+#panel-comparativo .cmp-card small{font-size:.92rem;color:#51607a;}
+#panel-comparativo .cmp-card p{margin:0;color:#475569;font-size:.9rem;}
+#panel-comparativo .cmp-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.82rem;font-weight:700;white-space:nowrap;border:1px solid transparent;}
+#panel-comparativo .cmp-up .cmp-chip,#panel-comparativo .cmp-up.cmp-opinion{background:#ecfdf3;border-color:#b7e7cb;color:#166534;}
+#panel-comparativo .cmp-down .cmp-chip,#panel-comparativo .cmp-down.cmp-opinion{background:#fef0f0;border-color:#f3b1b1;color:#b91c1c;}
+#panel-comparativo .cmp-warn .cmp-chip,#panel-comparativo .cmp-warn.cmp-opinion{background:#fff8e6;border-color:#f3d36d;color:#a16207;}
+#panel-comparativo .cmp-neutral .cmp-chip,#panel-comparativo .cmp-neutral.cmp-opinion{background:#f8fafc;border-color:#d8e0ec;color:#334155;}
+#panel-comparativo #cmpOpinion{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
+#panel-comparativo .cmp-opinion{border-radius:20px;border-left:4px solid currentColor;padding:18px 18px 16px;display:grid;gap:8px;}
+#panel-comparativo .cmp-opinion strong{font-size:1.08rem;color:currentColor;}
+#panel-comparativo .cmp-opinion p{margin:0;color:#1f2937;line-height:1.55;}
+#panel-comparativo .cmp-trend{display:grid;gap:12px;}
+#panel-comparativo .cmp-trend__row{display:grid;grid-template-columns:120px 1fr;gap:18px;padding:14px 0;border-bottom:1px solid #edf2f7;}
+#panel-comparativo .cmp-trend__label{font-weight:700;color:#1f2937;}
+#panel-comparativo .cmp-trend__values{display:grid;gap:12px;}
+#panel-comparativo .cmp-trend__values > div{display:grid;gap:6px;}
+#panel-comparativo .cmp-trend__values span{font-size:.86rem;color:#64748b;}
+#panel-comparativo .cmp-trend__values strong{font-size:1rem;color:#0f172a;}
+#panel-comparativo .cmp-bar{height:8px;border-radius:999px;background:#e8eef8;overflow:hidden;}
+#panel-comparativo .cmp-bar i{display:block;height:100%;border-radius:999px;background:#3468f5;}
+#panel-comparativo .cmp-bar--ghost i{background:#94a3b8;}
+@media (max-width: 900px){
+  #panel-comparativo .cmp-trend__row{grid-template-columns:1fr;}
+  #panel-comparativo .mt-controls label{min-width:100%;}
+  .page-actions{width:100%;justify-content:flex-start;}
+}
+</style>
 </head>
 <body>
   <section id="ckrAuthGate" class="auth-gate" aria-labelledby="authTitle">
@@ -1021,9 +1081,9 @@
         </section>
 
 <section class="panel" id="panel-precos" aria-labelledby="pc-title">
-<div class="page-heading"><div><p class="eyebrow">CONTROLADORIA · ATENDIMENTO</p><h1 id="pc-title">Política de preços e descontos</h1><p class="subtitle">Escolha os produtos e o pagamento. Consulte os limites antes de negociar.</p></div><button id="pcReset" type="button" class="button button-light">Nova simulação</button></div>
+<div class="page-heading"><div><p class="eyebrow">CONTROLADORIA · ATENDIMENTO</p><h1 id="pc-title">Política de preços e descontos</h1><p class="subtitle">Escolha os produtos e o pagamento. Consulte os limites antes de negociar.</p></div><div class="page-actions"><button id="pcPrivacy" type="button" class="button button-light" aria-pressed="false"><span aria-hidden="true">👁</span><span>Ocultar detalhes</span></button><button id="pcReset" type="button" class="button button-light">Nova simulação</button></div></div>
 <div class="pc-top"><section class="surface pc-work"><h2>1. Produtos da negociação</h2><div class="pc-search"><label>Pesquisar por nome ou código<input id="pcSearch" placeholder="Ex.: colchão, base, travesseiro"></label><label>Produto em estoque<select id="pcProduct"></select></label><button id="pcAdd" type="button" class="button button-primary">Adicionar</button></div><div class="pc-table"><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Preço un. (R$)</th><th>Desc. (%)</th><th id="pcCostHead">PEPS / margem</th><th></th></tr></thead><tbody id="pcItems"></tbody></table></div><h2>2. Formas de pagamento</h2><p class="pc-muted">Combine modalidades em percentuais ou valores fixos. No modo em reais, a última forma recebe automaticamente o restante.</p><label class="pc-mode">Distribuição dos pagamentos<select id="pcPayMode"><option value="share">Percentuais (%)</option><option value="amount">Valores em reais (R$)</option></select></label><div id="pcPays"></div><button id="pcAddPay" type="button" class="button button-light">+ Outra forma de pagamento</button><h2>3. Condições da negociação</h2><div class="pc-fields"><label>Desconto adicional sobre os itens (%)<input id="pcDiscount" type="number" min="0" max="100" step="0.01" value="0"></label><label>Entrega cobrada (R$)<input id="pcDelivery" type="number" min="0" step="0.01" value="0"></label></div></section>
-<aside class="surface pc-result"><p class="eyebrow">PARECER COMERCIAL · <span id="pcPolicyMonth"></span></p><h2 id="pcStatus" aria-live="polite">Aguardando produtos</h2><p id="pcNotice" role="status"></p><div class="pc-limit pc-ideal"><small>DESCONTO MÁXIMO RECOMENDADO</small><strong id="pcMax0">—</strong><span>Preço ideal: <b id="pcLimit0">—</b></span></div><div class="pc-total"><span>Valor final com entrega</span><strong id="pcTotal">—</strong><small>Desconto total sobre mercadorias: <b id="pcActualDiscount">—</b></small><small>Diferença para o preço recomendado: <b id="pcGap">—</b></small><small>Margem de contribuição: <b id="pcMargin">—</b></small><small id="pcMCBox">Contribuição em reais: <b id="pcMC">—</b></small></div><div class="pc-limit"><small>REFERÊNCIA DE EQUILÍBRIO</small><strong id="pcMax1">—</strong><span>Preço de equilíbrio: <b id="pcLimit1">—</b></span></div><div class="pc-limit pc-critical"><small>LIMITE ABSOLUTO · EXCEÇÃO</small><strong id="pcMax2">—</strong><span>Preço sem contribuição: <b id="pcLimit2">—</b></span></div><p class="pc-muted">Preços incluem entrega. Descontos máximos sobre as mercadorias. Em percentuais, mantêm as proporções; em reais, mantêm os valores fixos e ajustam o restante. O equilíbrio é uma referência mensal, não garantia de lucro.</p><details><summary>Detalhes do pagamento</summary><p>Taxa ponderada: <b id="pcFees">—</b></p><p>Crédito vinculado à fábrica: <b id="pcCredit">—</b> (não é despesa).</p></details></aside></div>
+<aside class="surface pc-result" id="pcResultBox" data-state="neutral"><p class="eyebrow">PARECER COMERCIAL · <span id="pcPolicyMonth"></span></p><h2 id="pcStatus" aria-live="polite">Aguardando produtos</h2><div id="pcPrivateIndicator" class="pc-private-indicator" hidden data-state="neutral"><strong id="pcPrivateLabel">Preencha os dados</strong><small id="pcPrivateHint">O desconto será indicado apenas por cor.</small></div><div class="pc-sensitive"><p id="pcNotice" role="status"></p><div class="pc-limit pc-ideal"><small>DESCONTO MÁXIMO RECOMENDADO</small><strong id="pcMax0">—</strong><span>Preço ideal: <b id="pcLimit0">—</b></span></div><div class="pc-total"><span>Valor final com entrega</span><strong id="pcTotal">—</strong><small>Desconto total sobre mercadorias: <b id="pcActualDiscount">—</b></small><small>Diferença para o preço recomendado: <b id="pcGap">—</b></small><small>Margem de contribuição: <b id="pcMargin">—</b></small><small id="pcMCBox">Contribuição em reais: <b id="pcMC">—</b></small></div><div class="pc-limit"><small>REFERÊNCIA DE EQUILÍBRIO</small><strong id="pcMax1">—</strong><span>Preço de equilíbrio: <b id="pcLimit1">—</b></span></div><div class="pc-limit pc-critical"><small>LIMITE ABSOLUTO · EXCEÇÃO</small><strong id="pcMax2">—</strong><span>Preço sem contribuição: <b id="pcLimit2">—</b></span></div><p class="pc-muted">Preços incluem entrega. Descontos máximos sobre as mercadorias. Em percentuais, mantêm as proporções; em reais, mantêm os valores fixos e ajustam o restante. O equilíbrio é uma referência mensal, não garantia de lucro.</p><details><summary>Detalhes do pagamento</summary><p>Taxa ponderada: <b id="pcFees">—</b></p><p>Crédito vinculado à fábrica: <b id="pcCredit">—</b> (não é despesa).</p></details></div></aside></div>
 <section class="surface pc-planning"><h2>Planejamento mensal</h2><label>Mês da política<input id="pcMonth" type="month"></label><p id="pcPlanSummary"></p><p id="pcSaved" class="pc-muted"></p><details id="pcAdmin"><summary>Configurações administrativas</summary><p class="pc-muted">Referência: vendas de mercadorias não canceladas, menos movimentos de devolução do mesmo mês anterior. A referência de dezembro/2026 foi conferida no backup enviado. Confira com a DRE antes de salvar.</p><div class="pc-fields"><label>Faturamento do mesmo mês anterior (R$)<input id="pc_base" type="number" step=".01" min="0"></label><label>Crescimento (%)<input id="pc_growth" type="number" step=".01"></label><label>Orçamento operacional (R$)<input id="pc_fixed" type="number" min="0" step=".01"></label><label>Lucro desejado (%)<input id="pc_profit" type="number" min="0" max="99" step=".01"></label><label>Simples manual (%) — vazio = automático<input id="pc_tax" type="number" min="0" max="99" step=".01"></label></div><button id="pcSave" type="button" class="button button-primary">Salvar política mensal</button></details><p class="pc-muted">Simulação sem registrar venda. Não contempla comissão, reposição, manutenção ou risco de inadimplência. Combustível incluído no orçamento de referência.</p></section></section>
         <section class="panel" id="panel-metas" aria-labelledby="metasTitle">
 <div class="page-heading"><div><p class="eyebrow">CONTROLADORIA · DESEMPENHO</p><h1 id="metasTitle">Metas e desempenho comercial</h1><p class="subtitle">Acompanhe o mês e identifique quanto falta para atingir os objetivos.</p></div><button class="button button-light" id="metasRefresh" type="button">Atualizar</button></div>
@@ -1034,7 +1094,7 @@
 <section class="surface mt-progress"><h2>Parecer da Controladoria</h2><div id="metasOpinion" class="mt-opinions"></div></section><section class="surface mt-progress"><h2>Evolução diária do faturamento</h2><p class="mt-muted">Realizado acumulado e meta ponderada pelas horas comerciais. Valores comerciais líquidos de movimentos de devolução, sem serviços.</p><div id="metasChart"></div><details><summary>Conferir valores por dia</summary><div class="mt-table"><table><thead><tr><th>Dia</th><th>Realizado no dia</th><th>Acumulado</th><th>Horas</th><th>Meta diária original</th><th>Meta acumulada</th><th>Meta restante redistribuída</th></tr></thead><tbody id="metasDays"></tbody></table></div></details></section><section class="surface mt-progress"><details><summary>Configurações administrativas · calendário comercial</summary><p class="mt-muted">Horas de loja aberta por dia. Segunda a sexta: 08h–18h (sem fechamento no almoço); sábado: 08h–14h; domingo fechado. Exceções por data substituem o horário regular. O dia atual considera as horas transcorridas desde a abertura (08h por padrão). Alterações do horário regular recalculam também meses históricos.</p><div id="metasWeek" class="mt-week"></div><label>Horário regular de abertura<input type="time" id="metasOpen" value="08:00"></label><button type="button" class="button button-light" id="metasSaveWeek">Salvar horário regular</button><h2 style="margin-top:20px">Feriados e expedientes excepcionais</h2><div class="mt-week"><label>Data<input type="date" id="metasExceptionDate"></label><label>Horas (0 = fechado)<input type="number" id="metasExceptionHours" min="0" max="24" step="0.5" value="0"></label><label>Abertura excepcional<input type="time" id="metasExceptionOpen" value="08:00"></label><label>Observação<input type="text" id="metasExceptionNote" maxlength="120"></label></div><button type="button" class="button button-light" id="metasSaveException">Salvar exceção</button><div class="mt-table"><table><thead><tr><th>Data</th><th>Horas</th><th>Motivo</th><th>Ação</th></tr></thead><tbody id="metasExceptions"></tbody></table></div></details></section>
 <section class="surface mt-progress"><h2>Critérios e limitações</h2><p class="mt-muted">Metas compartilhadas com Política de preços e descontos, sem novos parâmetros ou lançamentos. Faturamento comercial: vendas de mercadorias não canceladas menos movimentos de devolução; não equivale necessariamente ao faturamento fiscal ou à DRE. Ritmo e projeção pelas horas comerciais configuradas; o dia atual considera apenas as horas transcorridas. A margem vem do módulo de contribuição, somente vendas calculáveis, antes de eventuais devoluções não conciliadas. Resultado da DRE tem escopo próprio. Projeções não são garantias.</p></section></section>
 <section class="panel" id="panel-comparativo"><div class="page-heading"><div><p class="eyebrow">CONTROLADORIA · EVOLUÇÃO</p><h1>Comparativo de desempenho</h1><p class="subtitle">Compare resultados comerciais, econômicos e financeiros em bases equivalentes.</p></div><button type="button" id="cmpRefresh" class="button button-light">Atualizar</button></div>
-<section class="surface mt-progress"><div class="mt-controls"><label>Modalidade<select id="cmpMode"><option value="year">Mesmo mês do ano anterior</option><option value="month">Mês anterior</option><option value="custom">Períodos personalizados</option></select></label><label>Mês analisado<input type="month" id="cmpMonth"></label><label><input type="checkbox" id="cmpEqual" checked> Limitar referência ao mesmo número de dias</label></div><div class="mt-controls" id="cmpDates" hidden><label>Início analisado<input type="date" id="cmpA0"></label><label>Fim analisado<input type="date" id="cmpA1"></label><label>Início referência<input type="date" id="cmpB0"></label><label>Fim referência<input type="date" id="cmpB1"></label></div><p id="cmpPeriod" role="status"></p><p id="cmpWarning" class="mt-muted"></p></section>
+<section class="surface mt-progress"><div class="mt-controls"><label>Modalidade<select id="cmpMode"><option value="year">Mesmo mês do ano anterior</option><option value="month">Mês anterior</option><option value="custom">Períodos personalizados</option></select></label><label>Mês analisado<input type="month" id="cmpMonth"></label><label><input type="checkbox" id="cmpEqual" checked> Limitar referência ao mesmo número de dias</label></div><div class="mt-controls" id="cmpDates" hidden><label>Início analisado<input type="date" id="cmpA0"></label><label>Fim analisado<input type="date" id="cmpA1"></label><label>Início referência<input type="date" id="cmpB0"></label><label>Fim referência<input type="date" id="cmpB1"></label></div><p id="cmpPeriod" role="status"></p><div id="cmpWarning" class="mt-muted"></div></section>
 <div class="mt-grid" id="cmpCards"></div><section class="surface mt-progress"><h2>Parecer da Controladoria</h2><div id="cmpOpinion" class="mt-opinions"></div></section><section class="surface mt-progress"><h2>Comparação detalhada</h2><div class="mt-table"><table><thead><tr><th>Indicador</th><th>Referência</th><th>Analisado</th><th>Variação absoluta</th><th>Variação relativa</th></tr></thead><tbody id="cmpRows"></tbody></table></div><p class="mt-muted">Margens: diferença em pontos percentuais. Variação relativa não calculada para base zero ou negativa. Faturamento comercial exclui serviços; margem de contribuição considera vendas calculáveis antes de devoluções não conciliadas. DRE e DFC mantêm seus próprios critérios. Ausência de dados não equivale a zero.</p></section><section class="surface mt-progress"><h2>Evolução mensal do faturamento comercial</h2><div id="cmpTrend"></div><p class="mt-muted">Últimos 12 meses até o fim do período analisado; comparação com os mesmos meses do ano anterior. Último mês limitado à data selecionada e referência ao mesmo dia.</p></section></section>
         <section class="panel" id="panel-auditoria">
 <div class="page-heading"><div><p class="eyebrow">CONTROLADORIA · CONCILIAÇÃO</p><h1>Auditoria e fechamento mensal</h1><p class="subtitle">Preparação da base oficial a partir de 01/12/2026. Setembro a novembro: período de implantação e testes.</p></div></div>
@@ -2717,9 +2777,9 @@
   window.ckrSaudeEstoqueAnalise=calc; // Somente consulta / testes
 })();
 </script>
-<script src="precos.js?v=122"></script>
+<script src="precos.js?v=127"></script>
 <script src="metas.js?v=126"></script>
 <script src="auditoria.js?v=125"></script>
-<script src="comparativo.js?v=126"></script>
+<script src="comparativo.js?v=127"></script>
 </body>
 </html>
