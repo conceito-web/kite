@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=120">
+  <link rel="stylesheet" href="style.css?v=121">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -329,6 +329,7 @@
           <div class="nav-group-items" id="navGroupItems5" hidden>
             <button type="button" class="nav-link" data-panel="contribuicao"><span class="nav-icon" aria-hidden="true">◈</span> Margem de contribuição</button>
             <button type="button" class="nav-link" data-panel="equilibrio"><span class="nav-icon" aria-hidden="true">◎</span> Ponto de equilíbrio</button>
+            <button type="button" class="nav-link" data-panel="precos"><span class="nav-icon" aria-hidden="true">%</span> Política de preços e descontos</button>
             <button type="button" class="nav-link" data-panel="rentabilidade"><span class="nav-icon" aria-hidden="true">▥</span> Rentabilidade por produto</button>
             <button type="button" class="nav-link" data-panel="orcado"><span class="nav-icon" aria-hidden="true">▤</span> Planejado × realizado</button>
           </div>
@@ -1016,6 +1017,11 @@
           </section>
         </section>
 
+<section class="panel" id="panel-precos" aria-labelledby="pc-title">
+<div class="page-heading"><div><p class="eyebrow">CONTROLADORIA · ATENDIMENTO</p><h1 id="pc-title">Política de preços e descontos</h1><p class="subtitle">Escolha os produtos e o pagamento. Consulte os limites antes de negociar.</p></div><button id="pcReset" type="button" class="button button-light">Nova simulação</button></div>
+<div class="pc-top"><section class="surface pc-work"><h2>1. Produtos da negociação</h2><div class="pc-search"><label>Pesquisar por nome ou código<input id="pcSearch" placeholder="Ex.: colchão, base, travesseiro"></label><label>Produto em estoque<select id="pcProduct"></select></label><button id="pcAdd" type="button" class="button button-primary">Adicionar</button></div><div class="pc-table"><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Preço un. (R$)</th><th>Desc. (%)</th><th id="pcCostHead">PEPS / margem</th><th></th></tr></thead><tbody id="pcItems"></tbody></table></div><h2>2. Formas de pagamento</h2><p class="pc-muted">Combine modalidades. Os percentuais somam 100% e acompanham o preço negociado.</p><div id="pcPays"></div><button id="pcAddPay" type="button" class="button button-light">+ Outra forma de pagamento</button><h2>3. Condições da negociação</h2><div class="pc-fields"><label>Desconto adicional sobre os itens (%)<input id="pcDiscount" type="number" min="0" max="100" step="0.01" value="0"></label><label>Entrega cobrada (R$)<input id="pcDelivery" type="number" min="0" step="0.01" value="0"></label></div></section>
+<aside class="surface pc-result"><p class="eyebrow">PARECER COMERCIAL</p><h2 id="pcStatus" aria-live="polite">Aguardando produtos</h2><p id="pcNotice" role="status"></p><div class="pc-total"><span>Valor final com entrega</span><strong id="pcTotal">—</strong><small>Margem de contribuição: <b id="pcMargin">—</b></small><small id="pcMCBox">Contribuição em reais: <b id="pcMC">—</b></small></div><div class="pc-limit pc-ideal"><small>DESCONTO MÁXIMO RECOMENDADO</small><strong id="pcMax0">—</strong><span>Preço ideal: <b id="pcLimit0">—</b></span></div><div class="pc-limit"><small>REFERÊNCIA DE EQUILÍBRIO</small><strong id="pcMax1">—</strong><span>Preço de equilíbrio: <b id="pcLimit1">—</b></span></div><div class="pc-limit pc-critical"><small>LIMITE ABSOLUTO · EXCEÇÃO</small><strong id="pcMax2">—</strong><span>Preço sem contribuição: <b id="pcLimit2">—</b></span></div><p class="pc-muted">Preços incluem entrega. Descontos máximos sobre o total de tabela informado; mantêm a proporção dos pagamentos. O equilíbrio é uma referência mensal, não garantia de lucro.</p><details><summary>Detalhes do pagamento</summary><p>Taxa ponderada: <b id="pcFees">—</b></p><p>Crédito vinculado à fábrica: <b id="pcCredit">—</b> (não é despesa).</p></details></aside></div>
+<section class="surface pc-planning"><h2>Planejamento mensal</h2><label>Mês da política<input id="pcMonth" type="month"></label><p id="pcPlanSummary"></p><p id="pcSaved" class="pc-muted"></p><details id="pcAdmin"><summary>Configurações administrativas</summary><p class="pc-muted">Referência: vendas de mercadorias não canceladas, menos movimentos de devolução do mesmo mês anterior. A referência de dezembro/2026 foi conferida no backup enviado. Confira com a DRE antes de salvar.</p><div class="pc-fields"><label>Faturamento do mesmo mês anterior (R$)<input id="pc_base" type="number" step=".01" min="0"></label><label>Crescimento (%)<input id="pc_growth" type="number" step=".01"></label><label>Orçamento operacional (R$)<input id="pc_fixed" type="number" min="0" step=".01"></label><label>Lucro desejado (%)<input id="pc_profit" type="number" min="0" max="99" step=".01"></label><label>Simples manual (%) — vazio = automático<input id="pc_tax" type="number" min="0" max="99" step=".01"></label></div><button id="pcSave" type="button" class="button button-primary">Salvar política mensal</button></details><p class="pc-muted">Simulação sem registrar venda. Não contempla comissão, reposição, manutenção ou risco de inadimplência. Combustível incluído no orçamento de referência.</p></section></section>
         <section class="panel" id="panel-equilibrio" aria-labelledby="pe-title">
           <div class="page-heading">
             <div>
@@ -1437,7 +1443,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
-  <script src="app.js?v=44"></script>
+  <script src="app.js?v=45"></script>
   <script src="modulos.js?v=38"></script>
   <script src="encomendas.js?v=6"></script>
   <script>
@@ -1822,7 +1828,7 @@
     });
   </script>
   <script src="caixa.js?v=24"></script>
-  <script src="impostos.js?v=14"></script>
+  <script src="impostos.js?v=15"></script>
   <script src="dre.js?v=117"></script>
   <script src="fluxo.js?v=2"></script>
   <script src="dashboard.js?v=3"></script>
@@ -2691,5 +2697,6 @@
   window.ckrSaudeEstoqueAnalise=calc; // Somente consulta / testes
 })();
 </script>
+<script src="precos.js?v=121"></script>
 </body>
 </html>
