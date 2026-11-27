@@ -427,14 +427,14 @@ const recPays=r=>Array.isArray(r.recPayments)&&r.recPayments.length?r.recPayment
 function recStatus(r){
  if(r.canceled)return {k:'cancelada',t:'Cancelada'};
  if(r.paid)return {k:'recebida',t:'Recebida'};
- const d=daysBetween(todayKey(),r.dueDate),lim=getSettings().promissory.remindDays;
+ const d=daysBetween(todayKey(),r.dueDate),lim=Math.max(1,getSettings().promissory.remindDays);
  if(d<0)return {k:'vencida',t:`Vencida há ${-d} ${-d===1?'dia':'dias'}`,urgent:true,late:true};
  if(d===0)return {k:'avencer',t:'Vence hoje',urgent:true};
- if(d<=lim)return {k:'avencer',t:`Vence em ${d} ${d===1?'dia':'dias'}`,urgent:true};
+ if(d<=lim)return {k:'avencer',t:d===1?'Vence amanhã':`Vence em ${d} dias`,urgent:true};
  return {k:'aberta',t:`Vence em ${d} dias`};
 }
 function renderProm(){
- const lim=getSettings().promissory.remindDays,all=receivables().filter(r=>!r.canceled),open=all.filter(r=>!r.paid),late=open.filter(r=>recStatus(r).late),soon=open.filter(r=>recStatus(r).urgent&&!recStatus(r).late);
+ const lim=Math.max(1,getSettings().promissory.remindDays),all=receivables().filter(r=>!r.canceled),open=all.filter(r=>!r.paid),late=open.filter(r=>recStatus(r).late),soon=open.filter(r=>recStatus(r).urgent&&!recStatus(r).late);
  const mk=todayKey().slice(0,7),recMonth=all.flatMap(recPays).filter(p=>p.at&&localDateKey(p.at).slice(0,7)===mk);
  $('promAberto').textContent=money(sumRem(open));$('promAbertoNota').textContent=`${open.length} parcela(s) em aberto`;
  $('promVencidas').textContent=money(sumRem(late));$('promVencidasNota').textContent=`${late.length} parcela(s) vencida(s)`;
@@ -442,7 +442,7 @@ function renderProm(){
  $('promRecebido').textContent=money(rr(recMonth.reduce((n,p)=>n+p.amount,0)));$('promRecebidoNota').textContent=`${recMonth.length} recebimento(s) neste mês`;
  const urgent=late.length+soon.length,badge=$('menuPromissorias');badge.textContent=urgent;badge.classList.toggle('alert',urgent>0);
  const al=$('promAlerta');al.hidden=!urgent;
- if(urgent)$('promAlertaTexto').textContent=[late.length?`${late.length} parcela(s) de promissória vencida(s) (${money(sumRem(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sumRem(soon))})`:''].filter(Boolean).join(' · ');
+ if(urgent)$('promAlertaTexto').textContent=[late.length?`${late.length} parcela(s) de promissória vencida(s) (${money(sumRem(late))})`:'',...[[0,'hoje'],[1,'amanhã']].map(([d,label])=>{const a=soon.filter(r=>daysBetween(todayKey(),r.dueDate)===d);return a.length?`${a.length} vence(m) ${label} (${money(sumRem(a))})`:'';}),soon.some(r=>daysBetween(todayKey(),r.dueDate)>1)?`${soon.filter(r=>daysBetween(todayKey(),r.dueDate)>1).length} em até ${lim} dias`:''].filter(Boolean).join(' · ');
  const q=fold($('promBusca').value).trim(),f=$('promStatus').value,dDe=$('promDe').value,dAte=$('promAte').value;
  const rows=receivables().filter(r=>{const st=recStatus(r);if(st.k==='cancelada')return false;if(q&&!fold(r.client+' '+r.saleId).includes(q))return false;if(dDe&&r.dueDate<dDe)return false;if(dAte&&r.dueDate>dAte)return false;return f==='todas'||(f==='abertas'&&!r.paid)||(f==='vencidas'&&st.late)||(f==='avencer'&&st.urgent&&!st.late)||(f==='recebidas'&&(r.paid||recGot(r)>0.004));}).sort((x,y)=>x.dueDate.localeCompare(y.dueDate)||String(x.client).localeCompare(String(y.client),'pt-BR'));
  $('promRows').innerHTML=rows.map(r=>{
@@ -582,7 +582,7 @@ $('taxasForm').addEventListener('submit',e=>{
  document.querySelectorAll('#panel-taxas [data-rate]').forEach(i=>{const [b,k]=i.dataset.rate.split('.');st.rates[b][k]=parsePercentInput(i.value);});
  st.blu={online:parsePercentInput($('bluOnline').value),extraFrom:Math.max(1,Math.round(Number($('bluExtraDe').value)||10)),extraPerInstallment:parsePercentInput($('bluExtraParcela').value)};
  st.factoryCreditPct=Math.min(100,parsePercentInput($('fabCreditoPct').value));
- st.promissory={remindDays:Math.max(0,Math.round(Number($('promLembreteDias').value)||0))};
+ st.promissory={remindDays:Math.max(1,Math.round(Number($('promLembreteDias').value)||1))};
  // Atualiza somente os parâmetros desta tela, sem apagar preferências de outros módulos (ex.: quoteDays).
  const atual=data.settings&&typeof data.settings==='object'&&!Array.isArray(data.settings)?data.settings:{};
  data.settings={...atual,
@@ -864,6 +864,38 @@ function pedMakeOrder(c){
   payMethod:[...new Set(c.pays.map(p=>p.method))].join(' + '),payments:c.pays.map(p=>({method:p.method,amount:p.amount,terms:p.terms})),
   terms:[...new Set(c.installments.map(i=>i.days))].sort((a,b)=>a-b),installments:c.installments,note:$('pedObs').value.trim()};
 }
+// v123: obrigação anterior, sem entrada de estoque, crédito ou pagamento.
+$('pedLegadoAbrir').addEventListener('click',()=>{
+ if(!hasFullAccess()){toast('Somente administrador pode cadastrar obrigações.',true);return;}
+ const ov=document.createElement('div');ov.className='ped-modal';
+ ov.innerHTML=`<div class="ped-modal-box" role="dialog" aria-modal="true" aria-label="Cadastrar boletos anteriores" style="max-height:85vh;overflow:auto;width:min(720px,94vw);max-width:720px"><h3>Cadastrar boletos anteriores</h3><p class="ped-modal-sub">Ortobom · informe apenas parcelas ainda não pagas. Não altera estoque, DRE ou caixa.</p><label class="field">Número da nota / referência (opcional)<input class="legNF" maxlength="100"></label><label class="field">Data da compra (opcional)<input type="date" class="legData"></label><label class="field">Observação<input class="legObs" maxlength="300" placeholder="Ex.: dívida anterior ao Conceito"></label><h4>Parcelas em aberto</h4><div class="legRows"></div><button type="button" class="button button-light legAdd">+ Adicionar parcela</button><p class="legTotal" aria-live="polite"></p><div class="form-actions"><button type="button" class="button button-primary legSave">Cadastrar obrigação</button><button type="button" class="button button-light legCancel">Cancelar</button></div></div>`;
+ document.body.appendChild(ov);
+ const rows=ov.querySelector('.legRows'),q=s=>ov.querySelector(s),close=()=>{ov.remove();document.removeEventListener('keydown',escKey);},escKey=e=>{if(e.key==='Escape')close();};
+ const values=()=>[...rows.children].map(r=>({dueDate:r.querySelector('.legDue').value,amount:r2(parseMoneyInput(r.querySelector('.legAmount').value)),reference:r.querySelector('.legRef').value.trim()}));
+ const total=()=>{q('.legTotal').textContent='Total pendente: '+money(r2(values().reduce((n,p)=>n+p.amount,0)));};
+ const add=()=>{const r=document.createElement('div');r.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin:10px 0';r.innerHTML='<label class="field">Vencimento<input type="date" class="legDue"></label><label class="field">Valor (R$)<input inputmode="numeric" class="legAmount" placeholder="0,00"></label><label class="field">Nº boleto (opcional)<input class="legRef" maxlength="100"></label><button type="button" class="button button-light legRemove" aria-label="Remover parcela">×</button>';rows.append(r);bindMoneyMask(r.querySelector('.legAmount'));r.addEventListener('input',total);r.addEventListener('money-mask-updated',total);r.querySelector('.legRemove').onclick=()=>{if(rows.children.length>1){r.remove();total();}};total();};
+ add();q('.legAdd').onclick=add;q('.legCancel').onclick=close;document.addEventListener('keydown',escKey);ov.addEventListener('click',e=>{if(e.target===ov)close();});
+ q('.legSave').onclick=()=>{
+  if(!hasFullAccess())return;const ps=values(),nf=q('.legNF').value.trim(),purchase=q('.legData').value,now=new Date().toISOString(),today=localDateKey(new Date());
+  if(!ps.length||ps.some(x=>!x.dueDate||!Number.isFinite(x.amount)||x.amount<=0)){toast('Preencha vencimento e valor positivo de todas as parcelas.',true);return;}
+  if(purchase&&(purchase>today||ps.some(x=>x.dueDate<purchase))){toast('A data da compra não pode ser futura nem posterior ao vencimento.',true);return;}
+  const norm=x=>String(x||'').trim().toLowerCase(),key=x=>x.dueDate+'|'+x.amount.toFixed(2)+'|'+norm(x.reference);
+  if(new Set(ps.map(key)).size!==ps.length||new Set(ps.filter(x=>x.reference).map(x=>norm(x.reference))).size!==ps.filter(x=>x.reference).length){toast('Há parcelas repetidas no formulário. Informe referências distintas se forem boletos diferentes.',true);return;}
+  const existing=orders().flatMap(o=>o.installments.map(p=>({o,p})));
+  if(ps.some(x=>x.reference&&existing.some(({p})=>norm(p.reference)===norm(x.reference)))){toast('Número de boleto já cadastrado. Confira os pedidos registrados.',true);return;}
+  const suspects=ps.filter(x=>existing.some(({o,p})=>p.dueDate===x.dueDate&&Math.abs(Number(p.amount)-x.amount)<.01)|| (data.expenses||[]).some(e=>Math.abs(Number(e.amount)-x.amount)<.01&&[e.dueDate,e.paidDate,e.date].includes(x.dueDate)));
+  if(suspects.length&&!confirm('Possível duplicidade: '+suspects.length+' parcela(s) coincidem em data e valor com pedidos ou despesas existentes. Confira os registros. Continuar somente se forem dívidas distintas?'))return;
+  if(nf&&orders().some(o=>norm(o.invoiceNumber)===norm(nf))&&!confirm('Já existe registro com essa nota/referência. Confirma que estas parcelas ainda não foram cadastradas?'))return;
+  const amount=r2(ps.reduce((n,x)=>n+x.amount,0));if(!confirm('Cadastrar '+ps.length+' boleto(s), total '+money(amount)+'? Nenhum pagamento será registrado.'))return;
+  const base=purchase||today, installments=ps.sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).map((x,i)=>({...x,n:i+1,of:ps.length,method:'Boleto',days:keyDiff(base,x.dueDate),paid:false,paidAt:''}));
+  const o={id:id(),num:Math.max(0,...orders().map(x=>Number(x.num)||0))+1,date:base,legacyObligation:true,purchaseDate:purchase,invoiceNumber:nf,items:[],total:amount,creditUsed:0,remainder:amount,payMethod:'Boleto',payments:[],terms:[],installments,note:q('.legObs').value.trim(),delivered:true,deliveredAt:'',by:currentUserName(),createdAt:now};
+  // Não chamar saveData para evitar rollback ambíguo caso renderAll falhe depois de persistir.
+  if(window.ckrStorageCorrompido){toast('Gravação bloqueada: restaure um backup válido.',true);return;}
+  orders().push(o);try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(e){orders().pop();toast('Não foi possível salvar a obrigação.',true);return;}
+  close();try{renderAll();}catch(e){console.error(e);}toast('Obrigação anterior cadastrada.');
+ };
+});
+
 $('pedSalvar').addEventListener('click',()=>{
  const c=pedCollect();if(c.err){toast(c.err,true);return;}
  const o={id:id(),...pedMakeOrder(c),delivered:$('pedEntregue').checked,deliveredAt:$('pedEntregue').checked?c.now:'',by:currentUserName(),createdAt:c.now};
@@ -923,42 +955,43 @@ function pedStatus(p,lim){
  if(p.paid)return {k:'recebida',t:'Paga',late:false,urgent:false};
  const d=todayDiff(p.dueDate);
  if(d<0)return {k:'vencida',t:`Vencida há ${-d} dia(s)`,late:true,urgent:true};
- if(d<=lim)return {k:'avencer',t:d===0?'Vence hoje':`Vence em ${d} dia(s)`,late:false,urgent:true};
+ if(d<=lim)return {k:'avencer',t:d===0?'Vence hoje':d===1?'Vence amanhã':`Vence em ${d} dia(s)`,late:false,urgent:true};
  return {k:'aberta',t:`Vence em ${d} dia(s)`,late:false,urgent:false};
 }
 function renderPedidos(){
  pedEnsureNums();
- const f=factoryStats(),lim=getSettings().promissory.remindDays,q=fold($('pedBusca').value);
+ const f=factoryStats(),lim=Math.max(1,getSettings().promissory.remindDays),q=fold($('pedBusca').value);
  const all=orders().slice().sort((a,b)=>b.date.localeCompare(a.date)||String(b.createdAt).localeCompare(String(a.createdAt)));
  const open=[];all.forEach(o=>o.installments.forEach(p=>{if(!p.paid)open.push({o,p,st:pedStatus(p,lim)});}));
  open.sort((a,b)=>a.p.dueDate.localeCompare(b.p.dueDate));
  const sum=l=>r2(l.reduce((s,x)=>s+x.p.amount,0)),late=open.filter(x=>x.st.late),soon=open.filter(x=>x.st.urgent&&!x.st.late),urgent=late.length+soon.length;
  $('pedStatSaldo').textContent=f.bal>=0?money(f.bal):money(0);
- $('pedStatPedidos').textContent=`${all.length} · ${money(r2(all.reduce((s,o)=>s+o.total,0)))}`;
+ $('pedStatPedidos').textContent=`${all.filter(o=>!o.legacyObligation).length} · ${money(r2(all.filter(o=>!o.legacyObligation).reduce((s,o)=>s+o.total,0)))}`;
  $('pedStatPendente').textContent=money(sum(open));
  $('pedStatEntrega').textContent=all.filter(o=>!o.delivered).length;
  const badge=$('menuPedidos');badge.textContent=urgent;badge.classList.toggle('alert',urgent>0);
- const proxima=soon.length?` (próximo: ${brDate(soon[0].p.dueDate)})`:'';
- const txt=[late.length?`${late.length} boleto(s)/parcela(s) da fábrica vencido(s) (${money(sum(late))})`:'',soon.length?`${soon.length} vence(m) em até ${lim} dia(s) (${money(sum(soon))})${proxima}`:''].filter(Boolean).join(' · ');
+ const dueToday=soon.filter(x=>todayDiff(x.p.dueDate)===0),dueTomorrow=soon.filter(x=>todayDiff(x.p.dueDate)===1),later=soon.filter(x=>todayDiff(x.p.dueDate)>1);
+ 
+ const txt=[late.length?`${late.length} boleto(s)/parcela(s) da fábrica vencido(s) (${money(sum(late))})`:'',dueToday.length?`${dueToday.length} vence(m) hoje (${money(sum(dueToday))})`:'',dueTomorrow.length?`${dueTomorrow.length} vence(m) amanhã (${money(sum(dueTomorrow))})`:'',later.length?`${later.length} em até ${lim} dias (${money(sum(later))})`:''].filter(Boolean).join(' · ');
  $('pedAlerta').hidden=!urgent;$('pedAlertaPainel').hidden=!urgent;$('pedAlertaTexto').textContent=txt;$('pedAlertaPainelTexto').textContent=txt;
- $('pedAgenda').innerHTML=open.map(({o,p,st})=>`<tr><td><b>${esc(brDate(p.dueDate))}</b></td><td><span class="pill ${st.k}">${esc(st.t)}</span></td><td><b>${money(p.amount)}</b></td><td>${p.n}/${p.of} · ${esc(p.method||o.payMethod||'')} · ${keyDiff(pedBaseFor(o,p),p.dueDate)} dias</td><td><b>Pedido nº ${o.num}</b> · ${esc(brDate(o.date))}${o.invoiceNumber?` · NF ${esc(o.invoiceNumber)}`:''}<br><small>${esc(o.items.map(i=>i.name).join(', '))}</small></td><td><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">Marcar paga</button></td></tr>`).join('');
+ $('pedAgenda').innerHTML=open.map(({o,p,st})=>`<tr><td><b>${esc(brDate(p.dueDate))}</b></td><td><span class="pill ${st.k}">${esc(st.t)}</span></td><td><b>${money(p.amount)}</b></td><td>${p.n}/${p.of} · ${esc(p.method||o.payMethod||'')} · ${o.legacyObligation?esc(p.reference||'Vencimento manual'):keyDiff(pedBaseFor(o,p),p.dueDate)+' dias'}</td><td><b>${o.legacyObligation?'Obrigação anterior nº':'Pedido nº'} ${o.num}</b> · ${esc(brDate(o.date))}${o.invoiceNumber?` · NF ${esc(o.invoiceNumber)}`:''}<br><small>${esc(o.items.map(i=>i.name).join(', '))}</small></td><td><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">Marcar paga</button></td></tr>`).join('');
  $('pedAgendaVazio').style.display=open.length?'none':'block';
  $('pedProdutos').innerHTML=data.products.map(p=>`<option value="${esc(p.name)}"></option>`).join('');
  const fe=$('pedFiltroEntrega').value;
- const list=all.filter(o=>(fe==='todos'||(fe==='aguardando'&&!o.delivered)||(fe==='entregues'&&o.delivered))&&(!q||fold([brDate(o.date),o.num,o.invoiceNumber,o.payMethod,o.note,o.items.map(i=>i.name).join(' ')].join(' ')).includes(q)));
+ const list=all.filter(o=>(fe==='todos'||(fe==='aguardando'&&!o.delivered)||(fe==='entregues'&&o.delivered))&&(!q||fold([brDate(o.date),o.num,o.invoiceNumber,o.payMethod,o.note,o.legacyObligation?'obrigação anterior manual':'',o.installments.map(p=>p.reference||'').join(' '),o.items.map(i=>i.name).join(' ')].join(' ')).includes(q)));
  $('pedLista').innerHTML=list.map(o=>{
-  const prods=o.items.map(i=>`${i.qty}× ${esc(i.name)} (${money(i.unit)})`).join('<br>');
+  const prods=o.legacyObligation?'<b>Obrigação anterior · manual</b>':o.items.map(i=>`${i.qty}× ${esc(i.name)} (${money(i.unit)})`).join('<br>');
   const ds=`data-oid="${esc(o.id)}"`;
   const parc=o.installments.length?o.installments.map(p=>{
    const st=pedStatus(p,lim),dias=keyDiff(pedBaseFor(o,p),p.dueDate),m=p.method||o.payMethod||'';
    const edit=p.paid?`${esc(brDate(p.dueDate))} · <b>${money(p.amount)}</b>`:`<input type="date" class="ped-inline pedInstData" value="${esc(p.dueDate)}" ${ds} data-n="${p.n}" aria-label="Vencimento"> <input type="text" inputmode="numeric" autocomplete="off" class="ped-inline pedInstVal" value="${fmtBR(p.amount)}" ${ds} data-n="${p.n}" aria-label="Valor da parcela">`;
-   return `<span class="p">${p.n}/${p.of} · ${esc(m)} · ${p.paid&&dias===0?'à vista':`<b>${dias} dias</b>`} · ${edit} <span class="pill ${st.k}">${esc(st.t)}</span><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">${p.paid?'Desmarcar':'Marcar paga'}</button></span>`;
+   return `<span class="p">${p.n}/${p.of} · ${esc(m)} · ${o.legacyObligation?esc(p.reference||'Vencimento manual'):p.paid&&dias===0?'à vista':`<b>${dias} dias</b>`} · ${edit} <span class="pill ${st.k}">${esc(st.t)}</span><button type="button" class="row-action" data-ped-pay="${esc(o.id)}|${p.n}">${p.paid?'Desmarcar':'Marcar paga'}</button></span>`;
   }).join(''):'<span class="p">Pago totalmente com crédito da fábrica</span>';
   const somaP=r2(o.installments.reduce((a,p)=>a+p.amount,0)),dif=r2(somaP-(o.remainder||0));
   const difHtml=(o.installments.length&&Math.abs(dif)>0.009)?`<span class="p"><span class="pill vencida">Parcelas somam ${money(somaP)}: ${dif>0?'acima':'abaixo'} do restante do pedido em ${money(Math.abs(dif))}</span></span>`:'';
   const restoTxt=o.remainder>0?((o.payments&&o.payments.length)?o.payments.map(x=>`${money(x.amount)} · <b>${esc(x.method)}</b>`).join('<br>'):`${money(o.remainder)} · <b>${esc(o.payMethod)}</b>`):'—';
   const prazoTxt=(o.payments&&o.payments.length)?o.payments.map(x=>termsText(x.terms)).join('<br>'):(o.terms.length?termsText(o.terms):'—');
-  return `<tr><td><b>Nº ${o.num}</b><br>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${restoTxt}</td><td>${prazoTxt}</td><td>${o.delivered?`<span class="pill recebida">Entregue</span>${o.deliveredAt?`<br><small>${esc(dateText(o.deliveredAt))}</small>`:''}${o.invoiceDate?`<br><small>Nota: ${esc(brDate(o.invoiceDate))}${o.invoiceNumber?` · nº ${esc(o.invoiceNumber)}`:''}</small>`:''}<br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Desmarcar</button>`:`<span class="pill aberta">Aguardando</span><br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Marcar entregue</button>`}</td><td><button type="button" class="row-action" data-ped-pdf="${esc(o.id)}">PDF</button><button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="7"><div class="ped-parc">${parc}${difHtml}</div></td></tr>`;
+  return `<tr><td><b>Nº ${o.num}</b><br>${esc(brDate(o.date))}</td><td>${prods}${o.note?`<br><small>${esc(o.note)}</small>`:''}</td><td><b>${money(o.total)}</b></td><td>${o.creditUsed>0?money(o.creditUsed):'—'}</td><td>${restoTxt}</td><td>${prazoTxt}</td><td>${o.legacyObligation?'<span class="pill recebida">Sem movimento de estoque</span>':o.delivered?`<span class="pill recebida">Entregue</span>${o.deliveredAt?`<br><small>${esc(dateText(o.deliveredAt))}</small>`:''}${o.invoiceDate?`<br><small>Nota: ${esc(brDate(o.invoiceDate))}${o.invoiceNumber?` · nº ${esc(o.invoiceNumber)}`:''}</small>`:''}<br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Desmarcar</button>`:`<span class="pill aberta">Aguardando</span><br><button type="button" class="row-action" data-ped-ent="${esc(o.id)}">Marcar entregue</button>`}</td><td>${o.legacyObligation?'':`<button type="button" class="row-action" data-ped-pdf="${esc(o.id)}">PDF</button>`}<button type="button" class="row-action delete" data-ped-del="${esc(o.id)}">Excluir</button></td></tr><tr class="ped-sub"><td></td><td colspan="7"><div class="ped-parc">${parc}${difHtml}</div></td></tr>`;
  }).join('');
  $('pedLista').querySelectorAll('.pedInstVal').forEach(el=>bindMoneyMask(el));
  $('pedVazio').style.display=list.length?'none':'block';
@@ -1012,7 +1045,7 @@ window.ckrPagarParcelaFabrica=function(orderId,installmentN){
  return true;
 };
 function pedTogglePay(btn){
- const [oid,n]=btn.dataset.pedPay.split('|'),o=orders().find(x=>x.id===oid),inst=o&&o.installments.find(x=>String(x.n)===n);if(!inst)return;
+ const [oid,n]=btn.dataset.pedPay.split('|'),o=orders().find(x=>x.id===oid),inst=o&&o.installments.find(x=>String(x.n)===n);if(!inst)return;if(o.legacyObligation&&!hasFullAccess())return;
  if(!inst.paid){pedAskPayment(o,inst);return;}
  const had=!!inst.payment;
  inst.paid=false;inst.paidAt='';delete inst.payment;
@@ -1024,7 +1057,7 @@ $('pedAgenda').addEventListener('click',e=>{const p=e.target.closest('[data-ped-
 $('pedLista').addEventListener('change',e=>{
  const dt=e.target.closest('.pedInstData'),vl=e.target.closest('.pedInstVal'),el=dt||vl;if(!el)return;
  const o=orders().find(x=>x.id===el.dataset.oid),inst=o&&o.installments.find(x=>String(x.n)===el.dataset.n);
- if(!inst||inst.paid)return;
+ if(!inst||inst.paid||(o.legacyObligation&&!hasFullAccess()))return;
  if(dt){
   if(!dt.value){renderPedidos();return;}
   inst.dueDate=dt.value;inst.days=keyDiff(pedBaseFor(o,inst),dt.value);
@@ -1033,6 +1066,7 @@ $('pedLista').addEventListener('change',e=>{
   const v=r2(parseMoneyInput(vl.value));
   if(v<=0){toast('Informe um valor maior que zero.',true);renderPedidos();return;}
   inst.amount=v;
+  if(o.legacyObligation){o.total=o.remainder=r2(o.installments.reduce((n,p)=>n+Number(p.amount),0));}
   if(saveData())toast('Valor da parcela atualizado.');
  }
 });
@@ -1065,12 +1099,13 @@ $('pedLista').addEventListener('click',e=>{
  const d=e.target.closest('[data-ped-del]'),p=e.target.closest('[data-ped-pay]'),en=e.target.closest('[data-ped-ent]');
  if(d){
   const o=orders().find(x=>x.id===d.dataset.pedDel);if(!o)return;
+  if(o.legacyObligation&&(!hasFullAccess()||o.installments.some(p=>p.paid))){toast('Reabra os pagamentos antes de excluir uma obrigação anterior.',true);return;}
   if(!confirm(`Excluir o pedido nº ${o.num} de ${brDate(o.date)} (${money(o.total)})?${o.creditUsed>0?` O crédito de ${money(o.creditUsed)} volta para o saldo.`:''}`))return;
   data.factoryOrders=orders().filter(x=>x.id!==o.id);data.factoryLedger=ledger().filter(x=>x.orderId!==o.id);
   if(saveData())toast('Pedido excluído.');
  }else if(en){
   const o=orders().find(x=>x.id===en.dataset.pedEnt);if(!o)return;
-  if(!o.delivered){pedAskInvoiceDate(o);return;}
+  if(o.legacyObligation)return;if(!o.delivered){pedAskInvoiceDate(o);return;}
   const volta=o.installments.some(p=>p.baseDue&&!p.paid);
   if(!confirm(volta?'Desmarcar a entrega? Os boletos em aberto voltam às datas anteriores à nota.':'Desmarcar a entrega?'))return;
   o.installments.forEach(p=>{if(p.baseDue){if(!p.paid){p.dueDate=p.baseDue;p.days=keyDiff(o.date,p.dueDate);}delete p.baseDue;}});
