@@ -327,6 +327,7 @@ function aeDoMes(mes){
   else{const f=faixa(rbt);aliq=f[1];pd=f[2];}
   return rbt>0?Math.max(0,(rbt*aliq/100-pd)/rbt)*100:aliq; // em %
 }
+window.ckrAliquotaPrecos=aeDoMes;
 // ===== Simples Nacional por período (usado pela DRE) =====
 // Para cada mês com notas dentro do período: faturamento das notas × alíquota efetiva do mês (RBT12 = 12 meses anteriores).
 // Se o mês tem um valor ajustado (painel Impostos), usa o ajuste. Se o período pega só parte do mês, conta só as notas do período
