@@ -651,7 +651,7 @@ function creditRows(){
  });
  (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(sv=>{const c=r2(Number((sv.payment||{}).factoryCredit||0));if(c>0.004)rows.push({kind:'venda',key:sv.id,date:sv.date,credit:c,text:`Serviço · ${sv.description||''} · ${sv.client||'sem cliente'} · total ${money(sv.amount)} · ${payLabel(sv.payment)}`});});
  (typeof window.ckrEncomendaCreditos==='function'?window.ckrEncomendaCreditos():[]).forEach(x=>rows.push({kind:'venda',key:x.key,date:keyToIso(x.date),credit:x.credit,text:`${x.label} (produto ainda não entregue) · ${x.client||'sem cliente'}`}));
- manual().forEach(e=>rows.push({kind:'manual',key:e.id,date:e.date,credit:Number(e.amount),text:`${e.note||'Crédito lançado manualmente'}${e.by?' · por '+e.by:''}`}));
+ manual().forEach(e=>rows.push({kind:'manual',key:e.id,date:e.date,credit:Number(e.amount),adjustment:e.kind==='balanceAdjustment',text:`${e.note||'Crédito lançado manualmente'}${e.by?' · por '+e.by:''}`}));
  return rows.sort((a,b)=>new Date(b.date)-new Date(a.date));
 }
 function renderCreditos(){
@@ -664,7 +664,7 @@ function renderCreditos(){
   return !q||fold(r.text).includes(q);
  });
  const sum=r2(rows.reduce((s,r)=>s+r.credit,0));
- $('fabCredLinhas').innerHTML=rows.map(r=>`<tr><td>${esc(dateText(r.date))}</td><td>${r.kind==='venda'?(r.noCredit?'<span class="pill cancelada">Venda sem crédito</span>':'<span class="pill entrada">Venda · cartão fábrica</span>'):'<span class="pill aberta">Manual</span>'}</td><td>${esc(r.text)}</td><td>${r.noCredit?'—':money(r.credit)}</td><td>${r.kind==='manual'?`<button type="button" class="row-action delete" data-fab-man-del="${esc(r.key)}">Excluir</button>`:''}</td></tr>`).join('');
+ $('fabCredLinhas').innerHTML=rows.map(r=>`<tr><td>${esc(dateText(r.date))}</td><td>${r.kind==='venda'?(r.noCredit?'<span class="pill cancelada">Venda sem crédito</span>':'<span class="pill entrada">Venda · cartão fábrica</span>'):(r.adjustment?'<span class="pill aberta">Ajuste de saldo</span>':'<span class="pill aberta">Manual</span>')}</td><td>${esc(r.text)}</td><td>${r.noCredit?'—':money(r.credit)}</td><td>${r.kind==='manual'&&!r.adjustment?`<button type="button" class="row-action delete" data-fab-man-del="${esc(r.key)}">Excluir</button>`:''}</td></tr>`).join('');
  $('fabCredVazio').style.display=rows.length?'none':'block';
  $('fabCredResumo').textContent=`${rows.length} lançamento(s) · total ${money(sum)}${de||ate?'':' · sem filtro de data: aparecem todos os créditos, de qualquer dia'}`;
 }
@@ -679,7 +679,7 @@ $('fabManAdd').addEventListener('click',()=>{
 });
 $('fabCredLinhas').addEventListener('click',e=>{
  const b=e.target.closest('[data-fab-man-del]');if(!b)return;
- const x=manual().find(c=>c.id===b.dataset.fabManDel);if(!x)return;
+ const x=manual().find(c=>c.id===b.dataset.fabManDel);if(!x||x.kind==='balanceAdjustment')return;
  if(factoryStats().bal-Number(x.amount)<-0.009){toast('Não dá para excluir: esse crédito já foi usado em parte (o saldo ficaria negativo).',true);return;}
  if(!confirm(`Excluir o crédito de ${money(x.amount)}?`))return;
  data.factoryCreditsManual=manual().filter(c=>c.id!==x.id);if(saveData())toast('Crédito excluído.');
