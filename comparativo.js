@@ -128,7 +128,9 @@ function cardHTML(key,label,type,a,b){
   const tone=toneByMetric(key,a,b),d=diff(a,b);
   const symbol=tone==='up'?'▲':tone==='down'?'▼':'•';
   const refText=`Referência: ${fmt(b,type)}`;
-  return `<article class="cmp-card cmp-${tone}"><div class="cmp-card__head"><span>${esc(label)}</span><b class="cmp-chip cmp-${tone}">${symbol} ${esc(deltaLabel(key,type,a,b))}</b></div><strong>${esc(fmt(a,type))}</strong><small>${esc(refText)}</small>${type!=='pct'&&d!==null?`<p>${esc(`Variação absoluta: ${fmt(d,type)}`)}</p>`:''}</article>`;
+  const delta=deltaLabel(key,type,a,b);
+  const absLine=type!=='pct'&&d!==null?`<p>Variação absoluta: <b>${esc(fmt(d,type))}</b></p>`:'';
+  return `<article class="cmp-card cmp-${tone}"><div class="cmp-card__label">${esc(label)}</div><strong>${esc(fmt(a,type))}</strong><div class="cmp-card__meta"><small>${esc(refText)}</small>${absLine}</div><div class="cmp-card__foot"><b class="cmp-chip cmp-${tone}">${symbol} ${esc(delta)}</b></div></article>`;
 }
 
 function opinionHTML(title,text,tone='neutral'){
