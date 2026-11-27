@@ -234,6 +234,18 @@ function fabSaldo(){
  const enc=window.ckrEncomendaCredito();   // crédito das encomendas abertas
  return r2(sales+sv+enc+man-used);
 }
+window.ckrCreditoFabricaSaldo=fabSaldo;
+function ajustarFab(){
+ if(denied())return;
+ const antes=fabSaldo(),raw=prompt(`Saldo atual do crédito com a fábrica: ${money(antes)}. Informe o saldo real em reais (ex.: 1234,56):`,String(antes.toFixed(2)).replace(".",","));
+ if(raw===null)return;const txt=raw.trim();if(!/^-?(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(txt)){toast("Informe um valor válido em reais.",true);return;}
+ const alvo=r2(Number(txt.replace(/\./g,"").replace(",",".")));if(!Number.isFinite(alvo)||alvo<0||!Number.isSafeInteger(Math.round(alvo*100))){toast("Informe um saldo real não negativo e válido.",true);return;}
+ const motivo=prompt("Motivo obrigatório do ajuste (ex.: conciliação com extrato Ortobom):", "Conciliação de saldo");if(motivo===null||!motivo.trim())return;
+ if(fabSaldo()!==antes){toast("Saldo mudou. Reabra o ajuste.",true);return;}const diff=r2(alvo-antes);if(!diff){toast("Saldo já conciliado.");return;}
+ if(!confirm(`Saldo anterior: ${money(antes)}\nSaldo correto: ${money(alvo)}\nAjuste: ${signed(diff)}\nRegistrar somente a diferença, sem alterar caixa, estoque ou DRE?`))return;
+ const prev=data.factoryCreditsManual;const item={id:id(),date:new Date().toISOString(),amount:diff,kind:"balanceAdjustment",before:antes,after:alvo,note:"Ajuste de saldo: "+motivo.trim(),by:currentUserName()};data.factoryCreditsManual=[...(prev||[]),item];
+ if(saveData()){toast("Crédito com a fábrica ajustado.");}else{data.factoryCreditsManual=prev;}
+}
 // ---------- tela ----------
 function renderCard(S){
  $('cxTotal').textContent=signed(S.total);
@@ -248,7 +260,7 @@ function renderCard(S){
   const wp=(a.k==='agenda'&&S.agQtd>0)?`<p class="fin-meta-text" style="margin:8px 0 0">⚠ <b>${S.agQtd} pagamento(s) à fábrica aguardando conciliação · ${money(S.agComp)}.</b> Os recebíveis consumidos ainda não foram identificados: a distribuição dos recebimentos futuros (Agenda BLU × Caixa BLU) pode estar incorreta e estes saldos não são definitivos. <button type=\"button\" class=\"row-action\" data-cx=\"conciliar\" data-acc=\"agenda\">Conciliar</button></p>`:'';
   if(lk>0.004)sub+=` · bloqueado (encomenda) ${money(lk)} · disponível ${signed(r2(S.b[a.k]-lk))}`;
   return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button><button type="button" class="row-action" data-cx="extrato" data-acc="${a.k}">Extrato</button>${lk>0.004?`<button type="button" class="row-action" data-cx="lock" data-acc="${a.k}">⚠ ${money(lk)} de encomenda · saiba mais</button>`:''}</div>${wp}</div>`;
- }).join('')+(()=>{const fs=fabSaldo();return `<div class="cx-acc"><div class="cx-acc-top"><div><b>Crédito com a fábrica</b><small>Saldo disponível · não entra no saldo total</small></div><strong class="${fs<0?'cx-neg':''}">${signed(fs)}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="extratofab">Extrato</button>${S.lockFab>0.004?`<button type="button" class="row-action" data-cx="lockfab">⚠ ${money(S.lockFab)} de encomenda · saiba mais</button>`:''}</div></div>`;})();
+ }).join('')+(()=>{const fs=fabSaldo();return `<div class="cx-acc"><div class="cx-acc-top"><div><b>Crédito com a fábrica</b><small>Saldo disponível · não entra no saldo total</small></div><strong class="${fs<0?'cx-neg':''}">${signed(fs)}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="ajustefab">Editar saldo</button><button type="button" class="row-action" data-cx="extratofab">Extrato</button>${S.lockFab>0.004?`<button type="button" class="row-action" data-cx="lockfab">⚠ ${money(S.lockFab)} de encomenda · saiba mais</button>`:''}</div></div>`;})();
  const fabPct=100-getSettings().factoryCreditPct;
  $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Regra do 1º dia útil:</b> vendas no cartão (Registrar venda e PDV) só entram aqui no 1º dia útil (seg–sex) depois da venda; o que o cliente já pagou numa <b>encomenda</b> segue a mesma regra e já pode ser usado (a encomenda só não baixa estoque até a entrega). <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
 }
@@ -553,11 +565,12 @@ function showExtratoFab(){
   x.credit+=Number(mv.factoryCredit||0);
  });
  vendas.forEach(x=>{const v=r2(x.credit);if(v>0.004)rows.push({date:x.date,amount:v,cat:'Venda no cartão fábrica',desc:`Venda #${String(x.key).split('@')[0].slice(-6)}${x.client?' · '+x.client:''}`,sub:''});});
+ (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(s=>{const v=Number(s.payment?.factoryCredit||0);if(v)rows.push({date:s.date,amount:v,cat:'Serviço (cartão fábrica)',desc:s.description||'Serviço',sub:''});});
  encCreditos().forEach(x=>rows.push({date:x.date,amount:x.credit,cat:'Encomenda (cartão fábrica)',desc:x.label+(x.client?' · '+x.client:''),sub:'produto ainda não entregue'}));
- (data.factoryCreditsManual||[]).forEach(e=>rows.push({date:e.date,amount:Number(e.amount||0),cat:'Crédito lançado manualmente',desc:e.note||'Crédito lançado manualmente',sub:e.by?'por '+e.by:''}));
+ (data.factoryCreditsManual||[]).forEach(e=>rows.push({date:e.date,amount:Number(e.amount||0),cat:e.kind==='balanceAdjustment'?'Ajuste de saldo':'Crédito lançado manualmente',desc:e.note||'Crédito lançado manualmente',sub:e.by?'por '+e.by:''}));
  (data.factoryLedger||[]).forEach(e=>rows.push({date:e.date,amount:-Number(e.amount||0),cat:e.orderId?'Uso em pedido à fábrica':'Uso de crédito',desc:e.note||'Uso de crédito',sub:e.by?'por '+e.by:''}));
  const saldo=fabSaldo(),S=balances(),cls=v=>v<0?'cx-neg':'cx-pos';
- extModal({title:'Extrato · Crédito com a fábrica',rows,saldo,mostraDif:false,rotuloSaldo:'= Saldo disponível',
+ extModal({title:'Extrato · Crédito com a fábrica',rows,saldo,mostraDif:true,rotuloSaldo:'= Saldo disponível',
   sub:`Saldo disponível: <b class="${cls(saldo)}">${signed(saldo)}</b>${S.lockFab>0.004?` · ${money(S.lockFab)} de encomendas ainda não entregues (não incluído)`:''}`});
 }
 // ---------- Conciliação da Agenda BLU: seleção dos recebíveis e confirmação ----------
@@ -691,6 +704,7 @@ function onCardClick(ev){
  const k=b.dataset.acc;
  if(b.dataset.cx==='conciliar'){openConc();return;}
  if(b.dataset.cx==='lockfab'){showLockFab();return;}
+ if(b.dataset.cx==='ajustefab'){ajustarFab();return;}
  if(b.dataset.cx==='extratofab'){showExtratoFab();return;}
  if(b.dataset.cx==='extrato'){showExtrato(k);return;}
  if(b.dataset.cx==='lock'){showLock(k);return;}
