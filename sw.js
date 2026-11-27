@@ -1,5 +1,5 @@
-const CACHE = 'conceito-v123-boletos-alertas';
-const CORE = ['./', 'index.html', 'app.js?v=45', 'modulos.js?v=123', 'encomendas.js?v=6', 'despesas.js?v=123', 'caixa.js?v=24', 'impostos.js?v=15', 'dre.js?v=117', 'fluxo.js?v=2', 'servicos.js?v=4', 'style.css?v=122', 'contribuicao.js?v=116', 'dashboard.js?v=123', 'backup_seguro.js?v=3', 'precos.js?v=122', 'metas.js?v=122', 'manifest.webmanifest',
+const CACHE = 'conceito-v124-calendario-metas';
+const CORE = ['./', 'index.html', 'app.js?v=45', 'modulos.js?v=123', 'encomendas.js?v=6', 'despesas.js?v=123', 'caixa.js?v=24', 'impostos.js?v=15', 'dre.js?v=117', 'fluxo.js?v=2', 'servicos.js?v=4', 'style.css?v=124', 'contribuicao.js?v=116', 'dashboard.js?v=123', 'backup_seguro.js?v=3', 'precos.js?v=122', 'metas.js?v=124', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
