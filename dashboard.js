@@ -20,7 +20,7 @@
  const getDfc=(start,end)=>typeof window.ckrFluxoResumoPeriodo==='function'?window.ckrFluxoResumoPeriodo(start,end):null;
  const getCaixa=()=>typeof window.ckrCaixaPainelResumo==='function'?window.ckrCaixaPainelResumo():null;
  function obligations(){
-  const now=today(),future=localDateKey(new Date(new Date().getFullYear(),new Date().getMonth(),new Date().getDate()+30));
+  const now=today(),tomorrow=localDateKey(new Date(new Date().getFullYear(),new Date().getMonth(),new Date().getDate()+1)),future=localDateKey(new Date(new Date().getFullYear(),new Date().getMonth(),new Date().getDate()+30));
   const exps=(Array.isArray(data.expenses)?data.expenses:[]).filter(x=>x&&x.status!=='pago'&&x.forecast!==true);
   const fac=(Array.isArray(data.factoryOrders)?data.factoryOrders:[]).flatMap(o=>Array.isArray(o.installments)?o.installments.filter(p=>p&&!p.paid):[]);
   const prom=(Array.isArray(data.receivables)?data.receivables:[]).filter(r=>r&&!r.canceled&&!r.paid);
@@ -31,7 +31,8 @@
   const promValue=sum(openProm.map(promRem));
   const late=a=>validDay(a)&&a<now;
   const soon=a=>validDay(a)&&a>=now&&a<=future;
-  return {expensesValue,factoryValue,promValue,
+  const due=a=>({today:a.filter(x=>x.dueDate===now).length,tomorrow:a.filter(x=>x.dueDate===tomorrow).length});
+  return {expensesValue,factoryValue,promValue,dueExp:due(exps),dueFab:due(fac),dueProm:due(openProm),
    lateExp:exps.filter(x=>late(x.dueDate)).length,
    lateFab:fac.filter(x=>late(x.dueDate)).length,
    lateProm:openProm.filter(x=>late(x.dueDate)).length,
@@ -101,12 +102,13 @@
    const items=months.map(month=>{const b=bounds(month);return {month,dre:getDre(b.start,b.end),dfc:getDfc(b.start,b.end)};});
    $('execRevenueChart').innerHTML=revenueChart(items);
    $('execCashChart').innerHTML=cashChart(items);
-   const urgent=obl.lateExp+obl.lateFab+obl.lateProm+cx.agendaPendente;
+   const count=(late,d)=>late+d.today+d.tomorrow,desc=(late,d)=>`${late} vencida(s) · ${d.today} hoje · ${d.tomorrow} amanhã`;
+   const urgent=count(obl.lateExp,obl.dueExp)+count(obl.lateFab,obl.dueFab)+count(obl.lateProm,obl.dueProm)+cx.agendaPendente;
    $('execAlertBadge').textContent=urgent?`${urgent} pendência(s) urgentes`:'Sem pendências urgentes';
    $('execAlertRows').innerHTML=[
-    alertRow('Despesas vencidas',`${obl.soonExp} a vencer nos próximos 30 dias`,obl.lateExp,'financeiro',obl.lateExp>0),
-    alertRow('Promissórias vencidas',`${obl.soonProm} a vencer nos próximos 30 dias`,obl.lateProm,'promissorias',obl.lateProm>0),
-    alertRow('Parcelas da fábrica vencidas',`${obl.soonFab} a vencer nos próximos 30 dias`,obl.lateFab,'pedidos',obl.lateFab>0),
+    alertRow('Despesas — vencimentos',desc(obl.lateExp,obl.dueExp),count(obl.lateExp,obl.dueExp),'financeiro',count(obl.lateExp,obl.dueExp)>0),
+    alertRow('Promissórias — vencimentos',desc(obl.lateProm,obl.dueProm),count(obl.lateProm,obl.dueProm),'promissorias',count(obl.lateProm,obl.dueProm)>0),
+    alertRow('Parcelas da fábrica — vencimentos',desc(obl.lateFab,obl.dueFab),count(obl.lateFab,obl.dueFab),'pedidos',count(obl.lateFab,obl.dueFab)>0),
     alertRow('Agenda BLU — conciliar',`${money(cx.agendaComprometida)} aguardando identificação`,cx.agendaPendente,'financeiro',cx.agendaPendente>0)
    ].join('');
   }catch(err){
@@ -148,5 +150,6 @@
  window.renderAll=function(){if(typeof baseRender==='function')baseRender.apply(this,arguments);render();};
  const baseGoTo=window.goTo;
  window.goTo=function(name){if(typeof baseGoTo==='function')baseGoTo.apply(this,arguments);if(name==='dashboard')render();};
+ setInterval(render,600000);
  render();
 })();
