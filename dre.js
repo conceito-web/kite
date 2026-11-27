@@ -210,7 +210,7 @@ function compute(s,e){
 window.ckrDreResumoPeriodo=function(inicio,fim){
  const R=compute(inicio,fim);
  return {receitaBruta:R.rec,descontos:R.desc,devolucoes:R.dev,receitaLiquida:R.liq,
-   faturamento:r2(R.rec-R.desc-R.dev),lucro:R.res,
+   faturamento:r2(R.rec-R.desc-R.dev),lucro:R.res,cmv:R.cmv,despesasOperacionais:R.fixas,despesasVendas:R.vend,resultadoBruto:R.bruto,
    margem:R.rec>0?r2(100*R.res/R.rec):null,vendas:R.vendasQtd,semCusto:R.sem};
 };
 
