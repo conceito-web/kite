@@ -118,10 +118,10 @@ function toneByOpinion(kind,good){
 function deltaLabel(key,type,a,b){
   if(type==='pct'){
     const d=pps(a,b);
-    return d===null?'Sem base comparável':`${d>=0?'+':''}${fmt(d,'num')} p.p.`;
+    return d===null?'Sem base %':`${d>=0?'+':''}${fmt(d,'num')} p.p.`;
   }
   const r=rel(a,b);
-  return r===null?'Base insuficiente para %':`${r>=0?'+':''}${fmt(r,'pct')}`;
+  return r===null?'Sem base %':`${r>=0?'+':''}${fmt(r,'pct')}`;
 }
 
 function cardHTML(key,label,type,a,b){
@@ -129,8 +129,8 @@ function cardHTML(key,label,type,a,b){
   const symbol=tone==='up'?'▲':tone==='down'?'▼':'•';
   const refText=`Referência: ${fmt(b,type)}`;
   const delta=deltaLabel(key,type,a,b);
-  const absLine=type!=='pct'&&d!==null?`<p>Variação absoluta: <b>${esc(fmt(d,type))}</b></p>`:'';
-  return `<article class="cmp-card cmp-${tone}"><div class="cmp-card__label">${esc(label)}</div><strong>${esc(fmt(a,type))}</strong><div class="cmp-card__meta"><small>${esc(refText)}</small>${absLine}</div><div class="cmp-card__foot"><b class="cmp-chip cmp-${tone}">${symbol} ${esc(delta)}</b></div></article>`;
+  const absText=type!=='pct'&&d!==null?fmt(d,type):'—';
+  return `<article class="cmp-card cmp-${tone}"><div class="cmp-card__top"><div class="cmp-card__label">${esc(label)}</div><b class="cmp-chip cmp-${tone}">${symbol} ${esc(delta)}</b></div><strong>${esc(fmt(a,type))}</strong><div class="cmp-card__meta"><div class="cmp-card__line"><span>Referência</span><b>${esc(fmt(b,type))}</b></div>${type!=='pct'?`<div class="cmp-card__line"><span>Variação</span><b>${esc(absText)}</b></div>`:''}</div></article>`;
 }
 
 function opinionHTML(title,text,tone='neutral'){
@@ -180,10 +180,10 @@ function render(){
   $('cmpWarning').innerHTML=`<div class="cmp-warning">${warnings.map(w=>`<span>${esc(w)}</span>`).join('')}</div>`;
 
   $('cmpCards').innerHTML=[
-    cardHTML('revenue','Faturamento comercial líquido','money',A.revenue,B.revenue),
-    cardHTML('mc','Margem de contribuição observada','pct',A.mc,B.mc),
-    cardHTML('oper','Despesas operacionais (DRE)','money',A.oper,B.oper),
-    cardHTML('profit','Resultado líquido (DRE)','money',A.profit,B.profit)
+    cardHTML('revenue','Faturamento líquido','money',A.revenue,B.revenue),
+    cardHTML('mc','Margem de contribuição','pct',A.mc,B.mc),
+    cardHTML('oper','Despesas operacionais','money',A.oper,B.oper),
+    cardHTML('profit','Resultado líquido','money',A.profit,B.profit)
   ].join('');
 
   const rv=diff(A.revenue,B.revenue),pr=diff(A.profit,B.profit),mg=diff(A.mc,B.mc),op=rel(A.oper,B.oper),gr=rel(A.revenue,B.revenue);
