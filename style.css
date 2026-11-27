@@ -1207,3 +1207,51 @@ select.dre-sel{max-width:100%;min-height:36px;margin:2px 6px 2px 0;border:1px so
 @media (max-width:1100px){#panel-orcado .or-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:760px){#panel-orcado .or-detail-grid{grid-template-columns:1fr}#panel-orcado .or-filters .field{max-width:none;flex:1 1 100%}}
 @media (max-width:530px){#panel-orcado .or-cards{grid-template-columns:1fr}#panel-orcado .or-card{padding:18px}#panel-orcado .or-note-card,#panel-orcado .or-table-card,#panel-orcado .or-extras-card{padding:16px}}
+
+/* Conceito v120 — Saúde do Estoque integrada à Rentabilidade (sem criar nova aba). */
+#panel-rentabilidade [hidden]{display:none!important}
+#panel-rentabilidade .rp-internal-tabs{display:flex;gap:8px;flex-wrap:wrap;padding:5px;background:#e8eef8;border-radius:13px;margin:0 0 20px;width:max-content;max-width:100%}
+#panel-rentabilidade .rp-tab-btn{border:1px solid transparent;background:transparent;border-radius:10px;padding:12px 18px;font-weight:800;font-size:13px;color:#5c6f88;cursor:pointer;min-height:44px}
+#panel-rentabilidade .rp-tab-btn.is-active{color:#244b83;background:#fff;box-shadow:0 1px 7px rgba(13,43,88,.09);border-color:#d9e6f9}
+#panel-rentabilidade .rp-tab-btn:focus-visible{outline:3px solid #6e99e7;outline-offset:2px}
+#panel-rentabilidade .rp-stock-intro{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:4px 0 18px}
+#panel-rentabilidade .rp-stock-intro h2{font-size:20px;margin:0 0 6px;color:#1c385e}
+#panel-rentabilidade .rp-stock-intro p{max-width:820px;font-size:12px;color:#6f829a;line-height:1.65;margin:0}
+#panel-rentabilidade .rp-stock-ref{font-size:12px;font-weight:800;color:#365b83;background:#ecf3ff;padding:9px 13px;border-radius:99px;white-space:nowrap}
+#panel-rentabilidade .rp-stock-toolbar{padding:20px 22px;margin-bottom:17px}
+#panel-rentabilidade .rp-stock-controls{display:grid;grid-template-columns:minmax(250px,1fr) minmax(180px,225px) minmax(190px,240px) auto;gap:12px;align-items:end}
+#panel-rentabilidade .rp-stock-controls .field{margin:0}
+#panel-rentabilidade .rp-stock-controls .button{min-height:44px}
+#panel-rentabilidade .rp-stock-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+#panel-rentabilidade .rp-stock-kpi{background:#fff;border:1px solid #dce6f3;border-radius:15px;padding:20px;display:flex;flex-direction:column;gap:11px;min-width:0}
+#panel-rentabilidade .rp-stock-kpi span{font-size:12px;font-weight:800;color:#60728a}
+#panel-rentabilidade .rp-stock-kpi strong{font:800 clamp(19px,2vw,27px) Manrope,'DM Sans',sans-serif;color:#203d63;letter-spacing:-.035em;overflow-wrap:anywhere}
+#panel-rentabilidade .rp-stock-kpi-main strong{color:#176b56}
+#panel-rentabilidade .rp-stock-kpi small{font-size:11px;line-height:1.5;color:#7d8da3}
+#panel-rentabilidade .rp-stock-notice{background:#eff5ff;border:1px solid #d3e2fb;border-radius:12px;padding:17px 20px;margin-bottom:18px;color:#345b8d}
+#panel-rentabilidade .rp-stock-notice strong{font-size:13px}
+#panel-rentabilidade .rp-stock-notice p{margin:6px 0 0;font-size:11px;line-height:1.6;color:#6580a3}
+#panel-rentabilidade .rp-stock-columns{display:grid;grid-template-columns:1fr 1fr;gap:17px;margin-bottom:18px}
+#panel-rentabilidade .rp-stock-block{min-width:0;padding:22px}
+#panel-rentabilidade .rp-stock-aging{display:grid;gap:12px}
+#panel-rentabilidade .rp-stock-age-row{display:grid;gap:6px}
+#panel-rentabilidade .rp-stock-age-head{display:flex;gap:10px;justify-content:space-between;align-items:center;font-size:11px;color:#6c7f96}
+#panel-rentabilidade .rp-stock-age-head strong{font-size:11px;color:#355373}
+#panel-rentabilidade .rp-stock-age-bar{height:8px;border-radius:99px;background:#e9f0f8;overflow:hidden}
+#panel-rentabilidade .rp-stock-age-bar span{display:block;background:#5283c5;height:100%;border-radius:99px}
+#panel-rentabilidade .rp-stock-alerts{display:grid;gap:11px}
+#panel-rentabilidade .rp-stock-alert-line{background:#f6f9fd;border:1px solid #e3edf9;border-radius:10px;padding:12px;display:grid;gap:6px;font-size:11px;color:#607791;line-height:1.6}
+#panel-rentabilidade .rp-stock-alert-line b{font-size:12px;color:#365473}
+#panel-rentabilidade .rp-stock-table-block{padding:22px;min-width:0;margin-bottom:18px}
+#panel-rentabilidade .rp-stock-table{min-width:1110px}
+#panel-rentabilidade .rp-stock-table th{font-size:10px}
+#panel-rentabilidade .rp-stock-table td{font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#panel-rentabilidade .rp-stock-table td:first-child{min-width:240px;max-width:330px;white-space:normal}
+#panel-rentabilidade .rp-stock-table td:first-child strong{display:block;line-height:1.45}
+#panel-rentabilidade .rp-stock-table td small{display:block;font-size:10px;color:#8997aa;margin-top:5px}
+#panel-rentabilidade .rp-stock-chip{display:inline-block;padding:5px 8px;background:#e7f3ed;color:#236950;border-radius:100px;font-size:10px;font-weight:750}
+#panel-rentabilidade .rp-stock-chip-idle{background:#fff1dc;color:#8b591b}
+#panel-rentabilidade .rp-stock-chip-low{background:#e8f0ff;color:#3a5f9c}
+@media(max-width:1300px){#panel-rentabilidade .rp-stock-controls{grid-template-columns:repeat(2,minmax(0,1fr))}#panel-rentabilidade .rp-stock-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){#panel-rentabilidade .rp-stock-columns{grid-template-columns:1fr}}
+@media(max-width:600px){#panel-rentabilidade .rp-internal-tabs{width:100%;}#panel-rentabilidade .rp-tab-btn{flex:1;padding:12px 9px}#panel-rentabilidade .rp-stock-controls{grid-template-columns:1fr}#panel-rentabilidade .rp-stock-kpis{gap:9px}#panel-rentabilidade .rp-stock-kpi{padding:14px}#panel-rentabilidade .rp-stock-intro{flex-direction:column;align-items:flex-start}#panel-rentabilidade .rp-stock-block,#panel-rentabilidade .rp-stock-table-block,#panel-rentabilidade .rp-stock-toolbar{padding:15px}}
