@@ -142,7 +142,7 @@ function layersText(p){const L=ensureLayers(p);return L.length>1&&new Set(L.map(
 function typePill(m){if(m.type==='venda'&&m.canceled)return '<span class="pill cancelada">Venda cancelada</span>';return `<span class="pill ${m.type}">${m.type==='venda'?'Venda':'Entrada'}</span>`;}
 function dateText(d){return new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}
 // Usuários que não são ADMIN só acessam estes painéis:
-const USER_PANELS=['clientes','venda','pdv','orcamentos','encomendas','promissorias','backup'];
+const USER_PANELS=['clientes','venda','pdv','orcamentos','encomendas','promissorias','backup','precos'];
 // Perfis: admin (tudo + usuários, sem prazo) | master (tudo, menos usuários, com prazo) | usuario (só USER_PANELS, com prazo)
 function isAdminRole(){return document.body.dataset.ckrRole==='admin';}
 function hasFullAccess(){const r=document.body.dataset.ckrRole;return r==='admin'||r==='master';}
