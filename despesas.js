@@ -367,13 +367,11 @@ function renderList(){
 }
 // contador no menu e alerta na Visão geral (rodam sempre)
 function updateBadges(){
- const pend=list().filter(x=>x.status!=='pago'),today=todayISO(),venc=pend.filter(x=>x.dueDate&&x.dueDate<today);
+ const pend=list().filter(x=>x.status!=='pago'&&x.forecast!==true),today=todayISO(),tomorrow=localDateKey(new Date(new Date().getFullYear(),new Date().getMonth(),new Date().getDate()+1));
+ const groups=[[pend.filter(x=>x.dueDate&&x.dueDate<today),'vencida(s)'],[pend.filter(x=>x.dueDate===today),'vence(m) hoje'],[pend.filter(x=>x.dueDate===tomorrow),'vence(m) amanhã']];
  const b=$('menuDespesasPend');if(b)b.textContent=pend.length;
- const al=$('despAlerta');
- if(al){
-  const show=venc.length>0&&hasFullAccess();al.hidden=!show;
-  if(show)$('despAlertaTexto').textContent=`${venc.length} despesa(s) vencida(s) somando ${money(venc.reduce((n,x)=>n+Number(x.amount||0),0))}.`;
- }
+ const al=$('despAlerta');if(al){const text=groups.filter(([a])=>a.length).map(([a,label])=>`${a.length} despesa(s) ${label} (${money(a.reduce((n,x)=>n+Number(x.amount||0),0))})`).join(' · ');al.hidden=!text||!hasFullAccess();$('despAlertaTexto').textContent=text;}
+
 }
 function render(){
  try{
@@ -669,5 +667,6 @@ window.goTo=function(name){baseGoTo.apply(this,arguments);if(name==='financeiro'
 window.ckrAccountOptions=accountOptions;   // usado por Pedidos à fábrica (conta de origem do pagamento)
 // Usado pelo extrato do Caixa: abre a despesa para edição.
 window.ckrDespesaEdit=function(eid){if(denied())return;const x=list().find(i=>i.id===eid);if(!x){toast('Despesa não encontrada.',true);return;}fillForm(x);};
+setInterval(updateBadges,600000);
 render();
 })();
