@@ -235,6 +235,28 @@ function fabSaldo(){
  return r2(sales+sv+enc+man-used);
 }
 window.ckrCreditoFabricaSaldo=fabSaldo;
+// v130: snapshot de consulta para Controladoria. Reutiliza regras de vencimento e conciliação existentes.
+window.ckrBLUAnalise=function(){
+ if(!hasFullAccess())return null;
+ const S=balances(),hoje=todayISO(),rows=rowsAll(S),dateKey=d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d))?String(d):localDateKey(d);
+ const cash=r2(rows.filter(x=>x.acc==='blu'&&dateKey(x.date)<=hoje).reduce((v,x)=>v+Number(x.amount||0),0)-Number(S.lock.blu||0));
+ const creditRows=[];
+ (data.movements||[]).forEach(x=>{if(x.type==='venda'&&!x.canceled&&Number(x.factoryCredit||0))creditRows.push({date:dateKey(x.date),amount:Number(x.factoryCredit),kind:'Venda'});});
+ (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(x=>{if(Number(x.payment?.factoryCredit||0))creditRows.push({date:dateKey(x.date),amount:Number(x.payment.factoryCredit),kind:'Serviço'});});
+ S.auto.filter(x=>x.enc&&Number(x.fcr)>0.004).forEach(x=>creditRows.push({date:x.date,amount:Number(x.fcr),kind:'Encomenda aberta'}));
+ (data.factoryCreditsManual||[]).forEach(x=>creditRows.push({date:dateKey(x.date),amount:Number(x.amount||0),kind:x.kind==='balanceAdjustment'?'Ajuste de saldo':'Crédito manual'}));
+ (data.factoryLedger||[]).forEach(x=>creditRows.push({date:dateKey(x.date),amount:-Number(x.amount||0),kind:'Utilização'}));
+ const releases=[],missing=[];const start=conf().start||'';
+ const inspect=(p,day)=>{if(!p||!day||!isCard(p.method)||(start&&day<start))return;const date=nextBiz(day),amount=Number(p.amount);if(date>hoje||!Number.isFinite(amount)||amount<=0)return;const has=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+  if(p.responsible==='fabrica'){if(!has(p.factoryCredit)||Number(p.factoryCredit)<0||Number(p.factoryCredit)>amount){missing.push({date,amount,kind:'crédito fábrica'});return;}releases.push({date,cash:r2(amount-Number(p.factoryCredit)),credit:Number(p.factoryCredit)});}
+  else if(!has(p.fee)||Number(p.fee)<0||Number(p.fee)>amount)missing.push({date,amount,kind:'taxa cartão loja'});
+ };
+ const seen=new Set();(data.movements||[]).forEach(x=>{if(x.type!=='venda'||x.canceled)return;const k=x.saleId||x.id;if(seen.has(k))return;seen.add(k);const day=dateKey(x.date);(x.payments||[]).forEach(p=>inspect(p,p?.paidDate&&p.paidDate<day?p.paidDate:day));});
+ (data.preorders||[]).filter(x=>x.status==='aberta').forEach(x=>(x.payments||[]).forEach(p=>inspect(p,dateKey(p?.date)||dateKey(x.date))));
+ (typeof window.ckrServicos==='function'?window.ckrServicos():[]).forEach(x=>inspect(x.payment,dateKey(x.date)));
+ return {today:hoje,start:conf().start||'',cash,agenda:S.agDisp,agendaGross:S.agBruto,committed:S.agComp,pendingCount:S.agQtd,blocked:S.lock.agenda||0,credit:fabSaldo(),rows:rows.filter(x=>x.acc==='blu'||x.acc==='agenda').map(x=>({...x,date:dateKey(x.date)})),creditRows,parcels:S.parcs.filter(x=>!x.due&&!x.locked&&x.amount>0).map(x=>({date:x.date,amount:x.amount,used:x.used||0,method:x.method,i:x.i,n:x.n})),releases,missing};
+};
+
 function ajustarFab(){
  if(denied())return;
  const antes=fabSaldo(),raw=prompt(`Saldo atual do crédito com a fábrica: ${money(antes)}. Informe o saldo real em reais (ex.: 1234,56):`,String(antes.toFixed(2)).replace(".",","));
