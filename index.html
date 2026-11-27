@@ -1324,7 +1324,7 @@
               <div class="surface-heading"><div><h2>Cartão da fábrica e promissória</h2><p id="fabLucroInfo"></p></div></div>
               <div class="form-grid">
                 <label class="field">Parte que vira crédito com a fábrica (%)<input id="fabCreditoPct" inputmode="decimal"></label>
-                <label class="field">Lembrar promissórias e boletos da fábrica com antecedência de (dias)<input id="promLembreteDias" type="number" min="0" step="1"></label>
+                <label class="field">Lembrar promissórias e boletos da fábrica com antecedência de (dias)<input id="promLembreteDias" type="number" min="1" step="1"></label>
               </div>
               <div class="form-actions" style="margin-top:16px"><button class="button button-primary" type="submit">Salvar configurações</button><button class="button button-light" id="taxasPadrao" type="button">Restaurar valores padrão</button></div>
             </section>
@@ -1370,7 +1370,7 @@
           <div id="pedAlertaPainel" class="prom-alert" hidden><span class="prom-alert-icon">!</span><p id="pedAlertaPainelTexto"></p></div>
           <section class="surface list-surface" style="margin-bottom:17px">
             <div class="surface-heading"><div><h2>Boletos e parcelas a pagar</h2><p>Só entram as parcelas em aberto (boleto e outras formas a prazo), em ordem de vencimento. Pix, dinheiro, transferência e débito já ficam como pagos.</p></div></div>
-            <div class="table-wrap"><table><thead><tr><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>PARCELA · FORMA</th><th>PEDIDO</th><th></th></tr></thead><tbody id="pedAgenda"></tbody></table></div>
+            <div class="form-actions" style="margin:0 0 16px"><button type="button" class="button button-primary" id="pedLegadoAbrir">+ Cadastrar boletos anteriores</button></div><div class="table-wrap"><table><thead><tr><th>VENCIMENTO</th><th>SITUAÇÃO</th><th>VALOR</th><th>PARCELA · FORMA</th><th>PEDIDO</th><th></th></tr></thead><tbody id="pedAgenda"></tbody></table></div>
             <div id="pedAgendaVazio" class="empty-state"><div class="empty-symbol">✓</div><b>Nenhuma parcela em aberto</b><p>Pedidos pagos a prazo (ex.: boleto 30/60/90) aparecem aqui com data e valor.</p></div>
           </section>
           <section class="surface form-surface">
@@ -1453,7 +1453,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" referrerpolicy="no-referrer"></script>
   <script src="app.js?v=45"></script>
-  <script src="modulos.js?v=38"></script>
+  <script src="modulos.js?v=123"></script>
   <script src="encomendas.js?v=6"></script>
   <script>
   window.ckrDespesasModuloEstado={carregado:false,inicializado:false,erro:''};
@@ -1465,7 +1465,7 @@
    ['finDesp','finPagas','finPend','finVenc2'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent='Indisponível';});
   });
 </script>
-<script src="despesas.js?v=22"></script>
+<script src="despesas.js?v=123"></script>
   <script>
 'use strict';
 // Conceito · Correção 10: folha de novembro, vencimento em dezembro, revisão atômica das recorrências.
@@ -1840,7 +1840,7 @@
   <script src="impostos.js?v=15"></script>
   <script src="dre.js?v=117"></script>
   <script src="fluxo.js?v=2"></script>
-  <script src="dashboard.js?v=3"></script>
+  <script src="dashboard.js?v=123"></script>
   <script src="contribuicao.js?v=116"></script>
   <script id="pe-calculo-integrado-v1172">
 'use strict';
