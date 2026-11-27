@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a2c">
   <title>Conceito • Gestão de Estoque</title>
-  <link rel="stylesheet" href="style.css?v=119">
+  <link rel="stylesheet" href="style.css?v=120">
 <style id="conceito-alert-style-v112-2">
 
 /* CONCEITO v112.2 — Visual correto para o HTML gerado pelo painel.
@@ -870,8 +870,13 @@
           <div class="page-heading"><div>
             <p class="eyebrow">CONTROLADORIA · COMPOSIÇÃO DO RESULTADO</p>
             <h1 id="rp-title">Rentabilidade por produto</h1>
-            <p class="subtitle">Identifique quais colchões, bases e acessórios contribuem mais para o resultado. Indicador gerencial estimado, sem gravar dados.</p>
+            <p class="subtitle">Compare a contribuição dos produtos e a saúde do estoque. Análises gerenciais, sem alterar registros.</p>
           </div></div>
+          <div class="rp-internal-tabs" role="tablist" aria-label="Análises por produto">
+            <button type="button" id="rpTabProfit" class="rp-tab-btn is-active" role="tab" aria-selected="true" aria-controls="rpProfitContent">Rentabilidade</button>
+            <button type="button" id="rpTabStock" class="rp-tab-btn" role="tab" aria-selected="false" aria-controls="rpStockContent">Giro e saúde do estoque</button>
+          </div>
+          <div id="rpProfitContent" role="tabpanel" aria-labelledby="rpTabProfit">
           <section class="surface rp-period-surface">
             <div class="surface-heading"><div><h2>Período e comparação</h2><p>Custos PEPS e custos variáveis obtidos das vendas calculáveis na Margem de Contribuição</p></div></div>
             <div class="rp-filters">
@@ -916,6 +921,41 @@
             <div class="table-wrap"><table class="rp-table"><thead><tr><th>PRODUTO</th><th>UNIDADES</th><th>VENDAS</th><th>RECEITA</th><th>CMV</th><th>VARIÁVEIS EST.</th><th>CONTRIBUIÇÃO</th><th>MC %</th><th>CONFERÊNCIA</th></tr></thead><tbody id="rpRows"><tr><td colspan="9">Abra o relatório para calcular.</td></tr></tbody></table></div>
             <p class="rp-footnote">Dados agrupados por identificador do produto, quando disponível. A análise exclui vendas incompletas ou impossíveis de ratear por item. Serviços e vendas canceladas não entram no ranking.</p>
           </section>
+          </div><!-- /rpProfitContent -->
+          <div id="rpStockContent" role="tabpanel" aria-labelledby="rpTabStock" hidden>
+            <div class="rp-stock-intro">
+              <div><h2>Giro e saúde do estoque</h2><p>Estoque disponível <strong>agora</strong> e vendas líquidas de devoluções nos <strong>últimos 90 dias</strong>. Os valores não usam o mês escolhido na aba Rentabilidade.</p></div>
+              <span class="rp-stock-ref" id="rpStockRef">Posição atual</span>
+            </div>
+            <section class="surface rp-stock-toolbar">
+              <div class="rp-stock-controls">
+                <label class="field rp-stock-query">Localizar produto<input type="search" id="rpStockSearch" placeholder="Nome ou código" autocomplete="off"></label>
+                <label class="field">Situação<select id="rpStockFilter">
+                  <option value="all">Todos com estoque</option><option value="noSales">Sem vendas em 90 dias</option><option value="lowCoverage">Cobertura inferior a 30 dias</option><option value="old">Lotes com 180 dias ou mais</option><option value="unknown">Lotes sem data de entrada</option><option value="review">Dados a conferir</option>
+                </select></label>
+                <label class="field">Ordenação<select id="rpStockSort">
+                  <option value="capital">Maior capital imobilizado</option><option value="slow">Menor giro (90 dias)</option><option value="cover">Menor cobertura em dias</option><option value="age">Lote mais antigo conhecido</option><option value="name">Nome do produto</option>
+                </select></label>
+                <button type="button" class="button button-light" id="rpStockUpdate">Atualizar</button>
+              </div>
+            </section>
+            <div class="rp-stock-kpis" aria-label="Indicadores de estoque">
+              <article class="rp-stock-kpi rp-stock-kpi-main"><span>Capital em estoque a custo</span><strong id="rpStockCapital">—</strong><small id="rpStockCapitalNote">Avaliação pelos lotes PEPS; ressalvas onde faltarem dados</small></article>
+              <article class="rp-stock-kpi"><span>Unidades disponíveis</span><strong id="rpStockUnits">—</strong><small id="rpStockSku">Produtos com saldo positivo</small></article>
+              <article class="rp-stock-kpi"><span>Sem vendas em 90 dias</span><strong id="rpStockIdle">—</strong><small id="rpStockIdleNote">Não significa necessariamente mercadoria encalhada</small></article>
+              <article class="rp-stock-kpi"><span>Capital com data conhecida</span><strong id="rpStockDateCoverage">—</strong><small id="rpStockDateNote">Cobertura da análise de idade dos lotes</small></article>
+            </div>
+            <div class="rp-stock-notice" role="status" aria-live="polite"><strong id="rpStockStatus">Aguardando leitura do estoque.</strong><p id="rpStockDetails">Esta análise não altera produtos, lotes, vendas ou estoque.</p></div>
+            <div class="rp-stock-columns">
+              <section class="surface rp-stock-block"><div class="surface-heading"><div><h2>Envelhecimento do estoque</h2><p>Idade comprovada pelo registro de entrada do lote PEPS</p></div></div><div id="rpStockAging" class="rp-stock-aging">—</div><p class="rp-footnote">Lotes sem data ficam separados; a data de cadastro do produto não substitui a data de entrada do lote.</p></section>
+              <section class="surface rp-stock-block"><div class="surface-heading"><div><h2>Alertas para análise</h2><p>Prioridades operacionais; não são ordens automáticas de compra ou promoção</p></div></div><div id="rpStockAlerts" class="rp-stock-alerts">—</div><p class="rp-footnote">Cobertura = estoque atual ÷ média diária de unidades efetivamente vendidas nos últimos 90 dias. Não inclui prazo de reposição da fábrica.</p></section>
+            </div>
+            <section class="surface rp-stock-table-block">
+              <div class="surface-heading responsive-heading"><div><h2>Produtos disponíveis</h2><p id="rpStockCount">—</p></div><button type="button" class="button button-light button-small" id="rpStockExport">Exportar CSV</button></div>
+              <div class="table-wrap"><table class="rp-stock-table"><thead><tr><th>PRODUTO</th><th>ESTOQUE</th><th>VALOR A CUSTO</th><th>VENDAS LÍQ. 90D</th><th>ÚLTIMA VENDA</th><th>COBERTURA</th><th>IDADE DO LOTE</th><th>ANÁLISE</th></tr></thead><tbody id="rpStockRows"><tr><td colspan="8">Abra a análise para calcular.</td></tr></tbody></table></div>
+              <p class="rp-footnote">Posição do estoque atual. Período móvel de 90 dias baseado no relógio deste dispositivo. Valores a custo e datas incompletas exigem conferência com a base oficial da CKR.</p>
+            </section>
+          </div><!-- /rpStockContent -->
         </section>
 
         <section class="panel" id="panel-orcado" aria-labelledby="or-title">
@@ -2480,6 +2520,175 @@
       showProcess(ev.target,'Lendo e conferindo arquivos XML...');
     }
   },true);
+})();
+</script>
+<script id="rp-giro-estoque-integrado-v120">
+'use strict';
+/* Controladoria v120: giro operacional de 90 dias e saúde dos lotes PEPS.
+   CONSULTA SOMENTE LEITURA. Não usa ensureLayers/stockValue, que podem modificar dados.
+   Posição atual; venda líquida de devoluções vinculadas à venda original.
+*/
+(function(){
+  const byId=id=>document.getElementById(id);
+  const panel=byId('panel-rentabilidade');
+  if(!panel)return;
+  const tabProfit=byId('rpTabProfit'),tabStock=byId('rpTabStock');
+  const profit=byId('rpProfitContent'),stock=byId('rpStockContent');
+  const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmtM=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const fmtN=n=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+  const fmtPct=n=>Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+  const cents=n=>Math.round((Number(n)||0)*100);
+  const dateOf=v=>{if(!v)return null;const d=new Date(v);return Number.isFinite(d.getTime())?d:null;};
+  const dateStr=d=>d?d.toLocaleDateString('pt-BR'):'Não registrada';
+  const dayDiff=(a,b)=>Math.max(0,Math.floor((a.getTime()-b.getTime())/86400000));
+  const finite=n=>Number.isFinite(Number(n));
+  const set=(id,v)=>{const el=byId(id);if(el)el.textContent=v;};
+  const source=()=>typeof data!=='undefined'&&data&&Array.isArray(data.products)&&Array.isArray(data.movements)?data:null;
+  let current=null,tab='profit';
+  function calc(){
+    const db=source();if(!db)return {ready:false,why:'Os produtos e movimentos ainda não estão disponíveis.'};
+    const now=new Date(), midnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()),start=new Date(midnight);start.setDate(start.getDate()-89);
+    const sales=new Map(),lastSales=new Map();
+    for(const mov of db.movements){
+      if(mov.type!=='venda'||mov.canceled||mov.cancelled||!mov.productId)continue;
+      const at=dateOf(mov.date),q=Number(mov.quantity);
+      if(!at||at>now||!Number.isFinite(q)||q<=0)continue;
+      const prev=lastSales.get(String(mov.productId));if(!prev||at>prev)lastSales.set(String(mov.productId),at);
+      if(at<start)continue;
+      const key=String(mov.productId)+'|'+String(mov.saleId||mov.id);
+      const rec=sales.get(key)||{pid:String(mov.productId),qty:0};rec.qty+=q;sales.set(key,rec);
+    }
+    // Somente devoluções ligadas a vendas ATIVAS dentro da janela; não subtrai duas vezes vendas canceladas.
+    for(const mov of db.movements){
+      if(mov.type!=='devolucao'||!mov.productId||!mov.saleId)continue;
+      const at=dateOf(mov.date),q=Number(mov.quantity);
+      if(!at||at>now||!Number.isFinite(q)||q<=0)continue;
+      const key=String(mov.productId)+'|'+String(mov.saleId),rec=sales.get(key);
+      if(rec)rec.qty=Math.max(0,rec.qty-q);
+    }
+    const sold=new Map();for(const item of sales.values())sold.set(item.pid,(sold.get(item.pid)||0)+item.qty);
+    const items=[],ageLabels=['Até 30 dias','31–60 dias','61–90 dias','91–180 dias','Mais de 180 dias','Sem data de entrada'];
+    const ages=ageLabels.map(label=>({label,units:0,value:0}));
+    let knownValue=0,unvalued=0,totalValue=0,unitTotal=0,dateValue=0,dormantValue=0,dormant=0,reviews=0;
+    const warnings=[];
+    for(const p of db.products){
+      const qty=Number(p.stock||0);if(!Number.isFinite(qty)||qty<=0)continue;
+      unitTotal+=qty;
+      const pid=String(p.id),netSold=sold.get(pid)||0,coverage=netSold>0?90*qty/netSold:null,last=lastSales.get(pid)||null;
+      const layers=Array.isArray(p.layers)?p.layers.filter(l=>finite(l.qty)&&Number(l.qty)>0):[];
+      let remaining=qty,value=0,datedValue=0,unknownQty=0,unknownCost=0,oldest=null,lotTotal=0,issue=[];
+      for(const l of layers){
+        const lQty=Number(l.qty);lotTotal+=lQty;
+        if(remaining<=0)continue;
+        const used=Math.min(lQty,remaining);remaining-=used;
+        const cost=Number(l.cost),goodCost=finite(l.cost)&&cost>=0;
+        if(!goodCost){unknownCost+=used;issue.push('Lote sem custo válido');continue;}
+        const val=used*cost;value+=val;
+        const ageDate=dateOf(l.date);
+        if(!ageDate||ageDate>now){unknownQty+=used;ages[5].units+=used;ages[5].value+=val;continue;}
+        datedValue+=val;const day=dayDiff(midnight,ageDate),i=day<=30?0:day<=60?1:day<=90?2:day<=180?3:4;
+        ages[i].units+=used;ages[i].value+=val;
+        if(!oldest||day>oldest)oldest=day;
+      }
+      if(remaining>0){
+        // Fallback de custo do produto: valor estimado, SEM CRIAR LOTE no cadastro.
+        const cost=Number(p.cost);
+        if(finite(p.cost)&&cost>=0){const val=remaining*cost;value+=val;ages[5].units+=remaining;ages[5].value+=val;unknownQty+=remaining;issue.push('Quantidade sem lote PEPS; custo de referência aplicado');}
+        else{unknownCost+=remaining;issue.push('Quantidade sem custo conhecido');}
+      }
+      if(Math.abs(lotTotal-qty)>0.001)issue.push('Soma dos lotes diferente do estoque');
+      if(unknownCost>0)issue.push('Parte do estoque sem custo confiável');
+      if(issue.length)reviews++;
+      // Valores nulos/incompletos ficam explicitamente fora da valorização conhecida.
+      totalValue+=value;dateValue+=datedValue;unvalued+=unknownCost;
+      if(netSold<=0){dormant++;dormantValue+=value;}
+      const status=netSold<=0?'Sem venda em 90 dias':coverage<30?'Avaliar reposição':oldest!==null&&oldest>=180?'Lote antigo':'Giro observado';
+      const item={id:pid,code:String(p.code||''),name:String(p.name||'Sem nome'),qty,stockValue:value,qtyWithoutCost:unknownCost,datedValue,unknownQty,netSold,coverage,last,oldest,issues:issue,status};
+      items.push(item);
+    }
+    items.sort((a,b)=>b.stockValue-a.stockValue||a.name.localeCompare(b.name,'pt-BR'));
+    const risk=items.filter(p=>p.netSold<=0).sort((a,b)=>b.stockValue-a.stockValue).slice(0,3);
+    const replen=items.filter(p=>p.coverage!==null&&p.coverage<30).sort((a,b)=>a.coverage-b.coverage).slice(0,3);
+    return {ready:true,items,ages,risk,replen,now,start,totalValue,dateValue,unitTotal,dormant,dormantValue,unvalued,reviews};
+  }
+  function showFailure(msg){
+    current=null;set('rpStockStatus',msg);set('rpStockDetails','Nenhum dado foi modificado. Confira o backup e o cadastro de produtos.');
+    ['rpStockCapital','rpStockUnits','rpStockIdle','rpStockDateCoverage','rpStockSku','rpStockIdleNote','rpStockDateNote','rpStockCount'].forEach(k=>set(k,'—'));
+    byId('rpStockRows').innerHTML='<tr><td colspan="8" class="rp-empty">'+safe(msg)+'</td></tr>';
+    set('rpStockAging','—');set('rpStockAlerts','—');
+  }
+  function renderList(){
+    if(!current||!current.ready)return;
+    const d=current,q=byId('rpStockSearch').value.trim().toLocaleLowerCase('pt-BR');
+    const f=byId('rpStockFilter').value,sort=byId('rpStockSort').value;
+    const list=d.items.filter(p=>{
+      if(q&&!(`${p.name} ${p.code}`.toLocaleLowerCase('pt-BR').includes(q)))return false;
+      if(f==='noSales')return p.netSold<=0;
+      if(f==='lowCoverage')return p.coverage!==null&&p.coverage<30;
+      if(f==='old')return p.oldest!==null&&p.oldest>=180;
+      if(f==='unknown')return p.unknownQty>0;
+      if(f==='review')return p.issues.length>0;
+      return true;
+    });
+    const order={capital:(a,b)=>b.stockValue-a.stockValue,slow:(a,b)=>a.netSold-b.netSold||b.stockValue-a.stockValue,cover:(a,b)=>(a.coverage??Infinity)-(b.coverage??Infinity),age:(a,b)=>(b.oldest??-1)-(a.oldest??-1),name:(a,b)=>a.name.localeCompare(b.name,'pt-BR')};
+    list.sort((a,b)=>(order[sort]||order.capital)(a,b)||a.name.localeCompare(b.name,'pt-BR'));
+    set('rpStockCount',`${list.length} produto(s)${list.length>100?' · primeiros 100 exibidos; CSV exporta todos':''}`);
+    byId('rpStockRows').innerHTML=list.length?list.slice(0,100).map(p=>{
+      const age=p.oldest!==null?`${p.oldest} dias${p.unknownQty?' + sem data':''}`:'Não identificada';
+      const cov=p.coverage!==null?`${fmtN(p.coverage)} dias`:'Sem vendas';
+      return `<tr><td><strong title="${safe(p.name)}">${safe(p.name)}</strong><small>${safe(p.code)}</small></td><td>${fmtN(p.qty)}</td><td>${fmtM(p.stockValue)}${p.qtyWithoutCost?'<small>Parcial</small>':''}</td><td>${fmtN(p.netSold)}</td><td>${dateStr(p.last)}</td><td>${cov}</td><td>${age}</td><td><span class="rp-stock-chip ${p.netSold<=0?'rp-stock-chip-idle':p.coverage!==null&&p.coverage<30?'rp-stock-chip-low':''}">${safe(p.status)}</span>${p.issues.length?'<small title="'+safe(p.issues.join('; '))+'">Conferir cadastro</small>':''}</td></tr>`;
+    }).join(''):'<tr><td colspan="8" class="rp-empty">Nenhum produto corresponde aos filtros.</td></tr>';
+  }
+  function recalc(){
+    if(!panel.classList.contains('active')||tab!=='stock')return;
+    try{current=calc();}catch(e){console.error('Giro de estoque',e);showFailure('Não foi possível calcular a análise: '+String(e.message||e));return;}
+    if(!current.ready){showFailure(current.why);return;}
+    const d=current;
+    set('rpStockRef','Posição em '+dateStr(d.now));
+    set('rpStockCapital',fmtM(d.totalValue));
+    set('rpStockCapitalNote',d.unvalued?'Valor parcial; '+fmtN(d.unvalued)+' unidade(s) sem custo confiável':'Valor calculado pelos lotes; confirme diferenças de cadastro');
+    set('rpStockUnits',fmtN(d.unitTotal));set('rpStockSku',d.items.length+' produto(s) com saldo positivo');
+    set('rpStockIdle',String(d.dormant));set('rpStockIdleNote',fmtM(d.dormantValue)+' a custo sem venda nos últimos 90 dias');
+    set('rpStockDateCoverage',d.totalValue>0?fmtPct(d.dateValue/d.totalValue*100):'—');
+    set('rpStockDateNote',fmtM(d.dateValue)+' de capital com data de lote registrada');
+    set('rpStockStatus','Posição atual e movimentação recente — estimativa operacional.');
+    set('rpStockDetails',`${d.items.length} produto(s) com estoque, ${d.dormant} sem vendas nos últimos 90 dias, ${d.reviews} cadastro(s) com custo ou lote a conferir. O relatório não modifica os dados.`);
+    const max=Math.max(1,...d.ages.map(a=>a.value));
+    byId('rpStockAging').innerHTML=d.ages.map(a=>`<div class="rp-stock-age-row"><div class="rp-stock-age-head"><strong>${safe(a.label)}</strong><span>${fmtM(a.value)} · ${fmtN(a.units)} un.</span></div><div class="rp-stock-age-bar"><span style="width:${Math.min(100,100*a.value/max)}%"></span></div></div>`).join('');
+    const alert=[];
+    if(d.risk.length)alert.push(`<div class="rp-stock-alert-line"><b>Maior capital sem vendas em 90 dias</b>${d.risk.map(x=>`<span>${safe(x.name)} — ${fmtM(x.stockValue)}</span>`).join('')}</div>`);
+    if(d.replen.length)alert.push(`<div class="rp-stock-alert-line"><b>Avaliar cobertura inferior a 30 dias</b>${d.replen.map(x=>`<span>${safe(x.name)} — ${fmtN(x.coverage)} dias</span>`).join('')}</div>`);
+    if(d.unvalued>0)alert.push(`<div class="rp-stock-alert-line"><b>Custos a conferir</b><span>${fmtN(d.unvalued)} unidade(s) sem custo comprovável</span></div>`);
+    if(d.dateValue<d.totalValue)alert.push(`<div class="rp-stock-alert-line"><b>Idade incompleta</b><span>${fmtM(d.totalValue-d.dateValue)} sem data válida de lote</span></div>`);
+    byId('rpStockAlerts').innerHTML=alert.length?alert.join(''):'<p>Sem alertas desta seleção de critérios.</p>';
+    renderList();
+  }
+  function activate(which){
+    tab=which==='stock'?'stock':'profit';
+    const s=tab==='stock';stock.hidden=!s;profit.hidden=s;
+    tabStock.classList.toggle('is-active',s);tabProfit.classList.toggle('is-active',!s);
+    tabStock.setAttribute('aria-selected',String(s));tabProfit.setAttribute('aria-selected',String(!s));
+    if(s)recalc();
+  }
+  function exportCSV(){
+    if(!current||!current.ready)return;
+    const cols=['Produto','Código','Unidades em estoque','Valor PEPS estimado','Unidades sem custo','Vendas líquidas 90d','Última venda','Cobertura dias','Idade maior lote conhecido','Unidades sem data','Situação','Ressalvas'];
+    const rows=current.items.map(p=>[p.name,p.code,fmtN(p.qty),p.stockValue.toFixed(2).replace('.',','),fmtN(p.qtyWithoutCost),fmtN(p.netSold),dateStr(p.last),p.coverage===null?'':p.coverage.toFixed(2).replace('.',','),p.oldest===null?'':String(p.oldest),fmtN(p.unknownQty),p.status,p.issues.join(' | ')]);
+    const csvCell=v=>{let s=String(v??'');if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';};
+    const csv='\ufeff'+[cols,...rows].map(row=>row.map(csvCell).join(';')).join('\r\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download='conceito-saude-estoque-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+  }
+  tabProfit.addEventListener('click',()=>activate('profit'));
+  tabStock.addEventListener('click',()=>activate('stock'));
+  ['rpStockSearch','rpStockFilter','rpStockSort'].forEach(id=>byId(id).addEventListener(id==='rpStockSearch'?'input':'change',renderList));
+  byId('rpStockUpdate').addEventListener('click',recalc);
+  byId('rpStockExport').addEventListener('click',exportCSV);
+  // Cada visita à aba Controladoria pode refletir uma restauração de backup nesta sessão.
+  document.querySelector('.nav-link[data-panel="rentabilidade"]')?.addEventListener('click',()=>Promise.resolve().then(()=>{if(tab==='stock')recalc();}));
+  if(typeof MutationObserver==='function')new MutationObserver(changes=>{if(changes.some(x=>x.attributeName==='class')&&panel.classList.contains('active')&&tab==='stock')Promise.resolve().then(recalc);}).observe(panel,{attributes:true,attributeFilter:['class']});
+  window.ckrSaudeEstoqueAnalise=calc; // Somente consulta / testes
 })();
 </script>
 </body>
