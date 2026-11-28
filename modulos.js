@@ -97,11 +97,12 @@ function render(){
  $('pdvRestoLabel').textContent=t.change>0.009?'Troco':'Falta receber';
  $('pdvResto').textContent=money(t.change>0.009?t.change:Math.max(0,t.rest));
 }
+function clearPdvDiscount(){$('pdvDescReais').value='';$('pdvDescPct').value='';}
 function add(p,q=1){
  if(!p||q<1)return;
  const have=cart.filter(x=>x.productId===p.id).reduce((n,x)=>n+x.quantity,0);
  if(have+q>Number(p.stock||0)){toast(`Estoque insuficiente para ${p.name}. Disponível: ${Number(p.stock||0)}.`,true);return;}
- const it=cart.find(x=>x.productId===p.id);
+ clearPdvDiscount();const it=cart.find(x=>x.productId===p.id);
  if(it)it.quantity+=q;else cart.push({productId:p.id,name:p.name,quantity:q,price:r2(p.price),cost:Number(p.cost||0)});
  render();
 }
@@ -190,6 +191,7 @@ $('pdvFechar').addEventListener('click',closeCash);
 $('pdvFinalizar').addEventListener('click',finish);
 $('pdvImprimir').addEventListener('click',()=>{if(lastReceipt)printCoupon(lastReceipt);});
 $('pdvPdf').addEventListener('click',()=>{if(lastReceipt)createReceiptPdf(lastReceipt);});
+$('pdvCliente').addEventListener('input',()=>{clearPdvDiscount();render();});
 $('pdvBusca').addEventListener('input',()=>{$('pdvPos').hidden=true;showSug();});
 $('pdvSoEstoque').addEventListener('change',showSug);
 $('pdvBusca').addEventListener('keydown',e=>{
@@ -204,8 +206,8 @@ $('pdvBusca').addEventListener('keydown',e=>{
 $('pdvSug').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;add(productById(b.dataset.p),parseQuery().q);$('pdvBusca').value='';$('pdvSug').hidden=true;$('pdvBusca').focus();});
 $('pdvLinhas').addEventListener('click',e=>{
  const q=e.target.closest('[data-q]'),x=e.target.closest('[data-x]');
- if(q){const it=cart[+q.dataset.q],n=it.quantity+Number(q.dataset.d),p=productById(it.productId);if(n<1)cart.splice(+q.dataset.q,1);else if(!p||n>Number(p.stock)){toast('Estoque insuficiente.',true);return;}else it.quantity=n;render();}
- else if(x){cart.splice(+x.dataset.x,1);render();}
+ if(q){const it=cart[+q.dataset.q],n=it.quantity+Number(q.dataset.d),p=productById(it.productId);if(n<1){cart.splice(+q.dataset.q,1);clearPdvDiscount();}else if(!p||n>Number(p.stock)){toast('Estoque insuficiente.',true);return;}else it.quantity=n;render();}
+ else if(x){cart.splice(+x.dataset.x,1);clearPdvDiscount();render();}
 });
 $('pdvChips').addEventListener('click',e=>{const b=e.target.closest('[data-px]');if(b){pays.splice(+b.dataset.px,1);render();}});
 function pdvSync(){const t=totals();syncPayExtra($('pdvPagExtra'),$('pdvPagMetodo').value,r2(parseMoneyInput($('pdvPagValor').value)||Math.max(0,t.rest)));}
