@@ -1,5 +1,5 @@
-const CACHE = 'conceito-v131-estoque-estrategico';
-const CORE = ['./', 'index.html', 'app.js?v=45', 'modulos.js?v=126', 'encomendas.js?v=6', 'despesas.js?v=123', 'caixa.js?v=130', 'impostos.js?v=15', 'dre.js?v=126', 'fluxo.js?v=2', 'servicos.js?v=4', 'style.css?v=124', 'contribuicao.js?v=116', 'dashboard.js?v=123', 'backup_seguro.js?v=3', 'precos.js?v=130', 'metas.js?v=126', 'auditoria.js?v=125', 'comparativo.js?v=129', 'blu.js?v=130', 'estoque_estrategico.js?v=131', 'manifest.webmanifest',
+const CACHE = 'conceito-v132-recebimentos-descontos';
+const CORE = ['./', 'index.html', 'app.js?v=132', 'modulos.js?v=132', 'encomendas.js?v=132', 'despesas.js?v=123', 'caixa.js?v=132', 'impostos.js?v=15', 'dre.js?v=126', 'fluxo.js?v=2', 'servicos.js?v=4', 'style.css?v=124', 'contribuicao.js?v=116', 'dashboard.js?v=123', 'backup_seguro.js?v=3', 'precos.js?v=132', 'metas.js?v=126', 'auditoria.js?v=125', 'comparativo.js?v=129', 'blu.js?v=130', 'estoque_estrategico.js?v=131', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
