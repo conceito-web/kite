@@ -103,7 +103,7 @@ window.ckrEncomendaSubmit=function(){
  pending=null;
  saleCart=[];$('formVenda').reset();setSaleDateToday();$('linhasPagamento').innerHTML='';addPaymentRow();renderVendaProdutoSelect(false);
  renderCart();updateSalePreview();
- if(saveData()){toast(`Encomenda ${num(o)} ${old?'atualizada':'salva'}. Estoque não foi alterado; o valor pago já entra no Caixa (cartão no 1º dia útil) e pode ser usado.`);goTo('encomendas');}
+ if(saveData()){toast(`Encomenda ${num(o)} ${old?'atualizada':'salva'}. Estoque não foi alterado; o valor pago segue as regras do Caixa: cartão fábrica imediato e cartão loja conforme vencimento das parcelas.`);goTo('encomendas');}
  return true;
 };
 
