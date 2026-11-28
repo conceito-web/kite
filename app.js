@@ -218,11 +218,11 @@ function renderVendaProdutoSelect(){
  }
  function pick(i){
   const p=items[i];if(!p)return;
-  sel.value=p.id;box.value=p.name;close();updateSalePreview();
+  if(sel.value!==p.id)clearVendaDiscount();sel.value=p.id;box.value=p.name;close();updateSalePreview();
   document.getElementById('vendaQuantidade').focus();
  }
  box.addEventListener('input',()=>{
-  if(sel.value){const cur=productById(sel.value);if(!cur||cur.name!==box.value){sel.value='';updateSalePreview();}}
+  if(sel.value){const cur=productById(sel.value);if(!cur||cur.name!==box.value){sel.value='';clearVendaDiscount();updateSalePreview();}}
   render();
  });
  box.addEventListener('focus',()=>{if(box.value.trim()&&!sel.value)render();});
@@ -456,6 +456,7 @@ document.getElementById('listaProdutos').addEventListener('click',e=>{
 document.getElementById('buscaProduto').addEventListener('input',renderProducts);
 document.getElementById('filtroEstoquePositivo').addEventListener('change',renderProducts);
 document.getElementById('formEntrada').addEventListener('submit',e=>{e.preventDefault();const p=productById(document.getElementById('entradaProduto').value),qty=Number(document.getElementById('entradaQuantidade').value),note=document.getElementById('entradaObs').value.trim();if(!p){toast('Cadastre e selecione um produto primeiro.',true);return;}if(!Number.isInteger(qty)||qty<1){toast('Informe uma quantidade inteira maior que zero.',true);return;}const uc=parseMoneyInput(document.getElementById('entradaCusto').value)||Number(p.cost||0);stockIn(p,qty,uc);recordMovement('entrada',p,qty,uc*qty,note,{unitCost:uc});if(saveData()){e.target.reset();toast('Entrada registrada com sucesso.');}});
+function clearVendaDiscount(){document.getElementById('vendaDescontoReais').value='';document.getElementById('vendaDescontoPercentual').value='';}
 function cartSubtotal(){return Math.round(saleCart.reduce((sum,item)=>sum+item.quantity*item.price,0)*100)/100;}
 function saleTotals(){
  const subtotal=saleCart.length?cartSubtotal():Math.round(Number(document.getElementById('vendaQuantidade').value||0)*parseMoneyInput(document.getElementById('vendaPreco').value)*100)/100;
@@ -474,14 +475,14 @@ function renderCart(){
  document.getElementById('totalVendaPreview').textContent=money(saleTotals().total);
  updatePaymentSummary();
 }
-document.getElementById('carrinhoLinhas').addEventListener('click',e=>{const b=e.target.closest('[data-cart-remove]');if(!b)return;saleCart.splice(Number(b.dataset.cartRemove),1);renderCart();});
+document.getElementById('carrinhoLinhas').addEventListener('click',e=>{const b=e.target.closest('[data-cart-remove]');if(!b)return;saleCart.splice(Number(b.dataset.cartRemove),1);clearVendaDiscount();renderCart();});
 document.getElementById('adicionarAoCarrinho').addEventListener('click',()=>{
  const p=productById(document.getElementById('vendaProduto').value),qty=Number(document.getElementById('vendaQuantidade').value),price=parseMoneyInput(document.getElementById('vendaPreco').value);
  if(!p){toast('Selecione um produto.',true);return;}if(!Number.isInteger(qty)||qty<1){toast('Informe uma quantidade inteira maior que zero.',true);return;}if(!Number.isFinite(price)||price<0){toast('Informe um preço válido.',true);return;}
  const already=saleCart.filter(x=>x.productId===p.id).reduce((n,x)=>n+x.quantity,0);
  if(!(window.ckrEncomendaOn&&window.ckrEncomendaOn())&&already+qty>availableStock(p)){toast(`Estoque insuficiente para ${p.name}. Disponível: ${availableStock(p)}.`,true);return;}
  const existing=saleCart.find(x=>x.productId===p.id&&x.price===Math.round(price*100)/100);
- if(existing)existing.quantity+=qty;else saleCart.push({productId:p.id,name:p.name,quantity:qty,price:Math.round(price*100)/100,cost:Number(p.cost||0)});
+ clearVendaDiscount();if(existing)existing.quantity+=qty;else saleCart.push({productId:p.id,name:p.name,quantity:qty,price:Math.round(price*100)/100,cost:Number(p.cost||0)});
  document.getElementById('vendaQuantidade').value='1';document.getElementById('vendaBuscaProduto').value='';renderVendaProdutoSelect(false);renderCart();toast(`${p.name} adicionado ao carrinho.`);
 });
 // ===== Pagamentos: formas, taxas, crédito da fábrica e promissória =====
@@ -653,7 +654,9 @@ function updateSalePreview(){
  const p=productById(document.getElementById('vendaProduto').value);if(p&&document.activeElement!==document.getElementById('vendaPreco'))document.getElementById('vendaPreco').value=Number(p.price).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
  const t=saleTotals();document.getElementById('subtotalVendaPreview').textContent=money(t.subtotal);document.getElementById('totalVendaPreview').textContent=money(t.total);updatePaymentSummary();
 }
-['vendaProduto','vendaQuantidade','vendaPreco','vendaDescontoReais','vendaDescontoPercentual'].forEach(key=>document.getElementById(key).addEventListener(key==='vendaProduto'?'change':'input',updateSalePreview));
+document.getElementById('vendaProduto').addEventListener('change',()=>{clearVendaDiscount();updateSalePreview();});
+document.getElementById('vendaCliente').addEventListener('input',()=>{clearVendaDiscount();updateSalePreview();});
+['vendaQuantidade','vendaPreco','vendaDescontoReais','vendaDescontoPercentual'].forEach(key=>document.getElementById(key).addEventListener('input',updateSalePreview));
 ['vendaPreco','vendaDescontoReais'].forEach(key=>bindMoneyMask(document.getElementById(key)));bindPercentInput(document.getElementById('vendaDescontoPercentual'));
 ['vendaPreco','vendaDescontoReais'].forEach(key=>document.getElementById(key).addEventListener('money-mask-updated',updateSalePreview));
 document.getElementById('adicionarPagamento').addEventListener('click',addPaymentRow);
