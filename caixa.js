@@ -58,23 +58,23 @@ function ensureStart(){
 }
 
 // ---------- entradas automáticas (vendas no cartão, dinheiro, Pix e encomendas) ----------
-// REGRA DO 1º DIA ÚTIL: venda no CARTÃO (Registrar venda e PDV) só entra no Caixa no 1º dia útil (seg–sex) depois da venda; dinheiro e Pix entram na hora.
-// ENCOMENDA aberta: o que o cliente já pagou entra no Caixa com as mesmas regras das vendas (dinheiro/Pix na hora; cartão no 1º dia útil; fábrica 60% crédito / 40% Caixa BLU) e JÁ PODE SER USADO. Só não baixa estoque.
+// Cartão fábrica: crédito e parcela financeira reconhecidos na data do pagamento; cartão loja mantém a agenda de vencimentos.
+// Encomenda aberta: mesmas regras de recebimento das vendas, sem baixa de estoque.
 function entryFor(k,day,ts,client,payments,opt){
- const hoje=todayISO(),ov=conf().parcelas||{},dFab=nextBiz(day),dNon=opt.locked?dFab:day;
+ const hoje=todayISO(),ov=conf().parcelas||{},dFab=day,dNon=day;
  let fab=0,cash=0,pix=0,fcr=0;const parcs=[];
  payments.forEach((p,pi)=>{
   if(!p)return;
   if((opt.locked||opt.enc)&&p.fee==null&&typeof enrichPayment==='function')p=enrichPayment(p);
-  const amt=Number(p.amount||0),card=isCard(p.method),eff=card?dFab:dNon;
+  const amt=Number(p.amount||0),card=isCard(p.method),eff=card?nextBiz(day):dNon;
   // A venda no cartão loja gera recebíveis na Agenda imediatamente;
   // a liquidação continua acontecendo apenas no vencimento de cada parcela.
-  // Pagamentos pela fábrica seguem aguardando o primeiro dia útil.
+  // Pagamentos pela fábrica são reconhecidos na data do pagamento.
   if(p.method===CASH){cash+=amt;return;}
   if(p.method===PIX){pix+=amt;return;}
   if(!card)return;
   if((p.method===PM.CREDIT||p.method===PM.BLU||p.method===PM.DEBIT)&&p.responsible==='fabrica'){
-   if(eff>hoje)return;   // mantém a regra vigente do cartão fábrica
+   if(day>hoje)return;   // não reconhece pagamentos futuros
    fab+=amt-Number(p.factoryCredit||0);fcr+=Number(p.factoryCredit||0);return;
   }
   if(day>hoje)return;   // não antecipa recebíveis de vendas registradas para data futura
@@ -112,7 +112,7 @@ function autoEntries(){
    if(e)out.push(e);
   });
  });
- // encomendas em aberto: pagamentos recebidos entram no 1º dia útil, bloqueados até a entrega
+ // Encomendas em aberto: recebimentos disponíveis conforme modalidade, sem baixa de estoque.
  (data.preorders||[]).forEach(o=>{
   if(!o||o.status!=='aberta')return;
   (o.payments||[]).forEach((p,pi)=>{
@@ -247,7 +247,7 @@ window.ckrBLUAnalise=function(){
  (data.factoryCreditsManual||[]).forEach(x=>creditRows.push({date:dateKey(x.date),amount:Number(x.amount||0),kind:x.kind==='balanceAdjustment'?'Ajuste de saldo':'Crédito manual'}));
  (data.factoryLedger||[]).forEach(x=>creditRows.push({date:dateKey(x.date),amount:-Number(x.amount||0),kind:'Utilização'}));
  const releases=[],missing=[];const start=conf().start||'';
- const inspect=(p,day)=>{if(!p||!day||!isCard(p.method)||(start&&day<start))return;const date=nextBiz(day),amount=Number(p.amount);if(date>hoje||!Number.isFinite(amount)||amount<=0)return;const has=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+ const inspect=(p,day)=>{if(!p||!day||!isCard(p.method)||(start&&day<start))return;const date=p.responsible==='fabrica'?day:nextBiz(day),amount=Number(p.amount);if(date>hoje||!Number.isFinite(amount)||amount<=0)return;const has=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
   if(p.responsible==='fabrica'){if(!has(p.factoryCredit)||Number(p.factoryCredit)<0||Number(p.factoryCredit)>amount){missing.push({date,amount,kind:'crédito fábrica'});return;}releases.push({date,cash:r2(amount-Number(p.factoryCredit)),credit:Number(p.factoryCredit)});}
   else if(!has(p.fee)||Number(p.fee)<0||Number(p.fee)>amount)missing.push({date,amount,kind:'taxa cartão loja'});
  };
@@ -284,7 +284,7 @@ function renderCard(S){
   return `<div class="cx-acc"><div class="cx-acc-top"><div><b>${esc(a.name)}</b><small>${esc(sub)}</small></div><strong class="${S.b[a.k]<0?'cx-neg':''}">${signed(S.b[a.k])}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="transf" data-acc="${a.k}">Transferir</button><button type="button" class="row-action" data-cx="ajuste" data-acc="${a.k}">Editar saldo</button><button type="button" class="row-action" data-cx="extrato" data-acc="${a.k}">Extrato</button>${lk>0.004?`<button type="button" class="row-action" data-cx="lock" data-acc="${a.k}">⚠ ${money(lk)} de encomenda · saiba mais</button>`:''}</div>${wp}</div>`;
  }).join('')+(()=>{const fs=fabSaldo();return `<div class="cx-acc"><div class="cx-acc-top"><div><b>Crédito com a fábrica</b><small>Saldo disponível · não entra no saldo total</small></div><strong class="${fs<0?'cx-neg':''}">${signed(fs)}</strong></div><div class="cx-acc-btns"><button type="button" class="row-action" data-cx="ajustefab">Editar saldo</button><button type="button" class="row-action" data-cx="extratofab">Extrato</button>${S.lockFab>0.004?`<button type="button" class="row-action" data-cx="lockfab">⚠ ${money(S.lockFab)} de encomenda · saiba mais</button>`:''}</div></div>`;})();
  const fabPct=100-getSettings().factoryCreditPct;
- $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Regra do 1º dia útil:</b> vendas no cartão (Registrar venda e PDV) só entram aqui no 1º dia útil (seg–sex) depois da venda; o que o cliente já pagou numa <b>encomenda</b> segue a mesma regra e já pode ser usado (a encomenda só não baixa estoque até a entrega). <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
+ $('cxNota').innerHTML=`<b>Caixa BLU:</b> cartão fábrica entra na hora com ${fabPct.toLocaleString('pt-BR',{maximumFractionDigits:2})}% do valor (o resto vira crédito com a fábrica); cartão loja entra já sem a taxa, parcela por parcela, na data de entrada (veja a Agenda BLU abaixo). <b>Dinheiro CAIXA:</b> vendas pagas em dinheiro. <b>Encomendas:</b> seguem as mesmas regras de recebimento das vendas; cartão fábrica reconhecido imediatamente, cartão loja conforme vencimento das parcelas. A entrega é que baixa o estoque. <b>Pix:</b> entra com o valor cheio na conta escolhida abaixo. Despesas pagas saem da conta escolhida em "Saiu de qual conta?". <label class="field" style="margin-top:10px">Pix entra em qual conta?<select id="cxPixAcc">${ACCS.map(a=>`<option value="${a.k}"${a.k===S.pa?' selected':''}>${esc(a.name)}</option>`).join('')}</select></label> <label class="field" style="margin-top:10px">Contar vendas a partir de<input type="date" id="cxStart" value="${esc(conf().start||'')}"></label>`;
 }
 function rowsAll(S){
  const rows=[];
